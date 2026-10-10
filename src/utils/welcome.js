@@ -1,10 +1,11 @@
 // welcome.js
 
 import { logger } from './logger.js';
+import { t, trAny } from '../i18n/index.js';
 
 const DEFAULT_TEMPLATES = {
-    welcome: 'Welcome {user} to {server}!',
-    goodbye: '{user.tag} has left the server.'
+    welcome: t('Welcome {user} to {server}!'),
+    goodbye: t('{user.tag} has left the server.')
 };
 
 function replaceAll(message, token, value) {
@@ -26,6 +27,8 @@ export function formatWelcomeMessage(message, data) {
     
     if (typeof message !== 'string') return '';
     if (!message) return '';
+    // Built-in default templates follow the server language; custom text is left alone.
+    message = trAny(message);
     if (!data || typeof data !== 'object') return message;
 
     const user = data?.user;
@@ -39,20 +42,25 @@ export function formatWelcomeMessage(message, data) {
     }
 
     const tokens = {
-        '{user}': user?.toString?.() || 'User',
-        '{user.mention}': user?.toString?.() || 'User',
+        '{user}': user?.toString?.() || t('User'),
+        '{user.mention}': user?.toString?.() || t('User'),
         '{user.tag}': user?.tag || 'Unknown#0000',
-        '{user.username}': user?.username || 'Unknown',
-        '{username}': user?.username || 'Unknown',
+        '{user.username}': user?.username || t('Unknown'),
+        '{username}': user?.username || t('Unknown'),
         '{user.discriminator}': user?.discriminator || '0000',
         '{user.id}': user?.id || 'unknown',
-        '{server}': guild?.name || 'Server',
-        '{server.name}': guild?.name || 'Server',
-        '{guild.name}': guild?.name || 'Server',
+        '{server}': guild?.name || t('Server'),
+        '{server.name}': guild?.name || t('Server'),
+        '{guild.name}': guild?.name || t('Server'),
         '{guild.id}': guild?.id || 'unknown',
         '{guild.memberCount}': guild?.memberCount?.toString?.() || '0',
         '{memberCount}': guild?.memberCount?.toString?.() || '0',
-        '{membercount}': guild?.memberCount?.toString?.() || '0'
+        '{membercount}': guild?.memberCount?.toString?.() || '0',
+        // Invite tracker (empty when the inviter is unknown)
+        '{inviter}': data?.invite?.inviter?.toString?.() || t('someone'),
+        '{inviter.tag}': data?.invite?.inviter?.tag || t('someone'),
+        '{invites}': String(data?.invite?.stats?.total ?? 0),
+        '{invite.code}': data?.invite?.code || '—'
     };
 
     let result = message;

@@ -2,6 +2,7 @@
 
 import { checkRateLimit, getRateLimitStatus, clearAllRateLimits } from './rateLimiter.js';
 import { logger } from './logger.js';
+import { t } from '../i18n/index.js';
 
 const DEFAULT_PROTECTION_POLICY = Object.freeze({
   maxAttempts: 2,
@@ -109,7 +110,7 @@ function recordBlockedAttempt(key, commandName, interaction, command, remainingM
 
 export function formatCooldownDuration(ms) {
   if (!Number.isFinite(ms) || ms <= 0) {
-    return 'a moment';
+    return t('a moment');
   }
 
   const totalSeconds = Math.ceil(ms / 1000);

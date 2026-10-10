@@ -5,22 +5,23 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { botConfig } from '../../config/bot.js';
+import { t } from '../../i18n/index.js';
 
 const WORK_COOLDOWN = botConfig.economy?.cooldowns?.work ?? 30 * 60 * 1000;
 const MIN_WORK_AMOUNT = botConfig.economy?.workMin ?? 10;
 const MAX_WORK_AMOUNT = botConfig.economy?.workMax ?? 100;
 const LAPTOP_MULTIPLIER = 1.5;
 const WORK_JOBS = [
-    "Software Developer",
-    "Barista",
-    "Janitor",
+    t("Software Developer"),
+    t("Barista"),
+    t("Janitor"),
     "YouTuber",
-    "Discord Bot Developer",
-    "Cashier",
-    "Pizza Delivery Driver",
-    "Librarian",
-    "Gardener",
-    "Data Analyst",
+    t("Discord Bot Developer"),
+    t("Cashier"),
+    t("Pizza Delivery Driver"),
+    t("Librarian"),
+    t("Gardener"),
+    t("Data Analyst"),
 ];
 
 export default {
@@ -42,7 +43,7 @@ export default {
                 throw createError(
                     "Failed to load economy data for work",
                     ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
+                    t("Failed to load your economy data. Please try again later."),
                     { userId, guildId }
                 );
             }
@@ -66,7 +67,7 @@ export default {
                     throw createError(
                         "Work cooldown active",
                         ErrorTypes.RATE_LIMIT,
-                        `You're working too fast! Wait **${Math.floor(remaining / 3600000)}h ${Math.floor((remaining % 3600000) / 60000)}m** before working again.`,
+                        t`You're working too fast! Wait **${Math.floor(remaining / 3600000)}h ${Math.floor((remaining % 3600000) / 60000)}m** before working again.`,
                         { timeRemaining: remaining, cooldownType: 'work' }
                     );
                 }
@@ -78,7 +79,7 @@ export default {
             let multiplierMessage = "";
             if (hasLaptop > 0) {
                 earned = Math.floor(earned * LAPTOP_MULTIPLIER);
-                multiplierMessage = "\n💻 **Laptop Bonus:** +50% earnings!";
+                multiplierMessage = t("\n💻 **Laptop Bonus:** +50% earnings!");
             }
 
             userData.wallet = (userData.wallet || 0) + earned;
@@ -98,23 +99,23 @@ export default {
             });
 
             const embed = successEmbed(
-                "💼 Work Complete!",
-                `You worked as a **${job}** and earned **$${earned.toLocaleString()}**!${multiplierMessage}`
+                t("💼 Work Complete!"),
+                t`You worked as a **${job}** and earned **$${earned.toLocaleString()}**!${multiplierMessage}`
             )
                 .addFields(
                     {
-                        name: "New Balance",
+                        name: t("New Balance"),
                         value: `$${userData.wallet.toLocaleString()}`,
                         inline: true,
                     },
                     {
-                        name: "Next Work",
+                        name: t("Next Work"),
                         value: `<t:${Math.floor((now + WORK_COOLDOWN) / 1000)}:R>`,
                         inline: true,
                     }
                 )
                 .setFooter({
-                    text: `Requested by ${interaction.user.tag}`,
+                    text: t`Requested by ${interaction.user.tag}`,
                     iconURL: interaction.user.displayAvatarURL(),
                 });
 

@@ -1,11 +1,12 @@
 import { logger } from '../utils/logger.js';
+import { t } from '../i18n/index.js';
 
 const COUNTING_GAME_KEY_PREFIX = 'countingGame:';
 
 const COUNTING_SYSTEMS = {
   decimal: {
-    label: 'Decimal',
-    description: 'Standard 10-number system using 0-9',
+    label: t('Decimal'),
+    description: t('Standard 10-number system using 0-9'),
     toString: (n) => n.toString(10),
     parse: (value) => {
       if (!/^[0-9]+$/.test(value)) return null;
@@ -13,8 +14,8 @@ const COUNTING_SYSTEMS = {
     },
   },
   hexadecimal: {
-    label: 'Hexadecimal',
-    description: '16-number system using 0-9 and A-F',
+    label: t('Hexadecimal'),
+    description: t('16-number system using 0-9 and A-F'),
     toString: (n) => n.toString(16).toUpperCase(),
     parse: (value) => {
       if (!/^[0-9A-Fa-f]+$/.test(value)) return null;
@@ -22,8 +23,8 @@ const COUNTING_SYSTEMS = {
     },
   },
   binary: {
-    label: 'Binary',
-    description: '2-number system using 0-1',
+    label: t('Binary'),
+    description: t('2-number system using 0-1'),
     toString: (n) => n.toString(2),
     parse: (value) => {
       if (!/^[01]+$/.test(value)) return null;
@@ -32,7 +33,7 @@ const COUNTING_SYSTEMS = {
   },
   base36: {
     label: 'Base36',
-    description: '36-number system using 0-9 and A-Z',
+    description: t('36-number system using 0-9 and A-Z'),
     toString: (n) => n.toString(36).toUpperCase(),
     parse: (value) => {
       if (!/^[0-9A-Za-z]+$/.test(value)) return null;
@@ -41,7 +42,7 @@ const COUNTING_SYSTEMS = {
   },
   base64: {
     label: 'Base64',
-    description: '64-number system using A-Z, a-z, 0-9, +, /',
+    description: t('64-number system using A-Z, a-z, 0-9, +, /'),
     alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',
     toString: (n) => {
       if (n === 0) return 'A';
@@ -71,8 +72,8 @@ const COUNTING_SYSTEMS = {
     },
   },
   roman: {
-    label: 'Roman',
-    description: 'Roman numerals like I, II, III, IV, V',
+    label: t('Roman'),
+    description: t('Roman numerals like I, II, III, IV, V'),
     toString: (n) => {
       const romanNumerals = [
         ['M', 1000], ['CM', 900], ['D', 500], ['CD', 400],
@@ -111,8 +112,8 @@ const COUNTING_SYSTEMS = {
     },
   },
   math: {
-    label: 'Math Expressions',
-    description: 'Use a math expression that equals the next number, like 4*4=16',
+    label: t('Math Expressions'),
+    description: t('Use a math expression that equals the next number, like 4*4=16'),
     toString: (n) => `${n}`,
     parse: (value) => {
       const expression = value.replace(/\s+/g, '');
@@ -145,8 +146,8 @@ const COUNTING_SYSTEMS = {
     },
   },
   alphabet: {
-    label: 'Alphabet',
-    description: 'Letters A-Z in sequence',
+    label: t('Alphabet'),
+    description: t('Letters A-Z in sequence'),
     toString: (n) => {
       let num = n;
       let result = '';

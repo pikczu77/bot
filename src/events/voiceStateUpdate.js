@@ -9,6 +9,7 @@ import {
 import { sanitizeInput } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 import { handleMusicVoiceState } from '../services/music/musicVoiceState.js';
+import { t } from '../i18n/index.js';
 
 const channelCreationCooldown = new Map();
 const VOICE_CREATE_COOLDOWN_MS = 2000;
@@ -16,7 +17,7 @@ const DEFAULT_VOICE_BITRATE = 64000;
 const MAX_VOICE_BITRATE = 384000;
 const MIN_VOICE_BITRATE = 8000;
 const MAX_CHANNEL_NAME_LENGTH = 100;
-const FALLBACK_CHANNEL_NAME = 'Voice Room';
+const FALLBACK_CHANNEL_NAME = t('Voice Room');
 const MAX_TRACKED_COOLDOWNS = 10000;
 
 export default {
@@ -157,7 +158,7 @@ if (now - lastCreation < VOICE_CREATE_COOLDOWN_MS) {
                 }
 
                 const channelOptions = config.channelOptions?.[triggerChannel.id] || {};
-                const nameTemplate = channelOptions.nameTemplate || config.channelNameTemplate || "{username}'s Room";
+                const nameTemplate = channelOptions.nameTemplate || config.channelNameTemplate || t("{username}'s Room");
                 
                 let userLimit = channelOptions.userLimit ?? config.userLimit ?? 0;
                 const bitrate = clampVoiceBitrate(channelOptions.bitrate ?? config.bitrate ?? DEFAULT_VOICE_BITRATE);
@@ -231,7 +232,7 @@ userLimit: userLimit === 0 ? undefined : userLimit,
                 
                 try {
                     await member.send({
-                        content: `❌ Failed to create your temporary voice channel. Please contact a server administrator.`
+                        content: t`❌ Failed to create your temporary voice channel. Please contact a server administrator.`
                     });
                 } catch (dmError) {
                     logger.debug(`Unable to send temporary channel failure DM to user ${member.id}:`, dmError);
@@ -272,7 +273,7 @@ userLimit: userLimit === 0 ? undefined : userLimit,
                         userTag: newOwner.user.tag,
                         displayName: newOwner.displayName,
                         guildName: channel.guild.name,
-                        channelName: channel.guild.channels.cache.get(tempChannelInfo.triggerChannelId)?.name || 'Voice Channel'
+                        channelName: channel.guild.channels.cache.get(tempChannelInfo.triggerChannelId)?.name || t('Voice Channel')
                     }));
 
                     await channel.setName(newChannelName);

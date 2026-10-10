@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import { Collection, ActionRowBuilder, MessageFlags } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
+import { t, trAny } from '../../i18n/index.js';
+import { categoryIcon, formatCategoryName } from '../../config/commands/helpCategories.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,38 +16,11 @@ const BACK_BUTTON_ID = "help-back-to-main";
 const ALL_COMMANDS_ID = "help-all-commands";
 const PAGINATION_PREFIX = "help-page";
 const CATEGORY_SELECT_ID = "help-category-select";
-const FOOTER_TEXT = "Made with ❤️";
+const FOOTER_TEXT = t("Made with ❤️");
 const SUBCOMMAND_TYPE = 1;
 const SUBCOMMAND_GROUP_TYPE = 2;
 
-const CATEGORY_ICONS = {
-    Core: "ℹ️",
-    Moderation: "🛡️",
-    Economy: "💰",
-    Music: "🎵",
-    Fun: "🎮",
-    Leveling: "📊",
-    Utility: "🔧",
-    Ticket: "🎫",
-    Welcome: "👋",
-    Giveaway: "🎉",
-    Counter: "🔢",
-    Tools: "🛠️",
-    Search: "🔍",
-    "Reaction Roles": "🎭",
-    Community: "👥",
-    Birthday: "🎂",
-    "Join To Create": "🔌",
-    Verification: "✅",
-    Config: "⚙️",
-};
 
-function formatCategoryName(rawCategory) {
-    return rawCategory
-        .replace(/_/g, ' ')
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-}
 
 function buildHelpEntries(command, category) {
     const commandData = normalizeCommandData(command);
@@ -54,7 +29,7 @@ function buildHelpEntries(command, category) {
     }
 
     const baseName = commandData.name;
-    const baseDescription = commandData.description || "No description";
+    const baseDescription = commandData.description || t("No description");
     const options = commandData.options || [];
 
     const entries = [];
@@ -66,7 +41,7 @@ function buildHelpEntries(command, category) {
             entries.push({
                 baseName,
                 displayName: `${baseName} ${option.name}`,
-                description: option.description || baseDescription,
+                description: trAny(option.description || baseDescription),
                 category,
             });
             continue;
@@ -80,7 +55,7 @@ function buildHelpEntries(command, category) {
                 entries.push({
                     baseName,
                     displayName: `${baseName} ${option.name} ${nested.name}`,
-                    description: nested.description || option.description || baseDescription,
+                    description: trAny(nested.description || option.description || baseDescription),
                     category,
                 });
             }
@@ -122,7 +97,7 @@ function normalizeCommandData(command) {
 
 async function createCategoryCommandsMenu(category, client) {
     const categoryName = formatCategoryName(category);
-    const icon = CATEGORY_ICONS[categoryName] || "🔍";
+    const icon = categoryIcon(category);
 
     const categoryCommands = [];
 
@@ -170,10 +145,10 @@ async function createCategoryCommandsMenu(category, client) {
     }
 
     const embed = createEmbed({
-        title: `${icon} ${categoryName} Commands`,
+        title: t`${icon} ${categoryName} Commands`,
         description: categoryCommands.length > 0
-            ? `Click any command mention below to use it.`
-            : `No commands found in the **${categoryName}** category.`
+            ? t`Click any command mention below to use it.`
+            : t`No commands found in the **${categoryName}** category.`
     });
 
     if (categoryCommands.length > 0) {
@@ -190,7 +165,7 @@ async function createCategoryCommandsMenu(category, client) {
         const maxLength = 1000;
         if (commandMentions.length <= maxLength) {
             embed.addFields({
-                name: "Commands",
+                name: t("Commands"),
                 value: commandMentions,
                 inline: false,
             });
@@ -211,7 +186,7 @@ async function createCategoryCommandsMenu(category, client) {
 
             chunks.forEach((chunk, index) => {
                 embed.addFields({
-                    name: `Commands (Part ${index + 1})`,
+                    name: t`Commands (Part ${index + 1})`,
                     value: chunk,
                     inline: false,
                 });
@@ -224,7 +199,7 @@ async function createCategoryCommandsMenu(category, client) {
 
     const backButton = createButton(
         BACK_BUTTON_ID,
-        "Back",
+        t("Back"),
         "primary",
         "⬅️",
         false,
@@ -307,8 +282,8 @@ export async function createAllCommandsMenu(page = 1, client) {
     const pageCommands = allCommands.slice(startIndex, endIndex);
 
     const embed = createEmbed({
-        title: "📋 All Commands",
-        description: `Browse every available command in one list. Use the page buttons below to move through the full set.`
+        title: t("📋 All Commands"),
+        description: t`Browse every available command in one list. Use the page buttons below to move through the full set.`
     });
 
     embed.setFooter({ text: FOOTER_TEXT });
@@ -334,7 +309,7 @@ export async function createAllCommandsMenu(page = 1, client) {
             if (!chunk) continue;
 
             embed.addFields({
-                name: i === 0 ? `Commands (Page ${page})` : "Commands (cont.)",
+                name: i === 0 ? t`Commands (Page ${page})` : t("Commands (cont.)"),
                 value: chunk,
                 inline: columnCount > 1,
             });
@@ -354,7 +329,7 @@ export async function createAllCommandsMenu(page = 1, client) {
 
     const backButton = createButton(
         BACK_BUTTON_ID,
-        "Back",
+        t("Back"),
         "primary",
         "⬅️",
         false,

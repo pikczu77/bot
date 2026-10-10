@@ -8,6 +8,7 @@ import {
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import { EVENT_TYPES } from '../../services/loggingService.js';
+import { t } from '../../i18n/index.js';
 
 const EVENT_TYPES_BY_CATEGORY = Object.values(EVENT_TYPES).reduce((accumulator, eventType) => {
   const [category] = eventType.split('.');
@@ -45,22 +46,22 @@ const DASHBOARD_CATEGORY_EMOJIS = {
 };
 
 export const DASHBOARD_CATEGORY_LABELS = {
-  moderation: 'Moderation',
-  message: 'Messages',
-  role: 'Roles',
-  member: 'Members',
-  leveling: 'Leveling',
-  reactionrole: 'Reaction Roles',
-  giveaway: 'Giveaways',
-  counter: 'Counters',
-  application: 'Applications',
-  report: 'Reports',
+  moderation: t('Moderation'),
+  message: t('Messages'),
+  role: t('Roles'),
+  member: t('Members'),
+  leveling: t('Leveling'),
+  reactionrole: t('Reaction Roles'),
+  giveaway: t('Giveaways'),
+  counter: t('Counters'),
+  application: t('Applications'),
+  report: t('Reports'),
 };
 
 function createBackButton() {
   return new ButtonBuilder()
     .setCustomId('log_dash_back')
-    .setLabel('Back to Dashboard')
+    .setLabel(t('Back to Dashboard'))
     .setStyle(ButtonStyle.Secondary);
 }
 
@@ -92,43 +93,43 @@ export function createLoggingMainMenuSelect() {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('log_dash_menu')
-      .setPlaceholder('Choose a setting to configure…')
+      .setPlaceholder(t('Choose a setting to configure…'))
       .addOptions(
         new StringSelectMenuOptionBuilder()
-          .setLabel('Set Audit Log Channel')
-          .setDescription('Moderation, messages, members, roles, etc.')
+          .setLabel(t('Set Audit Log Channel'))
+          .setDescription(t('Moderation, messages, members, roles, etc.'))
           .setValue('set:audit')
           .setEmoji('🧾'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Set Applications Channel')
-          .setDescription('New applications and review updates')
+          .setLabel(t('Set Applications Channel'))
+          .setDescription(t('New applications and review updates'))
           .setValue('set:applications')
           .setEmoji('📝'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Set Reports Channel')
-          .setDescription('User reports filed via /report')
+          .setLabel(t('Set Reports Channel'))
+          .setDescription(t('User reports filed via /report'))
           .setValue('set:reports')
           .setEmoji('🚨'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Clear Audit Channel')
+          .setLabel(t('Clear Audit Channel'))
           .setValue('clear:audit')
           .setEmoji('🗑️'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Clear Applications Channel')
+          .setLabel(t('Clear Applications Channel'))
           .setValue('clear:applications')
           .setEmoji('🗑️'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Clear Reports Channel')
+          .setLabel(t('Clear Reports Channel'))
           .setValue('clear:reports')
           .setEmoji('🗑️'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Event Categories')
-          .setDescription('Toggle which log types are sent')
+          .setLabel(t('Event Categories'))
+          .setDescription(t('Toggle which log types are sent'))
           .setValue('view:categories')
           .setEmoji('📋'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Manage Ignore Filters')
-          .setDescription('Skip logs from specific users or channels')
+          .setLabel(t('Manage Ignore Filters'))
+          .setDescription(t('Skip logs from specific users or channels'))
           .setValue('view:filters')
           .setEmoji('🔇'),
       ),
@@ -139,11 +140,11 @@ export function createLoggingMainActionRow(loggingEnabled = false) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('log_dash_toggle:audit_enabled')
-      .setLabel('Audit Logging')
+      .setLabel(t('Audit Logging'))
       .setStyle(loggingEnabled ? ButtonStyle.Success : ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId('log_dash_refresh')
-      .setLabel('Refresh')
+      .setLabel(t('Refresh'))
       .setStyle(ButtonStyle.Primary),
   );
 }
@@ -162,11 +163,11 @@ export function createLoggingCategoryViewComponents(enabledEvents, loggingEnable
     createBackButton(),
     new ButtonBuilder()
       .setCustomId('log_dash_toggle:all')
-      .setLabel('Toggle All Categories')
+      .setLabel(t('Toggle All Categories'))
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('log_dash_refresh')
-      .setLabel('Refresh')
+      .setLabel(t('Refresh'))
       .setStyle(ButtonStyle.Primary),
   );
 
@@ -179,15 +180,15 @@ export function createLoggingFilterComponents() {
       createBackButton(),
       new ButtonBuilder()
         .setCustomId('log_dash_add_filter:user')
-        .setLabel('Add User Filter')
+        .setLabel(t('Add User Filter'))
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId('log_dash_add_filter:channel')
-        .setLabel('Add Channel Filter')
+        .setLabel(t('Add Channel Filter'))
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId('log_dash_remove_filter')
-        .setLabel('Remove Filter')
+        .setLabel(t('Remove Filter'))
         .setStyle(ButtonStyle.Danger),
     ),
   ];

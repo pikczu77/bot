@@ -12,6 +12,7 @@ import { TitanBotError, ErrorTypes } from '../utils/errorHandler.js';
 import { logEvent, EVENT_TYPES } from './loggingService.js';
 import { formatLogLine } from '../utils/logging/logEmbeds.js';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
+import { t, trAny } from '../i18n/index.js';
 
 const CHANNEL_NAME_MAX_LENGTH = 100;
 const CHANNEL_VARIABLE_MAX_LENGTH = 32;
@@ -32,7 +33,7 @@ export function validateChannelNameTemplate(template) {
         throw new TitanBotError(
             'Invalid channel template: must be a non-empty string',
             ErrorTypes.VALIDATION,
-            'Channel name template must be valid text.'
+            t('Channel name template must be valid text.')
         );
     }
 
@@ -42,7 +43,7 @@ export function validateChannelNameTemplate(template) {
         throw new TitanBotError(
             'Channel template exceeds maximum length',
             ErrorTypes.VALIDATION,
-            `Channel name template cannot exceed ${CHANNEL_NAME_MAX_LENGTH} characters.`
+            t`Channel name template cannot exceed ${CHANNEL_NAME_MAX_LENGTH} characters.`
         );
     }
 
@@ -50,7 +51,7 @@ export function validateChannelNameTemplate(template) {
         throw new TitanBotError(
             'Channel template contains forbidden characters',
             ErrorTypes.VALIDATION,
-            'Channel template cannot contain @, #, :, or backtick characters.'
+            t('Channel template cannot contain @, #, :, or backtick characters.')
         );
     }
 
@@ -60,7 +61,7 @@ export function validateChannelNameTemplate(template) {
             throw new TitanBotError(
                 'Channel template contains unknown placeholders',
                 ErrorTypes.VALIDATION,
-                `Unknown placeholder: ${placeholder}. Allowed placeholders are ${Array.from(ALLOWED_TEMPLATE_PLACEHOLDERS).join(', ')}`
+                t`Unknown placeholder: ${placeholder}. Allowed placeholders are ${Array.from(ALLOWED_TEMPLATE_PLACEHOLDERS).join(', ')}`
             );
         }
     }
@@ -75,7 +76,7 @@ export function validateBitrate(bitrate) {
         throw new TitanBotError(
             'Bitrate must be a valid number',
             ErrorTypes.VALIDATION,
-            'Please enter a valid number for bitrate.'
+            t('Please enter a valid number for bitrate.')
         );
     }
 
@@ -83,7 +84,7 @@ export function validateBitrate(bitrate) {
         throw new TitanBotError(
             'Bitrate out of valid range',
             ErrorTypes.VALIDATION,
-            'Bitrate must be between 8 and 384 kbps.'
+            t('Bitrate must be between 8 and 384 kbps.')
         );
     }
 
@@ -97,7 +98,7 @@ export function validateUserLimit(limit) {
         throw new TitanBotError(
             'User limit must be a valid number',
             ErrorTypes.VALIDATION,
-            'Please enter a valid number for user limit.'
+            t('Please enter a valid number for user limit.')
         );
     }
 
@@ -105,7 +106,7 @@ export function validateUserLimit(limit) {
         throw new TitanBotError(
             'User limit out of valid range',
             ErrorTypes.VALIDATION,
-            'User limit must be between 0 (no limit) and 99.'
+            t('User limit must be between 0 (no limit) and 99.')
         );
     }
 
@@ -114,7 +115,7 @@ export function validateUserLimit(limit) {
 
 export function formatChannelName(template, variables) {
     try {
-        const safeTemplate = template.normalize('NFKC').replace(CONTROL_AND_INVISIBLE_CHARS_REGEX, '').trim();
+        const safeTemplate = trAny(template).normalize('NFKC').replace(CONTROL_AND_INVISIBLE_CHARS_REGEX, '').trim();
         validateChannelNameTemplate(safeTemplate);
 
         if (!variables || typeof variables !== 'object') {
@@ -127,7 +128,7 @@ export function formatChannelName(template, variables) {
         const sanitized = {};
         for (const [key, value] of Object.entries(variables)) {
             if (value === null || value === undefined) {
-                sanitized[key] = 'Unknown';
+                sanitized[key] = t('Unknown');
             } else {
                 
                 sanitized[key] = String(value)
@@ -140,14 +141,14 @@ export function formatChannelName(template, variables) {
         }
 
         const replacements = {
-            '{username}': sanitized.username || 'User',
+            '{username}': sanitized.username || t('User'),
             '{user_tag}': sanitized.userTag || 'User#0000',
-            '{displayName}': sanitized.displayName || 'User',
-            '{display_name}': sanitized.displayName || 'User',
-            '{guildName}': sanitized.guildName || 'Server',
-            '{guild_name}': sanitized.guildName || 'Server',
-            '{channelName}': sanitized.channelName || 'Voice Channel',
-            '{channel_name}': sanitized.channelName || 'Voice Channel',
+            '{displayName}': sanitized.displayName || t('User'),
+            '{display_name}': sanitized.displayName || t('User'),
+            '{guildName}': sanitized.guildName || t('Server'),
+            '{guild_name}': sanitized.guildName || t('Server'),
+            '{channelName}': sanitized.channelName || t('Voice Channel'),
+            '{channel_name}': sanitized.channelName || t('Voice Channel'),
         };
 
         let formatted = safeTemplate;
@@ -163,7 +164,7 @@ export function formatChannelName(template, variables) {
             .trim();
 
         if (formatted.length === 0) {
-            formatted = 'Voice Channel';
+            formatted = t('Voice Channel');
         } else if (formatted.length > CHANNEL_NAME_MAX_LENGTH) {
             formatted = formatted.substring(0, CHANNEL_NAME_MAX_LENGTH);
         }
@@ -183,7 +184,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
             throw new TitanBotError(
                 'Database service not available',
                 ErrorTypes.DATABASE,
-                'System error occurred. Please try again.'
+                t('System error occurred. Please try again.')
             );
         }
 
@@ -191,7 +192,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
             throw new TitanBotError(
                 'Missing required guild or channel ID',
                 ErrorTypes.VALIDATION,
-                'Invalid guild or channel information provided.'
+                t('Invalid guild or channel information provided.')
             );
         }
 
@@ -211,7 +212,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
             throw new TitanBotError(
                 'Channel already configured as Join to Create trigger',
                 ErrorTypes.VALIDATION,
-                'This channel is already set up as a Join to Create trigger.'
+                t('This channel is already set up as a Join to Create trigger.')
             );
         }
 
@@ -219,7 +220,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
             throw new TitanBotError(
                 'Guild already has a Join to Create trigger configured',
                 ErrorTypes.VALIDATION,
-                'This server already has a Join to Create channel configured. Use `/jointocreate dashboard` to modify it, or remove it before creating a new one.',
+                t('This server already has a Join to Create channel configured. Use `/jointocreate dashboard` to modify it, or remove it before creating a new one.'),
                 {
                     guildId,
                     existingTriggerChannelId: config.triggerChannels[0],
@@ -250,7 +251,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
             throw new TitanBotError(
                 'Failed to save Join to Create configuration',
                 ErrorTypes.DATABASE,
-                'Failed to set up Join to Create system. Please try again.'
+                t('Failed to set up Join to Create system. Please try again.')
             );
         }
 
@@ -265,7 +266,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
         throw new TitanBotError(
             `Failed to initialize Join to Create: ${error.message}`,
             ErrorTypes.DATABASE,
-            'Failed to set up Join to Create system.'
+            t('Failed to set up Join to Create system.')
         );
     }
 }
@@ -276,7 +277,7 @@ export async function updateChannelConfig(client, guildId, channelId, updates) {
             throw new TitanBotError(
                 'Database service not available',
                 ErrorTypes.DATABASE,
-                'Database service is currently unavailable. Please try again later.'
+                t('Database service is currently unavailable. Please try again later.')
             );
         }
 
@@ -286,7 +287,7 @@ export async function updateChannelConfig(client, guildId, channelId, updates) {
             throw new TitanBotError(
                 'Channel is not configured as a Join to Create trigger',
                 ErrorTypes.VALIDATION,
-                'This channel is not set up as a Join to Create trigger.'
+                t('This channel is not set up as a Join to Create trigger.')
             );
         }
 
@@ -325,7 +326,7 @@ export async function updateChannelConfig(client, guildId, channelId, updates) {
         throw new TitanBotError(
             `Failed to update channel config: ${error.message}`,
             ErrorTypes.DATABASE,
-            'Failed to update configuration.'
+            t('Failed to update configuration.')
         );
     }
 }
@@ -336,7 +337,7 @@ export async function removeTriggerChannel(client, guildId, channelId) {
             throw new TitanBotError(
                 'Database service not available',
                 ErrorTypes.DATABASE,
-                'Database service is currently unavailable. Please try again later.'
+                t('Database service is currently unavailable. Please try again later.')
             );
         }
 
@@ -347,7 +348,7 @@ export async function removeTriggerChannel(client, guildId, channelId) {
             throw new TitanBotError(
                 'Channel not found in Join to Create triggers',
                 ErrorTypes.VALIDATION,
-                'This channel is not configured as a Join to Create trigger.'
+                t('This channel is not configured as a Join to Create trigger.')
             );
         }
 
@@ -379,7 +380,7 @@ export async function removeTriggerChannel(client, guildId, channelId) {
         throw new TitanBotError(
             `Failed to remove trigger channel: ${error.message}`,
             ErrorTypes.DATABASE,
-            'Failed to remove trigger channel.'
+            t('Failed to remove trigger channel.')
         );
     }
 }
@@ -390,7 +391,7 @@ export async function getConfiguration(client, guildId) {
             throw new TitanBotError(
                 'Database service not available',
                 ErrorTypes.DATABASE,
-                'Database service is currently unavailable. Please try again later.'
+                t('Database service is currently unavailable. Please try again later.')
             );
         }
 
@@ -403,7 +404,7 @@ export async function getConfiguration(client, guildId) {
         throw new TitanBotError(
             `Failed to retrieve configuration: ${error.message}`,
             ErrorTypes.DATABASE,
-            'Failed to retrieve settings.'
+            t('Failed to retrieve settings.')
         );
     }
 }
@@ -426,7 +427,7 @@ export async function getChannelConfiguration(client, guildId, channelId) {
             throw new TitanBotError(
                 'Channel is not a valid Join to Create trigger',
                 ErrorTypes.VALIDATION,
-                'This channel is not set up as a Join to Create trigger.'
+                t('This channel is not set up as a Join to Create trigger.')
             );
         }
 
@@ -442,7 +443,7 @@ export async function getChannelConfiguration(client, guildId, channelId) {
         throw new TitanBotError(
             `Failed to get channel configuration: ${error.message}`,
             ErrorTypes.DATABASE,
-            'Failed to retrieve channel configuration. Please try again.'
+            t('Failed to retrieve channel configuration. Please try again.')
         );
     }
 }
@@ -466,10 +467,10 @@ export async function logConfigurationChange(client, guildId, userId, action, de
             guildId,
             eventType: EVENT_TYPES.COUNTER_CONFIG,
             data: {
-                title: 'Join to Create Updated',
+                title: t('Join to Create Updated'),
                 lines: [
-                    formatLogLine('Action', action),
-                    formatLogLine('Details', typeof details === 'string' ? details : JSON.stringify(details)),
+                    formatLogLine(t('Action'), action),
+                    formatLogLine(t('Details'), typeof details === 'string' ? details : JSON.stringify(details)),
                 ],
                 userId,
             },
@@ -505,7 +506,7 @@ export async function createTemporaryChannel(guild, member, options = {}) {
             validateBitrate(bitrate / 1000);
         }
 
-        const channelName = formatChannelName(nameTemplate || '{username}\'s Room', {
+        const channelName = formatChannelName(nameTemplate || t('{username}\'s Room'), {
             username: member.user.username,
             displayName: member.displayName,
             userTag: member.user.tag,
@@ -545,7 +546,7 @@ export async function createTemporaryChannel(guild, member, options = {}) {
         throw new TitanBotError(
             `Failed to create temporary channel: ${error.message}`,
             ErrorTypes.DISCORD_API,
-            'Failed to create your temporary voice channel. Please contact an administrator.'
+            t('Failed to create your temporary voice channel. Please contact an administrator.')
         );
     }
 }

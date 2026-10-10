@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { logger } from '../utils/logger.js';
+import { t } from '../i18n/index.js';
 
 export default {
   name: Events.GuildMemberUpdate,
@@ -16,12 +17,12 @@ export default {
           guildId: newMember.guild.id,
           eventType: EVENT_TYPES.MEMBER_NAME_CHANGE,
           data: {
-            title: 'Nickname changed',
+            title: t('Nickname changed'),
             lines: [
-              `**User:** ${newMember.user.toString()} (${newMember.user.tag})`,
-              `**ID:** \`${newMember.user.id}\``,
-              `**Before:** ${oldMember.nickname || '*(no nickname)*'}`,
-              `**After:** ${newMember.nickname || '*(no nickname)*'}`,
+              t`**User:** ${newMember.user.toString()} (${newMember.user.tag})`,
+              t`**ID:** \`${newMember.user.id}\``,
+              t`**Before:** ${oldMember.nickname || t('*(no nickname)*')}`,
+              t`**After:** ${newMember.nickname || t('*(no nickname)*')}`,
             ],
             thumbnail: newMember.user.displayAvatarURL({ dynamic: true }),
             userId: newMember.user.id,

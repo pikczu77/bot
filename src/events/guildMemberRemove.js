@@ -7,6 +7,7 @@ import { getServerCounters, updateCounter } from '../services/serverstatsService
 import { getGuildBirthdays, deleteBirthday } from '../utils/database.js';
 import { deleteUserLevelData } from '../services/leveling/leveling.js';
 import { logger } from '../utils/logger.js';
+import { t } from '../i18n/index.js';
 
 export default {
   name: Events.GuildMemberRemove,
@@ -31,17 +32,17 @@ export default {
 
                 const formatData = { user, guild, member };
                 const goodbyeMessage = formatWelcomeMessage(
-                    welcomeConfig.leaveMessage || welcomeConfig.leaveEmbed?.description || botConfig.welcome?.defaultGoodbyeMessage || '{user} has left the server.',
+                    welcomeConfig.leaveMessage || welcomeConfig.leaveEmbed?.description || botConfig.welcome?.defaultGoodbyeMessage || t('{user} has left the server.'),
                     formatData
                 );
 
                 const embedTitle = formatWelcomeMessage(
-                    welcomeConfig.leaveEmbed?.title || '👋 Goodbye',
+                    welcomeConfig.leaveEmbed?.title || t('👋 Goodbye'),
                     formatData
                 );
                 const embedFooter = welcomeConfig.leaveEmbed?.footer
                     ? formatWelcomeMessage(welcomeConfig.leaveEmbed.footer, formatData)
-                    : `Goodbye from ${guild.name}!`;
+                    : t`Goodbye from ${guild.name}!`;
 
                 const canEmbed = permissions.has(PermissionFlagsBits.EmbedLinks);
 
@@ -57,8 +58,8 @@ export default {
                         .setColor(welcomeConfig.leaveEmbed?.color || getColor('error'))
                         .setThumbnail(user.displayAvatarURL())
                         .addFields(
-                            { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
-                            { name: 'Member Count', value: guild.memberCount.toString(), inline: true }
+                            { name: t('User'), value: `${user.tag} (${user.id})`, inline: true },
+                            { name: t('Member Count'), value: guild.memberCount.toString(), inline: true }
                         )
                         .setTimestamp()
                         .setFooter({ text: embedFooter });
@@ -84,12 +85,12 @@ export default {
                 guildId: guild.id,
                 eventType: EVENT_TYPES.MEMBER_LEAVE,
                 data: {
-                    title: 'User left',
+                    title: t('User left'),
                     lines: [
-                        `**User:** ${user.toString()} (${user.tag})`,
-                        `**ID:** \`${user.id}\``,
-                        `**Joined:** <t:${Math.floor((member.joinedTimestamp || Date.now()) / 1000)}:R>`,
-                        `**Members:** ${guild.memberCount}`,
+                        t`**User:** ${user.toString()} (${user.tag})`,
+                        t`**ID:** \`${user.id}\``,
+                        t`**Joined:** <t:${Math.floor((member.joinedTimestamp || Date.now()) / 1000)}:R>`,
+                        t`**Members:** ${guild.memberCount}`,
                     ],
                     quoted: false,
                     thumbnail: user.displayAvatarURL({ dynamic: true }),

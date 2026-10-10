@@ -12,6 +12,8 @@ import {
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { t } from '../../i18n/index.js';
+import { categoryIcon, formatCategoryName } from '../../config/commands/helpCategories.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,33 +23,7 @@ const ALL_COMMANDS_ID = "help-all-commands";
 const BUG_REPORT_BUTTON_ID = "help-bug-report";
 const HELP_MENU_TIMEOUT_MS = 5 * 60 * 1000;
 
-const CATEGORY_ICONS = {
-    Core: "ℹ️",
-    Moderation: "🛡️",
-    Economy: "💰",
-    Music: "🎵",
-    Fun: "🎮",
-    Leveling: "📊",
-    Utility: "🔧",
-    Ticket: "🎫",
-    Welcome: "👋",
-    Giveaway: "🎉",
-    Counter: "🔢",
-    Tools: "🛠️",
-    Search: "🔍",
-    "Reaction Roles": "🎭",
-    Community: "👥",
-    Birthday: "🎂",
-    "Join To Create": "🔌",
-    Verification: "✅",
-};
 
-function formatCategoryName(rawCategory) {
-    return rawCategory
-        .replace(/_/g, '')
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-}
 
 export async function createInitialHelpMenu(client) {
     const commandsPath = path.join(__dirname, "../../commands");
@@ -60,71 +36,66 @@ export async function createInitialHelpMenu(client) {
 
     const options = [
         {
-            label: "📋 All Commands",
-            description: "Browse every available command in a single list",
+            label: t("📋 All Commands"),
+            description: t("Browse every available command in a single list"),
             value: ALL_COMMANDS_ID,
         },
         ...categoryDirs.map((category) => {
             const categoryName = formatCategoryName(category);
-            const icon = CATEGORY_ICONS[categoryName] || "🔍";
+            const icon = categoryIcon(category);
             return {
                 label: `${icon} ${categoryName}`,
-                description: `View commands in the ${categoryName} category`,
+                description: t`View commands in the ${categoryName} category`,
                 value: category,
             };
         }),
     ];
 
-    const botName = client?.user?.username || "Bot";
+    const botName = client?.user?.username || t("Bot");
     const embed = createEmbed({
-        title: `📖 ${botName} Help`,
-        description: 'Set up your server, pick what to enable, then browse commands below.',
+        title: t`📖 ${botName} Help`,
+        description: t('Set up your server, pick what to enable, then browse commands below.'),
         color: 'primary',
         thumbnail: client.user?.displayAvatarURL?.({ size: 1024 }),
         fields: [
             {
-                name: '🚀 Getting Started',
+                name: t('🚀 Getting Started'),
                 value: [
-                    '**1. Launch setup** — Run `/configwizard` to configure prefix, mod role, and logs.',
-                    '**2. Enable systems** — Use `/commands dashboard` to turn categories on or off.',                    '**3. Browse commands** — Use the menu below to view categories and commands.',
+                    t('**1. Launch setup** — Run `/configwizard` to configure prefix, mod role, and logs.'),
+                    t('**2. Enable systems** — Use `/commands dashboard` to turn categories on or off.'),                    t('**3. Browse commands** — Use the menu below to view categories and commands.'),
                 ].join('\n'),
                 inline: false,
             },
             {
-                name: 'ℹ️ How It Works',
+                name: t('ℹ️ How It Works'),
                 value: [
-                    '• Dashboard commands manage each feature visually',
-                    '• Settings are saved per server',
-                    '• Slash commands and prefixes both work once enabled',
+                    t('• Dashboard commands manage each feature visually'),
+                    t('• Settings are saved per server'),
+                    t('• Slash commands and prefixes both work once enabled'),
                 ].join('\n'),
-                inline: false,
-            },
-            {
-                name: '\u200B',
-                value: `-# ${botName} is [open source](https://youtu.be/1jCZX8s3bJE?si=NPOYx-vxVE1I5vJK)`,
                 inline: false,
             },
         ],
     });
 
     embed.setFooter({ 
-        text: "Made with ❤️" 
+        text: t("Made with ❤️") 
     });
     embed.setTimestamp();
 
     const bugReportButton = new ButtonBuilder()
         .setCustomId(BUG_REPORT_BUTTON_ID)
-        .setLabel("Report Bug")
+        .setLabel(t("Report Bug"))
         .setStyle(ButtonStyle.Danger);
 
     const supportButton = new ButtonBuilder()
-        .setLabel("Support Server")
-        .setURL("https://discord.gg/QnWNz2dKCE")
+        .setLabel(t("Support Server"))
+        .setURL("https://discord.gg/rWzN7MmfHu")
         .setStyle(ButtonStyle.Link);
 
     const selectRow = createSelectMenu(
         CATEGORY_SELECT_ID,
-        "Select to view the commands",
+        t("Select to view the commands"),
         options,
     );
 
@@ -164,8 +135,8 @@ export default {
                 }
 
                 const closedEmbed = createEmbed({
-                    title: "Help menu closed",
-                    description: "Help menu has been closed, use /help again.",
+                    title: t("Help menu closed"),
+                    description: t("Help menu has been closed, use /help again."),
                     color: "secondary",
                 });
 

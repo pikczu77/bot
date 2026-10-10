@@ -4,9 +4,10 @@ import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logModerationAction } from '../../utils/moderation.js';
+import { t } from '../../i18n/index.js';
 
 function getTargetLabel(target) {
-  return target.user?.tag ?? target.displayName ?? 'this user';
+  return target.user?.tag ?? target.displayName ?? t('this user');
 }
 
 function getHighestRole(member) {
@@ -18,14 +19,14 @@ export class ModerationService {
   static buildHierarchyMessage({ actor, actorRole, targetRole, targetLabel, action }) {
     if (actor === 'moderator') {
       return (
-        `You cannot ${action} **${targetLabel}** — their role **${targetRole.name}** is equal to or above yours (**${actorRole.name}**). ` +
-        `In **Server Settings → Roles**, drag your moderator role above **${targetRole.name}**.`
+        t`You cannot ${action} **${targetLabel}** — their role **${targetRole.name}** is equal to or above yours (**${actorRole.name}**). ` +
+        t`In **Server Settings → Roles**, drag your moderator role above **${targetRole.name}**.`
       );
     }
 
     return (
-      `I cannot ${action} **${targetLabel}** — my role **${actorRole.name}** is equal to or below theirs (**${targetRole.name}**). ` +
-      `In **Server Settings → Roles**, drag my bot role above **${targetRole.name}**.`
+      t`I cannot ${action} **${targetLabel}** — my role **${actorRole.name}** is equal to or below theirs (**${targetRole.name}**). ` +
+      t`In **Server Settings → Roles**, drag my bot role above **${targetRole.name}**.`
     );
   }
 
@@ -37,16 +38,16 @@ export class ModerationService {
       const botMember = target.guild?.members?.me;
       const botRole = getHighestRole(botMember);
       if (!botRole || !targetRole) {
-        return `Bot role hierarchy blocked ${action} for ${targetLabel}`;
+        return t`Bot role hierarchy blocked ${action} for ${targetLabel}`;
       }
-      return `Bot role **${botRole.name}** is too low for **${targetRole.name}** — move the bot role higher`;
+      return t`Bot role **${botRole.name}** is too low for **${targetRole.name}** — move the bot role higher`;
     }
 
     const modRole = getHighestRole(moderator);
     if (!modRole || !targetRole) {
-      return `Role hierarchy blocked ${action} for ${targetLabel}`;
+      return t`Role hierarchy blocked ${action} for ${targetLabel}`;
     }
-    return `Your role **${modRole.name}** is too low for **${targetRole.name}** — move your role higher`;
+    return t`Your role **${modRole.name}** is too low for **${targetRole.name}** — move your role higher`;
   }
 
   static validateHierarchy(moderator, target, action) {
@@ -136,7 +137,7 @@ export class ModerationService {
     guild,
     user,
     moderator,
-    reason = 'No reason provided',
+    reason = t('No reason provided'),
     deleteDays = 0
   }) {
     try {
@@ -144,7 +145,7 @@ export class ModerationService {
         throw new TitanBotError(
           'Missing required parameters',
           ErrorTypes.VALIDATION,
-          'Guild, user, and moderator are required'
+          t('Guild, user, and moderator are required')
         );
       }
 
@@ -169,7 +170,7 @@ export class ModerationService {
             throw new TitanBotError(
                 'You do not have sufficient permissions to ban users who are not in the server.',
                 ErrorTypes.PERMISSION,
-                'You need "Manage Server" or "Administrator" permissions to ban users not currently in the guild.'
+                t('You need "Manage Server" or "Administrator" permissions to ban users not currently in the guild.')
             );
         }
       }
@@ -210,14 +211,14 @@ export class ModerationService {
     guild,
     member,
     moderator,
-    reason = 'No reason provided'
+    reason = t('No reason provided')
   }) {
     try {
       if (!guild || !member || !moderator) {
         throw new TitanBotError(
           'Missing required parameters',
           ErrorTypes.VALIDATION,
-          'Guild, member, and moderator are required'
+          t('Guild, member, and moderator are required')
         );
       }
 
@@ -228,8 +229,8 @@ export class ModerationService {
         throw new TitanBotError(
           'Cannot kick member',
           ErrorTypes.PERMISSION,
-          `I cannot kick **${targetLabel}**. They may have **Administrator** permission or a managed/integration role. ` +
-          'Ensure my bot role is above theirs in **Server Settings → Roles** and that they do not have Admin.'
+          t`I cannot kick **${targetLabel}**. They may have **Administrator** permission or a managed/integration role. ` +
+          t('Ensure my bot role is above theirs in **Server Settings → Roles** and that they do not have Admin.')
         );
       }
 
@@ -268,14 +269,14 @@ export class ModerationService {
     member,
     moderator,
     durationMs,
-    reason = 'No reason provided'
+    reason = t('No reason provided')
   }) {
     try {
       if (!guild || !member || !moderator || !durationMs) {
         throw new TitanBotError(
           'Missing required parameters',
           ErrorTypes.VALIDATION,
-          'Guild, member, moderator, and duration are required'
+          t('Guild, member, moderator, and duration are required')
         );
       }
 
@@ -286,8 +287,8 @@ export class ModerationService {
         throw new TitanBotError(
           'Cannot timeout member',
           ErrorTypes.PERMISSION,
-          `I cannot timeout **${targetLabel}**. They may have **Administrator** permission or a managed/integration role. ` +
-          'Ensure my bot role is above theirs in **Server Settings → Roles** and that they do not have Admin.'
+          t`I cannot timeout **${targetLabel}**. They may have **Administrator** permission or a managed/integration role. ` +
+          t('Ensure my bot role is above theirs in **Server Settings → Roles** and that they do not have Admin.')
         );
       }
 
@@ -329,26 +330,26 @@ export class ModerationService {
     guild,
     member,
     moderator,
-    reason = 'Timeout removed by moderator'
+    reason = t('Timeout removed by moderator')
   }) {
     try {
       if (!guild || !member || !moderator) {
         throw new TitanBotError(
           'Missing required parameters',
           ErrorTypes.VALIDATION,
-          'Guild, member, and moderator are required'
+          t('Guild, member, and moderator are required')
         );
       }
 
-      this.assertModerationHierarchy(moderator, member, 'remove the timeout from');
+      this.assertModerationHierarchy(moderator, member, t('remove the timeout from'));
 
       if (!member.moderatable) {
         const targetLabel = getTargetLabel(member);
         throw new TitanBotError(
           'Cannot modify member',
           ErrorTypes.PERMISSION,
-          `I cannot modify **${targetLabel}**. They may have **Administrator** permission or a managed/integration role. ` +
-          'Ensure my bot role is above theirs in **Server Settings → Roles**.'
+          t`I cannot modify **${targetLabel}**. They may have **Administrator** permission or a managed/integration role. ` +
+          t('Ensure my bot role is above theirs in **Server Settings → Roles**.')
         );
       }
 
@@ -356,7 +357,7 @@ export class ModerationService {
         throw new TitanBotError(
           'User not timed out',
           ErrorTypes.VALIDATION,
-          `${member.user.tag} is not currently timed out`
+          t`${member.user.tag} is not currently timed out`
         );
       }
 
@@ -392,14 +393,14 @@ export class ModerationService {
     guild,
     user,
     moderator,
-    reason = 'No reason provided'
+    reason = t('No reason provided')
   }) {
     try {
       if (!guild || !user || !moderator) {
         throw new TitanBotError(
           'Missing required parameters',
           ErrorTypes.VALIDATION,
-          'Guild, user, and moderator are required'
+          t('Guild, user, and moderator are required')
         );
       }
 
@@ -410,7 +411,7 @@ export class ModerationService {
         throw new TitanBotError(
           'User not banned',
           ErrorTypes.VALIDATION,
-          `${user.tag} is not currently banned from this server`
+          t`${user.tag} is not currently banned from this server`
         );
       }
 

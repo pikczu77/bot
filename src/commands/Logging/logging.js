@@ -6,6 +6,7 @@ import dashboard from './modules/logging_dashboard.js';
 import channel from './modules/logging_channel.js';
 
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('logging')
@@ -59,10 +60,10 @@ export default {
                 return await channel.execute(interaction, config, client);
             }
 
-            await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'This subcommand is not recognised.' });
+            await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('This subcommand is not recognised.') });
         } catch (error) {
             logger.error('logging command error:', error);
-            await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An unexpected error occurred.' }).catch(() => {});
+            await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An unexpected error occurred.') }).catch(() => {});
         }
     },
 };

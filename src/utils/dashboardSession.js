@@ -3,6 +3,7 @@ import { getColor } from '../config/bot.js';
 import { TitanBotError, ErrorTypes, replyUserError } from './errorHandler.js';
 import { InteractionHelper } from './interactionHelper.js';
 import { logger } from './logger.js';
+import { t } from '../i18n/index.js';
 
 function matchesCustomId(customId, matcher) {
     if (typeof matcher === 'function') return matcher(customId);
@@ -25,8 +26,8 @@ function wrapHandler(handler, interactionLabel = 'dashboard') {
 
             const errorMessage =
                 error instanceof TitanBotError
-                    ? error.userMessage || 'An error occurred while processing your selection.'
-                    : 'An unexpected error occurred while updating the configuration.';
+                    ? error.userMessage || t('An error occurred while processing your selection.')
+                    : t('An unexpected error occurred while updating the configuration.');
 
             if (!componentInteraction.replied && !componentInteraction.deferred) {
                 await componentInteraction.deferUpdate().catch(() => {});
@@ -101,9 +102,9 @@ export async function startDashboardSession({
             }
 
             const timeoutEmbed = new EmbedBuilder()
-                .setTitle('Dashboard Timed Out')
+                .setTitle(t('Dashboard Timed Out'))
                 .setDescription(
-                    'This dashboard has been closed due to inactivity. Please run the command again to continue.',
+                    t('This dashboard has been closed due to inactivity. Please run the command again to continue.'),
                 )
                 .setColor(getColor('error'));
 

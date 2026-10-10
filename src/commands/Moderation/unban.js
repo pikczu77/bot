@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -40,7 +41,7 @@ export default {
         if (!/^\d{17,20}$/.test(targetId)) {
             return replyUserError(interaction, {
                 type: ErrorTypes.USER_INPUT,
-                message: 'Please provide a valid user ID or mention.',
+                message: t('Please provide a valid user ID or mention.'),
             });
         }
 
@@ -48,11 +49,11 @@ export default {
         if (!targetUser) {
             return replyUserError(interaction, {
                 type: ErrorTypes.USER_INPUT,
-                message: `Could not find a user with the ID \`${targetId}\`.`,
+                message: t`Could not find a user with the ID \`${targetId}\`.`,
             });
         }
 
-        const reason = interaction.options.getString("reason") || "No reason provided";
+        const reason = interaction.options.getString("reason") || t("No reason provided");
 
         const result = await ModerationService.unbanUser({
             guild: interaction.guild,
@@ -64,8 +65,8 @@ export default {
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    "✅ User Unbanned",
-                    `Successfully unbanned **${targetUser.tag}** from the server.\n\n**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
+                    t("✅ User Unbanned"),
+                    t`Successfully unbanned **${targetUser.tag}** from the server.\n\n**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
                 ),
             ],
         });

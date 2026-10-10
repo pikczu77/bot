@@ -6,6 +6,7 @@ import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { getTicketPermissionContext } from '../../utils/ticket/ticketPermissions.js';
 import { closeTicket } from '../../services/ticket.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName("close")
@@ -26,24 +27,24 @@ export default {
 
         const permissionContext = await getTicketPermissionContext({ client, interaction });
         if (!permissionContext.ticketData) {
-            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'This command can only be used in a valid ticket channel.' });
+            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('This command can only be used in a valid ticket channel.') });
         }
 
         if (!permissionContext.canCloseTicket) {
-            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the `Manage Channels` permission, the configured `Ticket Staff Role`, or be the ticket creator to close this ticket.' });
+            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the `Manage Channels` permission, the configured `Ticket Staff Role`, or be the ticket creator to close this ticket.') });
         }
 
         const reason =
             interaction.options?.getString("reason") ||
-            "Closed via command without a specific reason.";
+            t("Closed via command without a specific reason.");
 
         await closeTicket(interaction.channel, interaction.user, reason);
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    "Ticket Closed!",
-                    "This ticket has been closed successfully.",
+                    t("Ticket Closed!"),
+                    t("This ticket has been closed successfully."),
                 ),
             ],
         });

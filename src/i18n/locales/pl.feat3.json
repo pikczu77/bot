@@ -1,0 +1,14 @@
+{
+  "I need the **Manage Channels** permission in this ticket.": "W tym tickecie potrzebuję uprawnienia **Zarządzanie kanałami**.",
+  "That name has no usable characters.": "Ta nazwa nie ma żadnych użytecznych znaków.",
+  "Ticket renamed to **{0}**.": "Nazwa ticketu zmieniona na **{0}**.",
+  "Bots cannot be added to tickets.": "Botów nie można dodawać do ticketów.",
+  "➕ {0} was added to this ticket by {1}.": "➕ {1} dodaje {0} do tego ticketu.",
+  "{0} can now see this ticket.": "{0} widzi teraz ten ticket.",
+  "The ticket creator cannot be removed. Close the ticket instead.": "Autora ticketu nie można usunąć. Zamknij ticket.",
+  "➖ {0} was removed from this ticket by {1}.": "➖ {1} usuwa {0} z tego ticketu.",
+  "{0} can no longer see this ticket.": "{0} nie widzi już tego ticketu.",
+  "I could not change this ticket. Check my permissions in the ticket category.": "Nie udało się zmienić tego ticketu. Sprawdź moje uprawnienia w kategorii ticketów.",
+  "The notification channel no longer exists.": "Kanał powiadomień już nie istnieje.",
+  "**{0}** has no videos to show yet.": "**{0}** nie ma jeszcze filmów do pokazania."
+}

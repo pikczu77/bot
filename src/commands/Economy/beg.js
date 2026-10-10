@@ -4,6 +4,7 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { botConfig } from '../../config/bot.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 const COOLDOWN = 30 * 60 * 1000;
 const MIN_WIN = Number(botConfig?.economy?.begMin) || 50;
@@ -28,7 +29,7 @@ export default {
                 throw createError(
                     "Failed to load economy data",
                     ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
+                    t("Failed to load your economy data. Please try again later."),
                     { userId, guildId }
                 );
             }
@@ -41,12 +42,12 @@ export default {
                 const seconds = Math.floor((remainingTime % 60000) / 1000);
 
                 let timeMessage =
-                    minutes > 0 ? `${minutes} minute(s)` : `${seconds} second(s)`;
+                    minutes > 0 ? t`${minutes} minute(s)` : t`${seconds} second(s)`;
 
                 throw createError(
                     "Beg cooldown active",
                     ErrorTypes.RATE_LIMIT,
-                    `You are tired from begging! Try again in **${timeMessage}**.`,
+                    t`You are tired from begging! Try again in **${timeMessage}**.`,
                     { remainingTime, minutes, seconds, cooldownType: 'beg' }
                 );
             }
@@ -63,28 +64,28 @@ export default {
                 newCash += amountWon;
 
                 const successMessages = [
-                    `A kind stranger drops **$${amountWon.toLocaleString()}** into your cup.`,
-                    `You spotted an unattended wallet! You grab **$${amountWon.toLocaleString()}** and run.`,
-                    `Someone took pity on you and gave you **$${amountWon.toLocaleString()}**!`,
-                    `You found **$${amountWon.toLocaleString()}** under a park bench.`,
+                    t`A kind stranger drops **$${amountWon.toLocaleString()}** into your cup.`,
+                    t`You spotted an unattended wallet! You grab **$${amountWon.toLocaleString()}** and run.`,
+                    t`Someone took pity on you and gave you **$${amountWon.toLocaleString()}**!`,
+                    t`You found **$${amountWon.toLocaleString()}** under a park bench.`,
                 ];
 
                 replyEmbed = successEmbed(
-                    'Begging Successful',
+                    t('Begging Successful'),
                     successMessages[
                         Math.floor(Math.random() * successMessages.length)
                     ]
                 );
             } else {
                 const failMessages = [
-                    "The police chased you off. You got nothing.",
-                    "Someone yelled, 'Get a job!' and walked past.",
-                    "A squirrel stole the single coin you had.",
-                    "You tried to beg, but you were too embarrassed and gave up.",
+                    t("The police chased you off. You got nothing."),
+                    t("Someone yelled, 'Get a job!' and walked past."),
+                    t("A squirrel stole the single coin you had."),
+                    t("You tried to beg, but you were too embarrassed and gave up."),
                 ];
 
                 replyEmbed = warningEmbed(
-                    'Insufficient Funds',
+                    t('Insufficient Funds'),
                     failMessages[Math.floor(Math.random() * failMessages.length)]
                 );
             }

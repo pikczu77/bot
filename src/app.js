@@ -1,5 +1,5 @@
-﻿import 'dotenv/config';
-import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import 'dotenv/config';
+import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
 import { REST } from '@discordjs/rest';
 import express from 'express';
 import cron from 'node-cron';
@@ -17,6 +17,12 @@ import { initializeMusic } from './services/music/riffySetup.js';
 import { shutdownMusic } from './services/music/playerHandler.js';
 import pkg from '../package.json' with { type: 'json' };
 import { EXPECTED_SCHEMA_VERSION, EXPECTED_SCHEMA_LABEL } from './config/database/schemaVersion.js';
+import { installDiscordSink } from './i18n/discordSink.js';
+import { withGuildLocale } from './services/languageService.js';
+import { startFeatureJobs } from './services/features.js';
+import { createPanelRouter } from './api/panelApi.js';
+
+installDiscordSink();
 
 class TitanBot extends Client {
   constructor() {
@@ -33,8 +39,11 @@ class TitanBot extends Client {
 
         GatewayIntentBits.GuildVoiceStates,             
 
-        GatewayIntentBits.GuildBans,                    
+        GatewayIntentBits.GuildBans,
+        GatewayIntentBits.GuildInvites,
       ],
+      // DM channels are not cached; without this partial the bot never sees a DM (modmail).
+      partials: [Partials.Channel],
     });
 
     this.config = config;
@@ -50,7 +59,7 @@ class TitanBot extends Client {
 
   async start() {
     try {
-      startupLog('Starting TitanBot...');
+      startupLog('Starting Klubik Pikcza...');
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       startupLog('Initializing database...');
@@ -123,7 +132,7 @@ class TitanBot extends Client {
       if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin || '*');
       }
-      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       
       if (req.method === 'OPTIONS') {
@@ -202,9 +211,16 @@ class TitanBot extends Client {
       });
     });
 
+    // Settings API for the web panel; off unless PANEL_API_KEY is set.
+    const panelRouter = createPanelRouter(this);
+    if (panelRouter) {
+      app.use('/api/v1', panelRouter);
+      startupLog('Panel API enabled at /api/v1');
+    }
+
     app.get('/', (req, res) => {
       res.status(200).json({ 
-        message: 'TitanBot System Online',
+        message: 'Klubik Pikcza System Online',
         version: pkg.version,
         timestamp: new Date().toISOString()
       });
@@ -251,6 +267,7 @@ class TitanBot extends Client {
     cron.schedule('0 6 * * *', runSafeTask('birthday_check', () => checkBirthdays(this)));
     cron.schedule('* * * * *', runSafeTask('giveaway_check', () => checkGiveaways(this)));
     cron.schedule('*/15 * * * *', runSafeTask('counter_update', () => this.updateAllCounters()));
+    startFeatureJobs(this);
   }
 
   async updateAllCounters() {
@@ -261,6 +278,7 @@ class TitanBot extends Client {
     
     for (const [guildId, guild] of this.guilds.cache) {
       try {
+        await withGuildLocale(this, guildId, async () => {
         const counters = await getServerCounters(this, guildId);
         const validCounters = [];
         const orphanedCounters = [];
@@ -284,6 +302,7 @@ class TitanBot extends Client {
           await saveServerCounters(this, guildId, validCounters);
           logger.info(`Cleaned up ${orphanedCounters.length} orphaned counter(s) from guild ${guildId} during scheduled update`);
         }
+        });
       } catch (error) {
         logger.error(`Error updating counters for guild ${guildId}:`, error);
       }

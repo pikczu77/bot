@@ -7,6 +7,7 @@ import { getGuildConfig, setGuildConfig } from './config/guildConfig.js';
 import { createError, ErrorTypes } from '../utils/errorHandler.js';
 import { insertVerificationAudit } from '../utils/database.js';
 import { ensureTypedServiceError } from '../utils/serviceErrorBoundary.js';
+import { t } from '../i18n/index.js';
 
 const verificationCooldowns = new Map();
 const attemptTracker = new Map();
@@ -38,7 +39,7 @@ export async function verifyUser(client, guildId, userId, options = {}) {
             throw createError(
                 `Guild ${guildId} not found`,
                 ErrorTypes.CONFIGURATION,
-                "Guild not found in bot cache.",
+                t("Guild not found in bot cache."),
                 { guildId }
             );
         }
@@ -50,7 +51,7 @@ export async function verifyUser(client, guildId, userId, options = {}) {
             throw createError(
                 `Member ${userId} not found in guild`,
                 ErrorTypes.USER_INPUT,
-                "User is not in this server.",
+                t("User is not in this server."),
                 { userId, guildId }
             );
         }
@@ -61,7 +62,7 @@ export async function verifyUser(client, guildId, userId, options = {}) {
             throw createError(
                 "Verification system disabled",
                 ErrorTypes.CONFIGURATION,
-                "The verification system is not enabled on this server.",
+                t("The verification system is not enabled on this server."),
                 { guildId }
             );
         }
@@ -74,7 +75,7 @@ export async function verifyUser(client, guildId, userId, options = {}) {
             throw createError(
                 'Bot cannot assign verified role',
                 ErrorTypes.PERMISSION,
-                "I can't assign the verified role. Please check my **Manage Roles** permission and role hierarchy.",
+                t("I can't assign the verified role. Please check my **Manage Roles** permission and role hierarchy."),
                 { guildId, roleId: verifiedRole.id }
             );
         }
@@ -91,7 +92,7 @@ export async function verifyUser(client, guildId, userId, options = {}) {
         await checkVerificationCooldown(userId, guildId, defaultCooldownMs);
         await trackVerificationAttempt(userId, guildId, defaultMaxAttempts, defaultAttemptWindowMs);
 
-        await member.roles.add(verifiedRole.id, `User verified (${source})`);
+        await member.roles.add(verifiedRole.id, t`User verified (${source})`);
 
         logVerificationAction(client, guildId, userId, 'verified', {
             source,
@@ -121,7 +122,7 @@ export async function verifyUser(client, guildId, userId, options = {}) {
             operation: 'verifyUser',
             type: ErrorTypes.UNKNOWN,
             message: 'Verification operation failed: verifyUser',
-            userMessage: 'Verification failed. Please try again in a moment.',
+            userMessage: t('Verification failed. Please try again in a moment.'),
             context: { guildId, userId, source: options.source }
         });
         logger.error('Error verifying user', {
@@ -235,7 +236,7 @@ export async function autoVerifyOnJoin(client, guild, member, verificationConfig
             };
         }
 
-        await member.roles.add(verifiedRole.id, 'Auto-verified on join');
+        await member.roles.add(verifiedRole.id, t('Auto-verified on join'));
 
         logVerificationAction(client, guild.id, member.id, 'auto_verified', {
             criteria: verificationConfig.autoVerify.criteria,
@@ -270,7 +271,7 @@ export async function autoVerifyOnJoin(client, guild, member, verificationConfig
             operation: 'autoVerifyOnJoin',
             type: ErrorTypes.UNKNOWN,
             message: 'Verification operation failed: autoVerifyOnJoin',
-            userMessage: 'Automatic verification failed. Please verify manually.',
+            userMessage: t('Automatic verification failed. Please verify manually.'),
             context: { guildId: guild.id, userId: member.id }
         });
         logger.error('Error in auto-verification on join', {
@@ -298,7 +299,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
             throw createError(
                 `Guild ${guildId} not found`,
                 ErrorTypes.CONFIGURATION,
-                "Guild not found.",
+                t("Guild not found."),
                 { guildId }
             );
         }
@@ -310,7 +311,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
             throw createError(
                 `Member ${userId} not found`,
                 ErrorTypes.USER_INPUT,
-                "User is not in this server.",
+                t("User is not in this server."),
                 { userId }
             );
         }
@@ -321,7 +322,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
             throw createError(
                 "Verification system disabled",
                 ErrorTypes.CONFIGURATION,
-                "The verification system is not enabled.",
+                t("The verification system is not enabled."),
                 { guildId }
             );
         }
@@ -331,7 +332,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
             throw createError(
                 "Verified role not found",
                 ErrorTypes.CONFIGURATION,
-                "The verified role no longer exists.",
+                t("The verified role no longer exists."),
                 { roleId: guildConfig.verification.roleId }
             );
         }
@@ -341,7 +342,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
             throw createError(
                 'Bot cannot manage verified role',
                 ErrorTypes.PERMISSION,
-                "I can't remove the verified role right now. Please check my **Manage Roles** permission and role hierarchy.",
+                t("I can't remove the verified role right now. Please check my **Manage Roles** permission and role hierarchy."),
                 { guildId, roleId: verifiedRole.id }
             );
         }
@@ -355,7 +356,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
 
         await member.roles.remove(
             verifiedRole.id, 
-            `Verification removed by ${moderatorId || 'system'}: ${reason}`
+            t`Verification removed by ${moderatorId || 'system'}: ${reason}`
         );
 
         logVerificationAction(client, guildId, userId, 'removed', {
@@ -384,7 +385,7 @@ export async function removeVerification(client, guildId, userId, options = {}) 
             operation: 'removeVerification',
             type: ErrorTypes.UNKNOWN,
             message: 'Verification operation failed: removeVerification',
-            userMessage: 'Failed to remove verification. Please try again in a moment.',
+            userMessage: t('Failed to remove verification. Please try again in a moment.'),
             context: { guildId, userId, reason }
         });
         logger.error('Error removing verification', {
@@ -403,7 +404,7 @@ export async function validateVerificationSetup(guild, verificationConfig) {
         throw createError(
             'Bot member not available in guild cache',
             ErrorTypes.CONFIGURATION,
-            "I couldn't verify my server permissions. Please try again.",
+            t("I couldn't verify my server permissions. Please try again."),
             { guildId: guild.id }
         );
     }
@@ -413,7 +414,7 @@ export async function validateVerificationSetup(guild, verificationConfig) {
         throw createError(
             "Verified role not found",
             ErrorTypes.CONFIGURATION,
-            "The verified role was deleted. Please run `/verification setup` again.",
+            t("The verified role was deleted. Please run `/verification setup` again."),
             { roleId: verificationConfig.roleId, guildId: guild.id }
         );
     }
@@ -424,7 +425,7 @@ export async function validateVerificationSetup(guild, verificationConfig) {
             throw createError(
                 "Verification channel not found",
                 ErrorTypes.CONFIGURATION,
-                "The verification channel was deleted.",
+                t("The verification channel was deleted."),
                 { channelId: verificationConfig.channelId, guildId: guild.id }
             );
         }
@@ -437,7 +438,7 @@ export async function validateVerificationSetup(guild, verificationConfig) {
             throw createError(
                 "Bot missing permissions in verification channel",
                 ErrorTypes.PERMISSION,
-                `I'm missing permissions in the verification channel: ${missingPerms.join(', ')}`,
+                t`I'm missing permissions in the verification channel: ${missingPerms.join(', ')}`,
                 { missingPerms, channelId: channel.id }
             );
         }
@@ -521,7 +522,7 @@ export async function checkVerificationCooldown(userId, guildId, cooldownMs = de
         throw createError(
             "User on verification cooldown",
             ErrorTypes.RATE_LIMIT,
-            `Please wait ${Math.ceil(remaining / 1000)} seconds before verifying again.`,
+            t`Please wait ${Math.ceil(remaining / 1000)} seconds before verifying again.`,
             { userId, guildId, cooldownRemaining: remaining }
         );
     }
@@ -547,7 +548,7 @@ export async function trackVerificationAttempt(
         throw createError(
             "Too many verification attempts",
             ErrorTypes.RATE_LIMIT,
-            "You've attempted too many times. Please wait a moment.",
+            t("You've attempted too many times. Please wait a moment."),
             { attempts: recentAttempts.length, maxAttempts }
         );
     }
@@ -561,17 +562,17 @@ async function sendAutoVerifyNotification(member, role, guild) {
         const { createEmbed } = await import('../utils/embeds.js');
         
         const embed = createEmbed({
-            title: "🎉 Welcome to the Server!",
-            description: `You have been automatically verified in **${guild.name}**!`,
+            title: t("🎉 Welcome to the Server!"),
+            description: t`You have been automatically verified in **${guild.name}**!`,
             fields: [
                 {
-                    name: "✅ Role Assigned",
-                    value: `You now have the ${role} role!`,
+                    name: t("✅ Role Assigned"),
+                    value: t`You now have the ${role} role!`,
                     inline: false
                 },
                 {
-                    name: "📖 What's Next?",
-                    value: "You now have access to all server channels and features. Welcome!",
+                    name: t("📖 What's Next?"),
+                    value: t("You now have access to all server channels and features. Welcome!"),
                     inline: false
                 }
             ],
@@ -643,7 +644,7 @@ function sanitizeAuditMetadata(metadata = {}) {
     } catch {
         return {
             invalidMetadata: true,
-            reason: 'Failed to serialize metadata'
+            reason: t('Failed to serialize metadata')
         };
     }
 }
@@ -655,7 +656,7 @@ export function validateAutoVerifyCriteria(criteria, accountAgeDays) {
         throw createError(
             `Invalid auto-verify criteria: ${criteria}`,
             ErrorTypes.VALIDATION,
-            "Please select a valid criteria option.",
+            t("Please select a valid criteria option."),
             { criteria, validCriteria }
         );
     }
@@ -665,7 +666,7 @@ export function validateAutoVerifyCriteria(criteria, accountAgeDays) {
             throw createError(
                 "Invalid account age days",
                 ErrorTypes.VALIDATION,
-                `Account age must be between ${minAutoVerifyAccountAgeDays} and ${maxAutoVerifyAccountAgeDays} days.`,
+                t`Account age must be between ${minAutoVerifyAccountAgeDays} and ${maxAutoVerifyAccountAgeDays} days.`,
                 { accountAgeDays, minAutoVerifyAccountAgeDays, maxAutoVerifyAccountAgeDays }
             );
         }

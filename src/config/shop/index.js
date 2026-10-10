@@ -1,10 +1,11 @@
 import { shopItems, getItemById, getItemsByType, getItemPrice, validatePurchase } from './items.js';
 import { botConfig } from '../bot.js';
+import { t } from '../../i18n/index.js';
 
 const { currency } = botConfig.economy;
 
 export const shopConfig = {
-    name: 'TitanBot Shop',
+    name: t('Klubik Pikcza Shop'),
     currency: currency.name,
     currencyName: currency.name,
     currencyNamePlural: currency.namePlural || `${currency.name}s`,
@@ -13,29 +14,29 @@ export const shopConfig = {
     categories: [
         {
             id: 'consumables',
-            name: 'Consumables',
-            description: 'One-time use items that provide temporary benefits',
+            name: t('Consumables'),
+            description: t('One-time use items that provide temporary benefits'),
             icon: '🍯',
             itemTypes: ['consumable']
         },
         {
             id: 'upgrades',
-            name: 'Upgrades',
-            description: 'Permanent upgrades that enhance your abilities',
+            name: t('Upgrades'),
+            description: t('Permanent upgrades that enhance your abilities'),
             icon: '⚡',
             itemTypes: ['upgrade']
         },
         {
             id: 'tools',
-            name: 'Tools',
-            description: 'Equipment that helps you gather resources more efficiently',
+            name: t('Tools'),
+            description: t('Equipment that helps you gather resources more efficiently'),
             icon: '⛏️',
             itemTypes: ['tool']
         },
         {
             id: 'roles',
-            name: 'Roles',
-            description: 'Special roles with unique perks',
+            name: t('Roles'),
+            description: t('Special roles with unique perks'),
             icon: '🎭',
             itemTypes: ['role']
         }
@@ -97,7 +98,7 @@ mythic: '#E74C3C'
             enabled: true,
 interval: 86400000,
 announcementChannel: null,
-            message: '🛒 **Shop Restocked!** New items are now available!'
+            message: t('🛒 **Shop Restocked!** New items are now available!')
         },
         
         sales: {
@@ -106,7 +107,7 @@ announcementChannel: null,
                 {
 day: 0,
 discount: 0.2,
-                    message: '🔥 **Weekend Sale!** 20% off all items!'
+                    message: t('🔥 **Weekend Sale!** 20% off all items!')
                 },
             ]
         }
@@ -155,8 +156,8 @@ export function getCategoryForItem(itemType) {
         cat.itemTypes.includes(itemType)
     ) || {
         id: 'other',
-        name: 'Other',
-        description: 'Miscellaneous items',
+        name: t('Other'),
+        description: t('Miscellaneous items'),
         icon: '📦'
     };
 }

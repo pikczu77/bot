@@ -6,6 +6,7 @@ import { getColor } from '../../config/bot.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
     .setName("purge")
@@ -15,6 +16,15 @@ export default {
         .setName("amount")
         .setDescription("Number of messages (1-100)")
         .setRequired(true),
+    )
+    .addUserOption((option) =>
+      option.setName("user").setDescription("Only delete messages from this member"),
+    )
+    .addBooleanOption((option) =>
+      option.setName("bots").setDescription("Only delete messages sent by bots"),
+    )
+    .addStringOption((option) =>
+      option.setName("contains").setDescription("Only delete messages containing this text").setMaxLength(100),
     )
 .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
   category: "moderation",
@@ -37,11 +47,24 @@ export default {
     const channel = interaction.channel;
 
     if (amount < 1 || amount > 100)
-      return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Please specify a number between 1 and 100.' });
+      return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please specify a number between 1 and 100.') });
 
     try {
-      const fetched = await channel.messages.fetch({ limit: amount });
-      const deleted = await channel.bulkDelete(fetched, true);
+      const onlyUser = interaction.options.getUser("user");
+      const onlyBots = interaction.options.getBoolean("bots") === true;
+      const contains = interaction.options.getString("contains")?.toLowerCase() ?? null;
+      const filtered = Boolean(onlyUser || onlyBots || contains);
+
+      // With a filter, look through the last 100 messages and delete up to `amount` matches.
+      const fetched = await channel.messages.fetch({ limit: filtered ? 100 : amount });
+      const targets = filtered
+        ? [...fetched.values()]
+            .filter((message) => !onlyUser || message.author?.id === onlyUser.id)
+            .filter((message) => !onlyBots || message.author?.bot)
+            .filter((message) => !contains || message.content?.toLowerCase().includes(contains))
+            .slice(0, amount)
+        : fetched;
+      const deleted = await channel.bulkDelete(targets, true);
       const deletedCount = deleted.size;
 
       await logEvent({
@@ -49,9 +72,9 @@ export default {
         guild: interaction.guild,
         event: {
           action: "Messages Purged",
-          target: `${channel} (${deletedCount} messages)`,
+          target: t`${channel} (${deletedCount} messages)`,
           executor: `${interaction.user.tag} (${interaction.user.id})`,
-          reason: `Deleted ${deletedCount} messages`,
+          reason: t`Deleted ${deletedCount} messages`,
           metadata: {
             channelId: channel.id,
             messageCount: deletedCount,
@@ -64,8 +87,8 @@ export default {
       await InteractionHelper.safeEditReply(interaction, {
         embeds: [
           successEmbed(
-            "Messages Purged",
-            `Deleted ${deletedCount} messages in ${channel}.`,
+            t("Messages Purged"),
+            t`Deleted ${deletedCount} messages in ${channel}.`,
           ),
         ],
         flags: MessageFlags.Ephemeral,
@@ -78,7 +101,7 @@ export default {
       }, 3000);
     } catch (error) {
       logger.error('Purge command error:', error);
-      await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An unexpected error occurred during message deletion. Note: Messages older than 14 days cannot be bulk deleted.' });
+      await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An unexpected error occurred during message deletion. Note: Messages older than 14 days cannot be bulk deleted.') });
     }
   }
 };

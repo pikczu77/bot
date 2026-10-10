@@ -5,17 +5,18 @@ import { TitanBotError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { addJoinToCreateTrigger, getJoinToCreateConfig } from '../../../utils/database.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t } from '../../../i18n/index.js';
 export default {
     async execute(interaction, config, client) {
         const category = interaction.options.getChannel('category');
-        const nameTemplate = interaction.options.getString('channel_name') || "{username}'s Room";
+        const nameTemplate = interaction.options.getString('channel_name') || t("{username}'s Room");
         const userLimit = interaction.options.getInteger('user_limit') || 0;
         const bitrate = interaction.options.getInteger('bitrate') || 64;
         const guildId = interaction.guild.id;
 
         try {
             const triggerChannel = await interaction.guild.channels.create({
-                name: 'Join to Create',
+                name: t('Join to Create'),
                 type: ChannelType.GuildVoice,
                 parent: category?.id,
                 userLimit: userLimit,
@@ -36,14 +37,14 @@ export default {
             });
 
             const embed = successEmbed(
-                '✅ Join to Create Setup Complete',
-                `Created trigger channel: ${triggerChannel}\n\n` +
-                `**Settings:**\n` +
-                `• Temporary Channel Name Template: \`${nameTemplate}\`\n` +
-                `• User Limit: ${userLimit === 0 ? 'No limit' : userLimit + ' users'}\n` +
-                `• Bitrate: ${bitrate} kbps\n` +
-                `${category ?`• Category: ${category.name}`: '• Category: None (root level)'}\n\n` +
-                `When users join this channel, a temporary voice channel will be created for them.`
+                t('✅ Join to Create Setup Complete'),
+                t`Created trigger channel: ${triggerChannel}\n\n` +
+                t`**Settings:**\n` +
+                t`• Temporary Channel Name Template: \`${nameTemplate}\`\n` +
+                t`• User Limit: ${userLimit === 0 ? t('No limit') : userLimit + ' users'}\n` +
+                t`• Bitrate: ${bitrate} kbps\n` +
+                `${category ?t`• Category: ${category.name}`: t('• Category: None (root level)')}\n\n` +
+                t`When users join this channel, a temporary voice channel will be created for them.`
             );
 
             try {
@@ -71,7 +72,7 @@ export default {
             throw new TitanBotError(
                 `Setup failed: ${error.message}`,
                 ErrorTypes.DISCORD_API,
-                'Failed to set up Join to Create system.'
+                t('Failed to set up Join to Create system.')
             );
         }
     }

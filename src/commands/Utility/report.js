@@ -4,6 +4,7 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 
 import report from './modules/report.js';
 import reportSetchannel from './modules/report_setchannel.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -53,6 +54,6 @@ export default {
             return await reportSetchannel.execute(interaction, config, client);
         }
 
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Unknown subcommand.' });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Unknown subcommand.') });
     },
 };

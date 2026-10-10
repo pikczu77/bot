@@ -1,13 +1,16 @@
-import { SlashCommandBuilder } from 'discord.js';
-import shopBrowse from './modules/shop_browse.js';
+import { createCommandGroup } from '../../utils/commandGroup.js';
+import shopBrowse from './modules/shop_main.js';
+import buy from './modules/buy.js';
+import inventory from './modules/inventory.js';
+import shopConfig from './modules/shop_config.js';
 
-export default {
-    slashOnly: true,
-    data: new SlashCommandBuilder()
-        .setName('shop')
-        .setDescription('Browse the economy shop.'),
-
-    async execute(interaction, config, client) {
-        return shopBrowse.execute(interaction, config, client);
-    },
-};
+export default createCommandGroup({
+    name: 'shop',
+    description: 'Browse the shop, buy items and manage your inventory',
+    members: [
+        { command: shopBrowse, as: 'browse' },
+        buy,
+        inventory,
+        { command: shopConfig, as: 'config' },
+    ],
+});

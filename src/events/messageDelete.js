@@ -3,6 +3,7 @@ import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { logger } from '../utils/logger.js';
 import { getReactionRoleMessage, deleteReactionRoleMessage } from '../services/reactionRoleService.js';
 import { formatLogLine } from '../utils/logging/logEmbeds.js';
+import { t } from '../i18n/index.js';
 
 const MAX_LOGGED_MESSAGE_CONTENT_LENGTH = 1024;
 
@@ -26,11 +27,11 @@ export default {
               guildId: message.guild.id,
               eventType: EVENT_TYPES.REACTION_ROLE_DELETE,
               data: {
-                title: 'Reaction Role Removed',
+                title: t('Reaction Role Removed'),
                 lines: [
-                  formatLogLine('Channel', message.channel ? `${message.channel.name} ${message.channel.toString()}` : 'Unknown'),
-                  formatLogLine('Message ID', `\`${message.id}\``),
-                  formatLogLine('Cleanup', 'Database entry removed automatically'),
+                  formatLogLine(t('Channel'), message.channel ? `${message.channel.name} ${message.channel.toString()}` : t('Unknown')),
+                  formatLogLine(t('Message ID'), `\`${message.id}\``),
+                  formatLogLine(t('Cleanup'), t('Database entry removed automatically')),
                 ],
                 quoted: true,
               }
@@ -46,10 +47,10 @@ export default {
       if (message.author?.bot) return;
 
       const metaLines = [
-        formatLogLine('Channel', message.channel ? `${message.channel.name} ${message.channel.toString()}` : 'Unknown'),
-        formatLogLine('Message ID', `\`${message.id}\``),
-        formatLogLine('Message author', message.author ? message.author.toString() : 'Unknown'),
-        formatLogLine('Message created', `<t:${Math.floor(message.createdTimestamp / 1000)}:R>`),
+        formatLogLine(t('Channel'), message.channel ? `${message.channel.name} ${message.channel.toString()}` : t('Unknown')),
+        formatLogLine(t('Message ID'), `\`${message.id}\``),
+        formatLogLine(t('Message author'), message.author ? message.author.toString() : t('Unknown')),
+        formatLogLine(t('Message created'), `<t:${Math.floor(message.createdTimestamp / 1000)}:R>`),
       ];
 
       let messageBody = null;
@@ -60,7 +61,7 @@ export default {
       }
 
       if (message.attachments.size > 0) {
-        metaLines.push(formatLogLine('Attachments', String(message.attachments.size)));
+        metaLines.push(formatLogLine(t('Attachments'), String(message.attachments.size)));
       }
 
       await logEvent({
@@ -68,10 +69,10 @@ export default {
         guildId: message.guild.id,
         eventType: EVENT_TYPES.MESSAGE_DELETE,
         data: {
-          title: 'Message deleted',
+          title: t('Message deleted'),
           lines: metaLines,
           quoted: true,
-          section: messageBody ? { title: 'Message', body: messageBody || '*(empty message)*' } : null,
+          section: messageBody ? { title: t('Message'), body: messageBody || t('*(empty message)*') } : null,
           userId: message.author?.id,
           channelId: message.channel.id,
         }

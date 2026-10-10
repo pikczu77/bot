@@ -13,6 +13,7 @@ import {
     getEconomyPrefix,
     getUserLevelPrefix,
 } from '../utils/database.js';
+import { t } from '../i18n/index.js';
 const wipedataConfirmHandler = {
   name: 'wipedata_yes',
   async execute(interaction, client) {
@@ -114,13 +115,13 @@ const wipedataConfirmHandler = {
       }
 
       const successMessage =
-        `✅ **Your data has been successfully wiped!**\n\n` +
-        `**Records Deleted:** ${deletedCount}\n\n` +
-        `Your account has been reset to default values. You can now start fresh!\n\n` +
-        `*All your economy balance, levels, items, and personal data have been removed.*`;
+        t`✅ **Your data has been successfully wiped!**\n\n` +
+        t`**Records Deleted:** ${deletedCount}\n\n` +
+        t`Your account has been reset to default values. You can now start fresh!\n\n` +
+        t`*All your economy balance, levels, items, and personal data have been removed.*`;
 
       await interaction.editReply({
-        embeds: [successEmbed('Data Wipe Complete', successMessage)],
+        embeds: [successEmbed(t('Data Wipe Complete'), successMessage)],
         components: []
       });
 
@@ -132,7 +133,7 @@ const wipedataConfirmHandler = {
     } catch (error) {
       logger.error('Wipedata confirm button handler error:', error);
       
-      await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while wiping your data. Please try again later or contact support.' });
+      await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while wiping your data. Please try again later or contact support.') });
     }
   }
 };
@@ -144,8 +145,8 @@ const wipedataCancelHandler = {
       await interaction.update({
         embeds: [
           createEmbed({
-            title: '❌ Data Wipe Cancelled',
-            description: 'Your data has been preserved. Your account remains unchanged.',
+            title: t('❌ Data Wipe Cancelled'),
+            description: t('Your data has been preserved. Your account remains unchanged.'),
             color: 'info'
           })
         ],
@@ -157,7 +158,7 @@ const wipedataCancelHandler = {
       logger.error('Wipedata cancel button handler error:', error);
       
       if (!interaction.replied && !interaction.deferred) {
-        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Could not cancel data wipe.' });
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Could not cancel data wipe.') });
       }
     }
   }

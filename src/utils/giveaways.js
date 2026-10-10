@@ -9,6 +9,7 @@ import {
     createGiveawayButtons as createGiveawayButtonsService,
     selectWinners as selectWinnersService
 } from '../services/giveawayService.js';
+import { t } from '../i18n/index.js';
 
 export function giveawayKey(guildId) {
     return `guild:${guildId}:giveaways`;
@@ -58,7 +59,7 @@ export async function saveGiveaway(client, guildId, giveawayData) {
             throw new TitanBotError(
                 'Invalid giveaway data: missing messageId',
                 ErrorTypes.VALIDATION,
-                'Cannot save giveaway without a message ID.',
+                t('Cannot save giveaway without a message ID.'),
                 { giveawayData }
             );
         }
@@ -93,7 +94,7 @@ export async function deleteGiveaway(client, guildId, messageId) {
             throw new TitanBotError(
                 'Missing messageId parameter',
                 ErrorTypes.VALIDATION,
-                'Cannot delete giveaway without a message ID.',
+                t('Cannot delete giveaway without a message ID.'),
                 { messageId }
             );
         }
@@ -169,22 +170,22 @@ export function giveawayButtons(ended = false) {
             row.addComponents(
                 new ButtonBuilder()
                     .setCustomId('giveaway_reroll')
-                    .setLabel('🎲 Reroll')
+                    .setLabel(t('🎲 Reroll'))
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('giveaway_view')
-                    .setLabel('👁️ View')
+                    .setLabel(t('👁️ View'))
                     .setStyle(ButtonStyle.Primary)
             );
         } else {
             row.addComponents(
                 new ButtonBuilder()
                     .setCustomId('giveaway_join')
-                    .setLabel('🎉 Join')
+                    .setLabel(t('🎉 Join'))
                     .setStyle(ButtonStyle.Primary),
                 new ButtonBuilder()
                     .setCustomId('giveaway_end')
-                    .setLabel('🛑 End')
+                    .setLabel(t('🛑 End'))
                     .setStyle(ButtonStyle.Danger)
             );
         }

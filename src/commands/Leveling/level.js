@@ -7,6 +7,7 @@ import { TitanBotError, ErrorTypes, replyUserError } from '../../utils/errorHand
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { logger } from '../../utils/logger.js';
 import levelDashboard from './modules/level_dashboard.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -73,7 +74,7 @@ export default {
         if (!deferred) return;
 
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the **Manage Server** permission to use this command.' });
+            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the **Manage Server** permission to use this command.') });
         }
 
         const subcommand = interaction.options.getSubcommand();
@@ -88,25 +89,25 @@ export default {
             const xpMax = interaction.options.getInteger('xp_max') ?? 25;
             const message =
                 interaction.options.getString('message') ??
-                '{user} has leveled up to level {level}!';
+                t('{user} has leveled up to level {level}!');
             const xpCooldown = interaction.options.getInteger('xp_cooldown') ?? 60;
 
             if (xpMin > xpMax) {
-                return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: `Minimum XP (**${xpMin}**) cannot be greater than maximum XP (**${xpMax}**).` });
+                return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t`Minimum XP (**${xpMin}**) cannot be greater than maximum XP (**${xpMax}**).` });
             }
 
             if (!botHasPermission(channel, ['SendMessages', 'EmbedLinks'])) {
                 throw new TitanBotError(
                     'Bot missing permissions in the specified channel',
                     ErrorTypes.PERMISSION,
-                    `I need **SendMessages** and **EmbedLinks** permissions in ${channel} to send level-up notifications.`,
+                    t`I need **SendMessages** and **EmbedLinks** permissions in ${channel} to send level-up notifications.`,
                 );
             }
 
             const existingConfig = await getLevelingConfig(client, interaction.guildId);
 
             if (existingConfig.configured) {
-                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: `The leveling system is already set up on this server (level-up notifications go to <#${existingConfig.levelUpChannel}>).\n\nUse \`/level dashboard\` to adjust any settings.` });
+                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t`The leveling system is already set up on this server (level-up notifications go to <#${existingConfig.levelUpChannel}>).\n\nUse \`/level dashboard\` to adjust any settings.` });
             }
 
             const newConfig = {
@@ -133,14 +134,14 @@ export default {
             return await InteractionHelper.safeEditReply(interaction, {
                 embeds: [
                     createEmbed({
-                        title: 'Leveling System Set Up',
+                        title: t('Leveling System Set Up'),
                         description:
-                            `The leveling system is now **enabled** and ready to go.\n\n` +
-                            `**Level-up Channel:** ${channel}\n` +
-                            `**XP per Message:** ${xpMin} – ${xpMax}\n` +
-                            `**XP Cooldown:** ${xpCooldown}s\n` +
-                            `**Level-up Message:** \`${message}\`\n\n` +
-                            `Use \`/level dashboard\` to adjust any of these settings at any time.`,
+                            t`The leveling system is now **enabled** and ready to go.\n\n` +
+                            t`**Level-up Channel:** ${channel}\n` +
+                            t`**XP per Message:** ${xpMin} – ${xpMax}\n` +
+                            t`**XP Cooldown:** ${xpCooldown}s\n` +
+                            t`**Level-up Message:** \`${message}\`\n\n` +
+                            t`Use \`/level dashboard\` to adjust any of these settings at any time.`,
                         color: 'success',
                     }),
                 ],

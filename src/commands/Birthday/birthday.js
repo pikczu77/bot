@@ -10,6 +10,7 @@ import nextBirthdays from './modules/next_birthdays.js';
 import birthdaySetchannel from './modules/birthday_setchannel.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('birthday')
@@ -91,7 +92,7 @@ export default {
             case 'setchannel':
                 return await birthdaySetchannel.execute(interaction, config, client);
             default:
-                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Unknown subcommand' });
+                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Unknown subcommand') });
         }
     }
 };

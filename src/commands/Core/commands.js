@@ -22,6 +22,7 @@ import {
   createDashboardCollectorFilter,
   isCommandAccessCustomId,
 } from './modules/commands_dashboard.js';
+import { t } from '../../i18n/index.js';
 
 const DASHBOARD_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -38,7 +39,7 @@ function buildCategoryChoices(client) {
 
 async function ensureManageGuild(interaction) {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the **Manage Server** permission to manage commands.' });
+    await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the **Manage Server** permission to manage commands.') });
     return false;
   }
 
@@ -196,7 +197,7 @@ export default {
           });
           await replyUserError(componentInteraction, {
             type: ErrorTypes.UNKNOWN,
-            message: error.message || 'Failed to update command access.',
+            message: error.message || t('Failed to update command access.'),
           }).catch(() => {});
         }
       });
@@ -227,7 +228,7 @@ export default {
     if (scope === 'category') {
       const category = resolveCategoryChoice(client, target);
       if (!category) {
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: `No category matched \`${target}\`. Use \`/commands dashboard\` to browse categories.` });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t`No category matched \`${target}\`. Use \`/commands dashboard\` to browse categories.` });
       }
 
       if (isDisable) {
@@ -235,8 +236,8 @@ export default {
         return InteractionHelper.safeEditReply(interaction, {
           embeds: [
             successEmbed(
-              'Category Disabled',
-              `All **${category.displayName}** commands are now disabled.\nProtected commands remain available.`,
+              t('Category Disabled'),
+              t`All **${category.displayName}** commands are now disabled.\nProtected commands remain available.`,
             ),
           ],
         });
@@ -244,7 +245,7 @@ export default {
 
       await enableCategory(client, interaction.guildId, category.key);
       return InteractionHelper.safeEditReply(interaction, {
-        embeds: [successEmbed('Category Enabled', `**${category.displayName}** commands are now enabled (except individually disabled commands).`)],
+        embeds: [successEmbed(t('Category Enabled'), t`**${category.displayName}** commands are now enabled (except individually disabled commands).`)],
       });
     }
 
@@ -252,13 +253,13 @@ export default {
     if (isDisable) {
       await disableCommand(client, interaction.guildId, commandName);
       return InteractionHelper.safeEditReply(interaction, {
-        embeds: [successEmbed('Command Disabled', `\`/${commandName}\` is now disabled in this server.`)],
+        embeds: [successEmbed(t('Command Disabled'), t`\`/${commandName}\` is now disabled in this server.`)],
       });
     }
 
     await enableCommand(client, interaction.guildId, commandName);
     return InteractionHelper.safeEditReply(interaction, {
-      embeds: [successEmbed('Command Enabled', `\`/${commandName}\` is now enabled in this server.`)],
+      embeds: [successEmbed(t('Command Enabled'), t`\`/${commandName}\` is now enabled in this server.`)],
     });
   },
 };

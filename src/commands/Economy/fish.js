@@ -3,6 +3,7 @@ import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 const FISH_COOLDOWN = 45 * 60 * 1000; 
 const BASE_MIN_REWARD = 300;
@@ -10,23 +11,23 @@ const BASE_MAX_REWARD = 900;
 const FISHING_ROD_MULTIPLIER = 1.5;
 
 const FISH_TYPES = [
-    { name: 'Bass', emoji: '🐟', rarity: 'common' },
-    { name: 'Salmon', emoji: '🐟', rarity: 'common' },
-    { name: 'Trout', emoji: '🐟', rarity: 'common' },
-    { name: 'Tuna', emoji: '🐠', rarity: 'uncommon' },
-    { name: 'Swordfish', emoji: '🐠', rarity: 'uncommon' },
-    { name: 'Octopus', emoji: '🐙', rarity: 'rare' },
-    { name: 'Lobster', emoji: '🦞', rarity: 'rare' },
-    { name: 'Shark', emoji: '🦈', rarity: 'epic' },
-    { name: 'Whale', emoji: '🐋', rarity: 'legendary' },
+    { name: t('Bass'), emoji: '🐟', rarity: 'common' },
+    { name: t('Salmon'), emoji: '🐟', rarity: 'common' },
+    { name: t('Trout'), emoji: '🐟', rarity: 'common' },
+    { name: t('Tuna'), emoji: '🐠', rarity: 'uncommon' },
+    { name: t('Swordfish'), emoji: '🐠', rarity: 'uncommon' },
+    { name: t('Octopus'), emoji: '🐙', rarity: 'rare' },
+    { name: t('Lobster'), emoji: '🦞', rarity: 'rare' },
+    { name: t('Shark'), emoji: '🦈', rarity: 'epic' },
+    { name: t('Whale'), emoji: '🐋', rarity: 'legendary' },
 ];
 
 const CATCH_MESSAGES = [
-    "You cast your line into the crystal clear waters...",
-    "You wait patiently as your bobber floats...",
-    "After a few minutes of waiting, you feel a tug...",
-    "The water ripples as something takes your bait...",
-    "You reel in your catch with expert precision...",
+    t("You cast your line into the crystal clear waters..."),
+    t("You wait patiently as your bobber floats..."),
+    t("After a few minutes of waiting, you feel a tug..."),
+    t("The water ripples as something takes your bait..."),
+    t("You reel in your catch with expert precision..."),
 ];
 
 export default {
@@ -56,7 +57,7 @@ export default {
                 throw createError(
                     "Fishing cooldown active",
                     ErrorTypes.RATE_LIMIT,
-                    `You're too tired to fish right now. Rest for **${hours}h ${minutes}m** before fishing again.`,
+                    t`You're too tired to fish right now. Rest for **${hours}h ${minutes}m** before fishing again.`,
                     { remaining, cooldownType: 'fish' }
                 );
             }
@@ -90,7 +91,7 @@ export default {
 
             if (hasFishingRod > 0) {
                 finalEarned = Math.floor(baseEarned * FISHING_ROD_MULTIPLIER);
-                multiplierMessage = `\n🎣 **Fishing Rod Bonus: +50%**`;
+                multiplierMessage = t`\n🎣 **Fishing Rod Bonus: +50%**`;
             }
 
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
@@ -109,23 +110,23 @@ export default {
             };
 
             const embed = createEmbed({
-                title: 'Fishing Success!',
-                description: `${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **$${finalEarned.toLocaleString()}**!${multiplierMessage}`,
+                title: t('Fishing Success!'),
+                description: t`${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **$${finalEarned.toLocaleString()}**!${multiplierMessage}`,
                 color: rarityColors[fishCaught.rarity]
             })
                 .addFields(
                     {
-                        name: "New Cash Balance",
+                        name: t("New Cash Balance"),
                         value: `$${userData.wallet.toLocaleString()}`,
                         inline: true,
                     },
                     {
-                        name: "Rarity",
+                        name: t("Rarity"),
                         value: fishCaught.rarity.charAt(0).toUpperCase() + fishCaught.rarity.slice(1),
                         inline: true,
                     }
                 )
-                .setFooter({ text: `Next fishing trip available in 45 minutes.` });
+                .setFooter({ text: t`Next fishing trip available in 45 minutes.` });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
     }, { command: 'fish' })

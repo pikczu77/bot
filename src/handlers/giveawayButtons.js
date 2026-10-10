@@ -16,6 +16,8 @@ import {
     createGiveawayButtons
 } from '../services/giveawayService.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
+import { t } from '../i18n/index.js';
+import { checkGiveawayEntry } from '../services/giveawayRules.js';
 
 export const giveawayJoinHandler = {
     customId: 'giveaway_join',
@@ -23,7 +25,7 @@ export const giveawayJoinHandler = {
         try {
             
             if (isUserRateLimited(interaction.user.id, interaction.message.id)) {
-                return replyUserError(interaction, { type: ErrorTypes.RATE_LIMIT, message: 'Please wait a moment before interacting with this giveaway again.' });
+                return replyUserError(interaction, { type: ErrorTypes.RATE_LIMIT, message: t('Please wait a moment before interacting with this giveaway again.') });
             }
 
             await recordUserInteraction(interaction.user.id, interaction.message.id);
@@ -37,7 +39,7 @@ export const giveawayJoinHandler = {
                     throw new TitanBotError(
                         'Giveaway not found in database',
                         ErrorTypes.VALIDATION,
-                        'This giveaway is no longer active.',
+                        t('This giveaway is no longer active.'),
                         { messageId: interaction.message.id, guildId: interaction.guildId }
                     );
                 }
@@ -46,36 +48,56 @@ export const giveawayJoinHandler = {
                 const endedByFlag = giveaway.ended || giveaway.isEnded;
 
                 if (endedByTime || endedByFlag) {
-                    return replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This giveaway has already ended.' });
+                    return replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('This giveaway has already ended.') });
                 }
 
                 const participants = giveaway.participants || [];
                 const userId = interaction.user.id;
+                giveaway.tickets ??= {};
 
+                // Clicking again leaves the giveaway.
                 if (participants.includes(userId)) {
-                    return replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'You have already entered this giveaway! 🎉' });
+                    giveaway.participants = participants.filter((id) => id !== userId);
+                    delete giveaway.tickets[userId];
+                    await saveGiveaway(client, interaction.guildId, giveaway);
+                    await interaction.message.edit({
+                        embeds: [createGiveawayEmbed(giveaway, 'active')],
+                        components: [createGiveawayButtons(false, giveaway.participants.length)]
+                    });
+                    return interaction.reply({
+                        embeds: [successEmbed(t('You left the giveaway. Click the button again to rejoin.'))],
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                const entry = await checkGiveawayEntry(client, interaction.member, giveaway);
+                if (!entry.ok) {
+                    return replyUserError(interaction, {
+                        type: ErrorTypes.PERMISSION,
+                        message: [t('You cannot enter this giveaway yet:'), ...entry.missing].join('\n'),
+                    });
                 }
 
                 participants.push(userId);
                 giveaway.participants = participants;
+                if (entry.tickets > 1) giveaway.tickets[userId] = entry.tickets;
 
                 await saveGiveaway(client, interaction.guildId, giveaway);
 
                 logger.debug(`User ${interaction.user.tag} joined giveaway ${interaction.message.id}`);
 
-                const updatedEmbed = createGiveawayEmbed(giveaway, 'active');
-                const updatedRow = createGiveawayButtons(false);
-
                 await interaction.message.edit({
-                    embeds: [updatedEmbed],
-                    components: [updatedRow]
+                    embeds: [createGiveawayEmbed(giveaway, 'active')],
+                    components: [createGiveawayButtons(false, participants.length)]
                 });
 
                 await interaction.reply({
                     embeds: [
                         successEmbed(
-                            'Success! You have entered the giveaway! 🎉',
-                            `Good luck! There are now ${participants.length} entry/entries.`
+                            t('You are in! 🎉'),
+                            entry.tickets > 1
+                                ? t`Good luck! You have **${entry.tickets}** entries thanks to your roles.`
+                                : t('Good luck! Click the button again if you want to leave.')
                         )
                     ],
                     flags: MessageFlags.Ephemeral
@@ -101,13 +123,13 @@ export const giveawayEndHandler = {
                 throw new TitanBotError(
                     'Button used outside guild',
                     ErrorTypes.VALIDATION,
-                    'This button can only be used in a server.',
+                    t('This button can only be used in a server.'),
                     { userId: interaction.user.id }
                 );
             }
 
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                return replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the \'Manage Server\' permission to end a giveaway.' });
+                return replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the \'Manage Server\' permission to end a giveaway.') });
             }
 
             const guildGiveaways = await getGuildGiveaways(client, interaction.guildId);
@@ -117,7 +139,7 @@ export const giveawayEndHandler = {
                 throw new TitanBotError(
                     'Giveaway not found in database',
                     ErrorTypes.VALIDATION,
-                    'This giveaway is no longer active.',
+                    t('This giveaway is no longer active.'),
                     { messageId: interaction.message.id, guildId: interaction.guildId }
                 );
             }
@@ -126,13 +148,13 @@ export const giveawayEndHandler = {
                 throw new TitanBotError(
                     'Giveaway already ended',
                     ErrorTypes.VALIDATION,
-                    'This giveaway has already ended.',
+                    t('This giveaway has already ended.'),
                     { messageId: interaction.message.id }
                 );
             }
 
             const participants = giveaway.participants || [];
-            const winners = selectWinners(participants, giveaway.winnerCount);
+            const winners = selectWinners(participants, giveaway.winnerCount, giveaway.tickets);
 
             giveaway.ended = true;
             giveaway.isEnded = true;
@@ -148,7 +170,7 @@ export const giveawayEndHandler = {
             const updatedRow = createGiveawayButtons(true);
 
             await interaction.message.edit({
-                content: '🎉 **GIVEAWAY ENDED** 🎉',
+                content: t('🎉 **GIVEAWAY ENDED** 🎉'),
                 embeds: [updatedEmbed],
                 components: [updatedRow]
             });
@@ -159,24 +181,24 @@ export const giveawayEndHandler = {
                     guildId: interaction.guildId,
                     eventType: EVENT_TYPES.GIVEAWAY_WINNER,
                     data: {
-                        description: `Giveaway ended with ${winners.length} winner(s)`,
+                        description: t`Giveaway ended with ${winners.length} winner(s)`,
                         channelId: interaction.channelId,
                         userId: interaction.user.id,
                         fields: [
                             {
-                                name: '🎁 Prize',
-                                value: giveaway.prize || 'Mystery Prize!',
+                                name: t('🎁 Prize'),
+                                value: giveaway.prize || t('Mystery Prize!'),
                                 inline: true
                             },
                             {
-                                name: '🏆 Winners',
+                                name: t('🏆 Winners'),
                                 value: winners.length > 0 
                                     ? winners.map(id => `<@${id}>`).join(', ')
-                                    : 'No valid entries',
+                                    : t('No valid entries'),
                                 inline: false
                             },
                             {
-                                name: '👥 Total Entries',
+                                name: t('👥 Total Entries'),
                                 value: participants.length.toString(),
                                 inline: true
                             }
@@ -190,8 +212,8 @@ export const giveawayEndHandler = {
             await interaction.reply({
                 embeds: [
                     successEmbed(
-                        `Giveaway Ended ✅`,
-                        `The giveaway has been ended and ${winners.length} winner(s) have been selected!`
+                        t`Giveaway Ended ✅`,
+                        t`The giveaway has been ended and ${winners.length} winner(s) have been selected!`
                     )
                 ],
                 flags: MessageFlags.Ephemeral
@@ -217,13 +239,13 @@ export const giveawayRerollHandler = {
                 throw new TitanBotError(
                     'Button used outside guild',
                     ErrorTypes.VALIDATION,
-                    'This button can only be used in a server.',
+                    t('This button can only be used in a server.'),
                     { userId: interaction.user.id }
                 );
             }
 
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                return replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the \'Manage Server\' permission to reroll a giveaway.' });
+                return replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the \'Manage Server\' permission to reroll a giveaway.') });
             }
 
             const guildGiveaways = await getGuildGiveaways(client, interaction.guildId);
@@ -233,7 +255,7 @@ export const giveawayRerollHandler = {
                 throw new TitanBotError(
                     'Giveaway not found in database',
                     ErrorTypes.VALIDATION,
-                    'This giveaway is no longer active.',
+                    t('This giveaway is no longer active.'),
                     { messageId: interaction.message.id, guildId: interaction.guildId }
                 );
             }
@@ -242,7 +264,7 @@ export const giveawayRerollHandler = {
                 throw new TitanBotError(
                     'Giveaway still active',
                     ErrorTypes.VALIDATION,
-                    'This giveaway has not ended yet. Please end it first.',
+                    t('This giveaway has not ended yet. Please end it first.'),
                     { messageId: interaction.message.id }
                 );
             }
@@ -253,12 +275,12 @@ export const giveawayRerollHandler = {
                 throw new TitanBotError(
                     'No participants to reroll',
                     ErrorTypes.VALIDATION,
-                    'There are no entries to reroll from.',
+                    t('There are no entries to reroll from.'),
                     { messageId: interaction.message.id }
                 );
             }
 
-            const newWinners = selectWinners(participants, giveaway.winnerCount);
+            const newWinners = selectWinners(participants, giveaway.winnerCount, giveaway.tickets);
 
             giveaway.winnerIds = newWinners;
             giveaway.rerolledAt = new Date().toISOString();
@@ -272,7 +294,7 @@ export const giveawayRerollHandler = {
             const updatedRow = createGiveawayButtons(true);
 
             await interaction.message.edit({
-                content: '🔄 **GIVEAWAY REROLLED** 🔄',
+                content: t('🔄 **GIVEAWAY REROLLED** 🔄'),
                 embeds: [updatedEmbed],
                 components: [updatedRow]
             });
@@ -283,22 +305,22 @@ export const giveawayRerollHandler = {
                     guildId: interaction.guildId,
                     eventType: EVENT_TYPES.GIVEAWAY_REROLL,
                     data: {
-                        description: `Giveaway rerolled`,
+                        description: t`Giveaway rerolled`,
                         channelId: interaction.channelId,
                         userId: interaction.user.id,
                         fields: [
                             {
-                                name: '🎁 Prize',
-                                value: giveaway.prize || 'Mystery Prize!',
+                                name: t('🎁 Prize'),
+                                value: giveaway.prize || t('Mystery Prize!'),
                                 inline: true
                             },
                             {
-                                name: '🏆 New Winners',
+                                name: t('🏆 New Winners'),
                                 value: newWinners.map(id => `<@${id}>`).join(', '),
                                 inline: false
                             },
                             {
-                                name: '👥 Total Entries',
+                                name: t('👥 Total Entries'),
                                 value: participants.length.toString(),
                                 inline: true
                             }
@@ -312,8 +334,8 @@ export const giveawayRerollHandler = {
             await interaction.reply({
                 embeds: [
                     successEmbed(
-                        'Giveaway Rerolled ✅',
-                        `New winner(s) have been selected!`
+                        t('Giveaway Rerolled ✅'),
+                        t`New winner(s) have been selected!`
                     )
                 ],
                 flags: MessageFlags.Ephemeral
@@ -338,7 +360,7 @@ export const giveawayViewHandler = {
                 throw new TitanBotError(
                     'Button used outside guild',
                     ErrorTypes.VALIDATION,
-                    'This button can only be used in a server.',
+                    t('This button can only be used in a server.'),
                     { userId: interaction.user.id }
                 );
             }
@@ -350,24 +372,24 @@ export const giveawayViewHandler = {
                 throw new TitanBotError(
                     'Giveaway not found in database',
                     ErrorTypes.VALIDATION,
-                    'This giveaway could not be found.',
+                    t('This giveaway could not be found.'),
                     { messageId: interaction.message.id, guildId: interaction.guildId }
                 );
             }
 
             if (!giveaway.ended && !giveaway.isEnded && !isGiveawayEnded(giveaway)) {
-                return replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This giveaway has not ended yet, so winners are not available.' });
+                return replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('This giveaway has not ended yet, so winners are not available.') });
             }
 
             const winnerIds = Array.isArray(giveaway.winnerIds) ? giveaway.winnerIds : [];
             const winnerMentions = winnerIds.length > 0
                 ? winnerIds.map(id => `<@${id}>`).join(', ')
-                : 'No valid winners were selected for this giveaway.';
+                : t('No valid winners were selected for this giveaway.');
 
             await interaction.reply({
                 embeds: [
                     successEmbed(
-                        `Winners for ${giveaway.prize || 'this giveaway'} 🎉`,
+                        t`Winners for ${giveaway.prize || t('this giveaway')} 🎉`,
                         winnerMentions
                     )
                 ],

@@ -1,0 +1,18 @@
+{
+  "enabled": "włączone",
+  "disabled": "wyłączone",
+  "updated": "zaktualizowano",
+  "removed": "usunięto",
+  "voice": "głosowy",
+  "text": "tekstowy",
+  "Utility": "Użytkowe",
+  "Tickets": "Tickety",
+  "Applications": "Podania",
+  "Giveaways": "Giveawaye",
+  "Only delete messages from this member": "Usuń tylko wiadomości tej osoby",
+  "Only delete messages sent by bots": "Usuń tylko wiadomości botów",
+  "Only delete messages containing this text": "Usuń tylko wiadomości zawierające ten tekst",
+  "Bot statistics": "Statystyki bota",
+  "Handy utilities: calculator and countdown timer": "Przydatne narzędzia: kalkulator i odliczanie",
+  "Information about a member or the server": "Informacje o członku albo serwerze"
+}

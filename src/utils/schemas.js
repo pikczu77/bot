@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { createError, ErrorTypes } from './errorHandler.js';
+import { t } from '../i18n/index.js';
 
 export const LogIgnoreSchema = z
   .object({
@@ -223,7 +224,7 @@ export function validateGuildConfigOrThrow(rawConfig, context = {}) {
   throw createError(
     'Invalid guild configuration payload',
     ErrorTypes.VALIDATION,
-    'Configuration payload is invalid. Please review provided values and try again.',
+    t('Configuration payload is invalid. Please review provided values and try again.'),
     {
       ...context,
       errorCode: 'VALIDATION_FAILED',

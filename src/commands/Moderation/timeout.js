@@ -4,15 +4,16 @@ import { logger } from '../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
+import { t } from '../../i18n/index.js';
 
 const durationChoices = [
-    { name: "5 minutes", value: 5 },
-    { name: "10 minutes", value: 10 },
-    { name: "30 minutes", value: 30 },
-    { name: "1 hour", value: 60 },
-    { name: "6 hours", value: 360 },
-    { name: "1 day", value: 1440 },
-    { name: "1 week", value: 10080 },
+    { name: t("5 minutes"), value: 5 },
+    { name: t("10 minutes"), value: 10 },
+    { name: t("30 minutes"), value: 30 },
+    { name: t("1 hour"), value: 60 },
+    { name: t("6 hours"), value: 360 },
+    { name: t("1 day"), value: 1440 },
+    { name: t("1 week"), value: 10080 },
 ];
 
 export default {
@@ -53,13 +54,13 @@ export default {
         const targetUser = interaction.options.getUser("target");
         const member = interaction.options.getMember("target");
         const durationMinutes = interaction.options.getInteger("duration");
-        const reason = interaction.options.getString("reason") || "No reason provided";
+        const reason = interaction.options.getString("reason") || t("No reason provided");
 
         if (!targetUser) {
             throw new TitanBotError(
                 'Missing target user',
                 ErrorTypes.USER_INPUT,
-                'You must specify a user to timeout.',
+                t('You must specify a user to timeout.'),
                 { subtype: 'invalid_user' },
             );
         }
@@ -68,21 +69,21 @@ export default {
             throw new TitanBotError(
                 "Cannot timeout self",
                 ErrorTypes.VALIDATION,
-                "You cannot timeout yourself.",
+                t("You cannot timeout yourself."),
             );
         }
         if (targetUser.id === client.user.id) {
             throw new TitanBotError(
                 "Cannot timeout bot",
                 ErrorTypes.VALIDATION,
-                "You cannot timeout the bot.",
+                t("You cannot timeout the bot."),
             );
         }
         if (!member) {
             throw new TitanBotError(
                 "Target not found",
                 ErrorTypes.USER_INPUT,
-                "The target user is not currently in this server.",
+                t("The target user is not currently in this server."),
             );
         }
 
@@ -102,8 +103,8 @@ export default {
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    `⏳ **Timed out** ${targetUser.tag} for ${durationDisplay}.`,
-                    `**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
+                    t`⏳ **Timed out** ${targetUser.tag} for ${durationDisplay}.`,
+                    t`**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
                 ),
             ],
         });

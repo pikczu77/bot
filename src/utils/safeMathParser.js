@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 // safeMathParser.js
 
 const SUPPORTED_FUNCTIONS = Object.freeze({
@@ -30,7 +31,7 @@ const RIGHT_ASSOCIATIVE_OPERATORS = new Set(['^', 'u-']);
 
 function normalizeExpression(input) {
   if (typeof input !== 'string') {
-    throw new Error('Expression must be a string');
+    throw new Error(t('Expression must be a string'));
   }
 
   return input
@@ -79,7 +80,7 @@ function tokenize(expression) {
         if (current === '.') {
           dotCount += 1;
           if (dotCount > 1) {
-            throw new Error('Invalid number format');
+            throw new Error(t('Invalid number format'));
           }
         }
 
@@ -88,7 +89,7 @@ function tokenize(expression) {
       }
 
       if (numberText === '.' || numberText.length === 0) {
-        throw new Error('Invalid number format');
+        throw new Error(t('Invalid number format'));
       }
 
       tokens.push({ type: 'number', value: Number(numberText) });
@@ -112,7 +113,7 @@ function tokenize(expression) {
         continue;
       }
 
-      throw new Error(`Unsupported token: ${identifier}`);
+      throw new Error(t`Unsupported token: ${identifier}`);
     }
 
     if ('+-*/%^()'.includes(character)) {
@@ -128,7 +129,7 @@ function tokenize(expression) {
       continue;
     }
 
-    throw new Error(`Unsupported character: ${character}`);
+    throw new Error(t`Unsupported character: ${character}`);
   }
 
   return tokens;
@@ -201,7 +202,7 @@ function toRpn(tokens) {
       }
 
       if (!hasOpeningParen) {
-        throw new Error('Mismatched parentheses');
+        throw new Error(t('Mismatched parentheses'));
       }
 
       if (stack.length > 0 && stack[stack.length - 1].type === 'function') {
@@ -215,7 +216,7 @@ function toRpn(tokens) {
   while (stack.length > 0) {
     const top = stack.pop();
     if (top.type === 'leftParen' || top.type === 'rightParen') {
-      throw new Error('Mismatched parentheses');
+      throw new Error(t('Mismatched parentheses'));
     }
     output.push(top);
   }
@@ -235,14 +236,14 @@ function evaluateRpn(rpnTokens) {
     if (token.type === 'operator') {
       if (token.value === 'u-') {
         if (stack.length < 1) {
-          throw new Error('Invalid expression');
+          throw new Error(t('Invalid expression'));
         }
         stack.push(-stack.pop());
         continue;
       }
 
       if (stack.length < 2) {
-        throw new Error('Invalid expression');
+        throw new Error(t('Invalid expression'));
       }
 
       const right = stack.pop();
@@ -254,20 +255,20 @@ function evaluateRpn(rpnTokens) {
       else if (token.value === '/') stack.push(left / right);
       else if (token.value === '%') stack.push(left % right);
       else if (token.value === '^') stack.push(Math.pow(left, right));
-      else throw new Error(`Unsupported operator: ${token.value}`);
+      else throw new Error(t`Unsupported operator: ${token.value}`);
 
       continue;
     }
 
     if (token.type === 'function') {
       if (stack.length < 1) {
-        throw new Error('Invalid function usage');
+        throw new Error(t('Invalid function usage'));
       }
 
       const value = stack.pop();
       const handler = SUPPORTED_FUNCTIONS[token.value];
       if (!handler) {
-        throw new Error(`Unsupported function: ${token.value}`);
+        throw new Error(t`Unsupported function: ${token.value}`);
       }
       stack.push(handler(value));
       continue;
@@ -275,7 +276,7 @@ function evaluateRpn(rpnTokens) {
   }
 
   if (stack.length !== 1) {
-    throw new Error('Invalid expression');
+    throw new Error(t('Invalid expression'));
   }
 
   return stack[0];
@@ -288,7 +289,7 @@ export function evaluateMathExpression(expression) {
   const value = evaluateRpn(rpn);
 
   if (!Number.isFinite(value)) {
-    throw new Error('Expression result is not finite');
+    throw new Error(t('Expression result is not finite'));
   }
 
   return value;

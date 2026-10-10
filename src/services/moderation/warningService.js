@@ -3,6 +3,7 @@
 import { db, getFromDb, setInDb, getWarningsKey, getWarningsPrefix } from '../../utils/database.js';
 import { logger } from '../../utils/logger.js';
 import { createError, ErrorTypes, wrapServiceClassMethods } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 
 class WarningService {
 
@@ -22,7 +23,7 @@ class WarningService {
       throw createError(
         'Corrupted warning data',
         ErrorTypes.DATABASE,
-        'Warning data was corrupted and has been reset. Please try again.',
+        t('Warning data was corrupted and has been reset. Please try again.'),
         { guildId, userId, service: 'warningService', operation: 'addWarning' }
       );
     }
@@ -71,7 +72,7 @@ class WarningService {
       throw createError(
         'Warning not found',
         ErrorTypes.USER_INPUT,
-        'That warning could not be found. It may have already been removed.',
+        t('That warning could not be found. It may have already been removed.'),
         { guildId, userId, warningId, service: 'warningService', operation: 'removeWarning' }
       );
     }

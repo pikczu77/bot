@@ -73,9 +73,22 @@ export function resolveSslConfig() {
     return false;
 }
 
+// The pikczu.pl site keeps its accounts in Supabase. This bot creates generic
+// tables (users, guilds, ...), so it must never be pointed at that database.
+function assertNotSiteDatabase(target) {
+    if (/supabase/i.test(target)) {
+        const error = new Error(
+            'Refusing to connect: the PostgreSQL target is a Supabase host (pikczu.pl site database). Give the bot its own PostgreSQL.'
+        );
+        error.code = 'SITE_DATABASE_BLOCKED';
+        throw error;
+    }
+}
+
 export function resolvePostgresPoolConfig() {
     const ssl = resolveSslConfig();
     const url = (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').trim();
+    assertNotSiteDatabase(`${url} ${process.env.POSTGRES_HOST || ''}`);
     const sharedOptions = {
         max: parseInt(process.env.POSTGRES_MAX_CONNECTIONS) || 20,
         min: parseInt(process.env.POSTGRES_MIN_CONNECTIONS) || 2,

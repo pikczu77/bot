@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { sanitizeInput } from '../../utils/validation.js';
+import { t } from '../../i18n/index.js';
 
 const TEXT_CHANNEL_TYPES = [
     ChannelType.GuildText,
@@ -71,7 +72,7 @@ export default {
         if (!message) {
             return replyUserError(interaction, {
                 type: ErrorTypes.VALIDATION,
-                message: 'Message cannot be empty.',
+                message: t('Message cannot be empty.'),
             });
         }
 
@@ -79,7 +80,7 @@ export default {
         if (!channel) {
             return replyUserError(interaction, {
                 type: ErrorTypes.VALIDATION,
-                message: 'Choose a text channel or run this command in one.',
+                message: t('Choose a text channel or run this command in one.'),
             });
         }
 
@@ -89,14 +90,14 @@ export default {
         if (!memberPermissions?.has(PermissionFlagsBits.SendMessages)) {
             return replyUserError(interaction, {
                 type: ErrorTypes.PERMISSION,
-                message: `You do not have permission to send messages in ${channel}.`,
+                message: t`You do not have permission to send messages in ${channel}.`,
             });
         }
 
         if (!botPermissions?.has(PermissionFlagsBits.SendMessages)) {
             return replyUserError(interaction, {
                 type: ErrorTypes.PERMISSION,
-                message: `I do not have permission to send messages in ${channel}.`,
+                message: t`I do not have permission to send messages in ${channel}.`,
             });
         }
 
@@ -124,8 +125,8 @@ export default {
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    'Message Sent',
-                    `Posted in ${channel}. [Jump to message](${sentMessage.url})`,
+                    t('Message Sent'),
+                    t`Posted in ${channel}. [Jump to message](${sentMessage.url})`,
                 ),
             ],
             flags: MessageFlags.Ephemeral,

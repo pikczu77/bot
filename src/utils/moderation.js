@@ -4,6 +4,7 @@ import { logEvent as logAuditEvent, EVENT_TYPES } from '../services/loggingServi
 import { formatLogLine } from './logging/logEmbeds.js';
 import { logger } from './logger.js';
 import { getFromDb, setInDb } from './database.js';
+import { t } from '../i18n/index.js';
 
 const ACTION_TO_EVENT_TYPE = {
   'Member Banned': EVENT_TYPES.MODERATION_BAN,
@@ -28,23 +29,23 @@ function buildModerationLogData(event) {
   const targetIdMatch = event.target?.match(/\((\d+)\)/);
   const targetId = targetIdMatch?.[1];
   const executorIdMatch = event.executor?.match(/\((\d+)\)/);
-  const executorTag = event.executor?.split(' (')[0] || 'Moderator';
+  const executorTag = event.executor?.split(' (')[0] || t('Moderator');
 
   const lines = [];
   if (event.target) {
-    lines.push(formatLogLine('User', event.target));
+    lines.push(formatLogLine(t('User'), event.target));
   }
   if (event.reason) {
     const reason = event.reason.length > 900
       ? `${event.reason.substring(0, 897)}...`
       : event.reason;
-    lines.push(formatLogLine('Reason', reason));
+    lines.push(formatLogLine(t('Reason'), reason));
   }
   if (event.duration) {
-    lines.push(formatLogLine('Duration', event.duration));
+    lines.push(formatLogLine(t('Duration'), event.duration));
   }
   if (event.caseId) {
-    lines.push(formatLogLine('Case', `\`${event.caseId}\``));
+    lines.push(formatLogLine(t('Case'), `\`${event.caseId}\``));
   }
 
   const meta = [];
@@ -56,7 +57,7 @@ function buildModerationLogData(event) {
     });
   }
 
-  const title = event.caseId ? `${event.action} · Case #${event.caseId}` : event.action;
+  const title = event.caseId ? t`${event.action} · Case #${event.caseId}` : event.action;
 
   return {
     title,

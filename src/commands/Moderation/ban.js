@@ -3,6 +3,7 @@ import { successEmbed } from '../../utils/embeds.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -22,13 +23,13 @@ export default {
 
     async execute(interaction, config, client) {
         const user = interaction.options.getUser("target");
-        const reason = interaction.options.getString("reason") || "No reason provided";
+        const reason = interaction.options.getString("reason") || t("No reason provided");
 
         if (!user) {
             throw new TitanBotError(
                 'Missing target user',
                 ErrorTypes.USER_INPUT,
-                'You must specify a user to ban.',
+                t('You must specify a user to ban.'),
                 { subtype: 'invalid_user' },
             );
         }
@@ -37,14 +38,14 @@ export default {
             throw new TitanBotError(
                 'Cannot ban self',
                 ErrorTypes.VALIDATION,
-                'You cannot ban yourself.',
+                t('You cannot ban yourself.'),
             );
         }
         if (user.id === client.user.id) {
             throw new TitanBotError(
                 'Cannot ban bot',
                 ErrorTypes.VALIDATION,
-                'You cannot ban the bot.',
+                t('You cannot ban the bot.'),
             );
         }
 
@@ -58,8 +59,8 @@ export default {
         await InteractionHelper.universalReply(interaction, {
             embeds: [
                 successEmbed(
-                    `🚫 **Banned** ${user.tag}`,
-                    `**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
+                    t`🚫 **Banned** ${user.tag}`,
+                    t`**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
                 ),
             ],
         });

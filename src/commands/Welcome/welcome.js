@@ -5,6 +5,7 @@ import { formatWelcomeMessage, truncateForEmbedField } from '../../utils/welcome
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ErrorTypes, replyUserError } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -52,7 +53,7 @@ export default {
         const { options, guild, client } = interaction;
 
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the **Manage Server** permission to use `/welcome`.' });
+            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the **Manage Server** permission to use `/welcome`.') });
         }
 
         const subcommand = options.getSubcommand();
@@ -66,12 +67,12 @@ export default {
             const existingConfig = await getWelcomeConfig(client, guild.id);
             if (existingConfig?.channelId) {
                 logger.info(`[Welcome] Setup blocked because config already exists in channel ${existingConfig.channelId} for guild ${guild.id}`);
-                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: `Welcome is already configured for <#${existingConfig.channelId}>. Use **/greet dashboard** to customize channel, message, ping, or image.` });
+                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t`Welcome is already configured for <#${existingConfig.channelId}>. Use **/greet dashboard** to customize channel, message, ping, or image.` });
             }
             
             if (!message || message.trim().length === 0) {
                 logger.warn(`[Welcome] Empty message provided by ${interaction.user.tag} in ${guild.name}`);
-                return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Welcome message cannot be empty' });
+                return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Welcome message cannot be empty') });
             }
 
             if (image) {
@@ -79,7 +80,7 @@ export default {
                     new URL(image);
                 } catch (e) {
                     logger.warn(`[Welcome] Invalid image URL provided by ${interaction.user.tag}: ${image}`);
-                    return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Please provide a valid image URL (must start with http:// or https://' });
+                    return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please provide a valid image URL (must start with http:// or https://') });
                 }
             }
 
@@ -101,14 +102,14 @@ export default {
 
                 const embed = new EmbedBuilder()
                     .setColor(getColor('success'))
-                    .setTitle('Welcome System Configured')
-                    .setDescription(`Welcome messages will now be sent to ${channel}`)
+                    .setTitle(t('Welcome System Configured'))
+                    .setDescription(t`Welcome messages will now be sent to ${channel}`)
                     .addFields(
-                        { name: 'Message Preview', value: truncateForEmbedField(previewMessage) },
-                        { name: 'Ping User', value: ping ? 'Yes' : 'No' },
-                        { name: 'Status', value: 'Enabled' }
+                        { name: t('Message Preview'), value: truncateForEmbedField(previewMessage) },
+                        { name: t('Ping User'), value: ping ? t('Yes') : t('No') },
+                        { name: t('Status'), value: t('Enabled') }
                     )
-                    .setFooter({ text: 'Tip: Use /greet dashboard to customize welcome settings' });
+                    .setFooter({ text: t('Tip: Use /greet dashboard to customize welcome settings') });
 
                 if (image) {
                     embed.setImage(image);
@@ -117,7 +118,7 @@ export default {
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
             } catch (error) {
                 logger.error(`[Welcome] Failed to setup welcome system for guild ${guild.id}:`, error);
-                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while configuring the welcome system. Please try again.' });
+                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while configuring the welcome system. Please try again.') });
             }
         }
     },

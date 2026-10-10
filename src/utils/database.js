@@ -77,6 +77,7 @@ import {
     getAFKKey,
     getUserLevelPrefix,
 } from './database/keys.js';
+import { t, trAny } from '../i18n/index.js';
 
 export async function insertVerificationAudit(record) {
     try {
@@ -206,11 +207,11 @@ export async function deleteBirthday(client, guildId, userId) {
 
 export function getMonthName(monthNum) {
     const months = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        t('January'), t('February'), t('March'), t('April'), t('May'), t('June'),
+        t('July'), t('August'), t('September'), t('October'), t('November'), t('December')
     ];
     const index = Math.max(0, Math.min(monthNum - 1, 11));
-    return monthNum >= 1 && monthNum <= 12 ? months[index] : 'Invalid Month';
+    return monthNum >= 1 && monthNum <= 12 ? months[index] : t('Invalid Month');
 }
 
 function isPostgresSqlReady(dbWrapper) {
@@ -343,23 +344,23 @@ function normalizeWelcomeConfig(raw = {}) {
     const channelId = base.channelId ?? null;
     const goodbyeChannelId = base.goodbyeChannelId ?? null;
 
-    const welcomeMessage = base.welcomeMessage ?? "Welcome {user} to {server}!";
-    const leaveMessage = base.leaveMessage ?? "{user.tag} has left the server.";
+    const welcomeMessage = base.welcomeMessage ?? t("Welcome {user} to {server}!");
+    const leaveMessage = base.leaveMessage ?? t("{user.tag} has left the server.");
 
     const welcomeEmbed = base.welcomeEmbed ?? {
-        title: "🎉 Welcome!",
-        description: "Welcome {user} to {server}!",
+        title: t("🎉 Welcome!"),
+        description: t("Welcome {user} to {server}!"),
         color: getColor("success"),
         thumbnail: true,
-        footer: "Welcome to {server}!"
+        footer: t("Welcome to {server}!")
     };
 
     const leaveEmbed = base.leaveEmbed ?? {
-        title: "👋 Goodbye",
-        description: "{user.tag} has left the server.",
+        title: t("👋 Goodbye"),
+        description: t("{user.tag} has left the server."),
         color: getColor("error"),
         thumbnail: true,
-        footer: "Goodbye from {server}!"
+        footer: t("Goodbye from {server}!")
     };
 
     const roleIds = Array.isArray(base.roleIds) ? base.roleIds : [];
@@ -867,7 +868,7 @@ status: 'pending',
     try {
         if (!client.db || typeof client.db.set !== "function") {
             logger.error("Database client is not available for createApplication.");
-            throw new Error("Database not available");
+            throw new Error(t("Database not available"));
         }
 
         await client.db.set(key, newApplication);
@@ -908,7 +909,7 @@ export async function updateApplication(client, guildId, applicationId, updates)
     try {
         const existingApplication = await getApplication(client, guildId, applicationId);
         if (!existingApplication) {
-            throw new Error(`Application ${applicationId} not found`);
+            throw new Error(t`Application ${applicationId} not found`);
         }
         
         const updatedApplication = {
@@ -1012,7 +1013,7 @@ export async function getJoinToCreateConfig(client, guildId) {
             enabled: false,
             triggerChannels: [],
             categoryId: null,
-            channelNameTemplate: "{username}'s Room",
+            channelNameTemplate: t("{username}'s Room"),
             userLimit: 0,
             bitrate: 64000,
             temporaryChannels: {}
@@ -1028,7 +1029,7 @@ export async function getJoinToCreateConfig(client, guildId) {
             enabled: unwrapped.enabled || false,
             triggerChannels: unwrapped.triggerChannels || [],
             categoryId: unwrapped.categoryId || null,
-            channelNameTemplate: unwrapped.channelNameTemplate || "{username}'s Room",
+            channelNameTemplate: unwrapped.channelNameTemplate || t("{username}'s Room"),
             userLimit: unwrapped.userLimit || 0,
             bitrate: unwrapped.bitrate || 64000,
             temporaryChannels: unwrapped.temporaryChannels || {},
@@ -1040,7 +1041,7 @@ export async function getJoinToCreateConfig(client, guildId) {
             enabled: false,
             triggerChannels: [],
             categoryId: null,
-            channelNameTemplate: "{username}'s Room",
+            channelNameTemplate: t("{username}'s Room"),
             userLimit: 0,
             bitrate: 64000,
             temporaryChannels: {}
@@ -1171,14 +1172,14 @@ export async function getTemporaryChannelInfo(client, guildId, channelId) {
 }
 
 export function formatChannelName(template, variables) {
-    let formatted = template;
+    let formatted = trAny(template);
     
     const replacements = {
-        '{username}': variables.username || 'User',
+        '{username}': variables.username || t('User'),
         '{user_tag}': variables.userTag || 'User#0000',
-        '{display_name}': variables.displayName || 'User',
-        '{guild_name}': variables.guildName || 'Server',
-        '{channel_name}': variables.channelName || 'Voice Channel'
+        '{display_name}': variables.displayName || t('User'),
+        '{guild_name}': variables.guildName || t('Server'),
+        '{channel_name}': variables.channelName || t('Voice Channel')
     };
     
     for (const [placeholder, value] of Object.entries(replacements)) {
@@ -1188,7 +1189,7 @@ export function formatChannelName(template, variables) {
     formatted = formatted.replace(/[^\w\s-]/g, '').trim();
 formatted = formatted.substring(0, 100);
     
-    return formatted || 'Voice Channel';
+    return formatted || t('Voice Channel');
 }
 
 function generateCaseId() {

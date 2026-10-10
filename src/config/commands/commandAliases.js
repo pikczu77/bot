@@ -23,7 +23,6 @@ export const commandAliases = {
     'ping': 'ping',
     'help': 'help',
     'h': 'help',
-    'info': 'help',
 
     'ban': 'ban',
     'kick': 'kick',
@@ -36,7 +35,6 @@ export const commandAliases = {
 
     'rank': 'rank',
     'lvl': 'rank',
-    'xp': 'rank',
     'leaderboard': 'leaderboard',
     'lb': 'leaderboard',
     'top': 'leaderboard',
@@ -48,6 +46,7 @@ export const commandAliases = {
     'items': 'inventory',
 
     'user': 'userinfo',
+    'server': 'serverinfo',
     'avatar': 'avatar',
     'pfp': 'avatar',
     'icon': 'avatar',
@@ -55,12 +54,6 @@ export const commandAliases = {
     'bd': 'birthday',
     'bday': 'birthday',
     'b': 'birthday',
-
-    'flip': 'flip',
-    'coin': 'flip',
-    'roll': 'roll',
-    'dice': 'roll',
-    'fight': 'fight',
 
     'gcreate': 'gcreate',
     'gstart': 'gcreate',
@@ -86,7 +79,6 @@ export const commandAliases = {
     'calc': 'calculate',
     'math': 'calculate',
     'weather': 'weather',
-    'todo': 'todo',
     'report': 'report',
     'userinfo': 'userinfo',
     'whois': 'userinfo',
@@ -124,7 +116,6 @@ export const subcommandAliases = {
 
     'start': 'create',
     'stop': 'end',
-    'roll': 'reroll',
 
     'add': 'add',
     'remove': 'remove',

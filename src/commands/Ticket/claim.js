@@ -6,6 +6,7 @@ import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { getTicketPermissionContext } from '../../utils/ticket/ticketPermissions.js';
 import { claimTicket } from '../../services/ticket.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName("claim")
@@ -20,11 +21,11 @@ export default {
 
         const permissionContext = await getTicketPermissionContext({ client, interaction });
         if (!permissionContext.ticketData) {
-            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'This command can only be used in a valid ticket channel.' });
+            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('This command can only be used in a valid ticket channel.') });
         }
 
         if (!permissionContext.canManageTicket) {
-            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the `Manage Channels` permission or the configured `Ticket Staff Role` to claim tickets.' });
+            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the `Manage Channels` permission or the configured `Ticket Staff Role` to claim tickets.') });
         }
 
         await claimTicket(interaction.channel, interaction.user);
@@ -32,8 +33,8 @@ export default {
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    "Ticket Claimed!",
-                    "You have successfully claimed this ticket.",
+                    t("Ticket Claimed!"),
+                    t("You have successfully claimed this ticket."),
                 ),
             ],
         });

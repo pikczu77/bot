@@ -5,6 +5,7 @@ import { formatLogLine, resolveUserAuthor } from '../../../utils/logging/logEmbe
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { logger } from '../../../utils/logger.js';
+import { t } from '../../../i18n/index.js';
 
 export default {
     async execute(interaction, config, client) {
@@ -22,12 +23,12 @@ export default {
         const reportChannelId = resolveLogChannel(guildConfig, 'reports');
 
         if (!reportChannelId) {
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'The report channel has not been set up. Ask a moderator to use `/logging dashboard` or `/logging channel`.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('The report channel has not been set up. Ask a moderator to use `/logging dashboard` or `/logging channel`.') });
         }
 
         const ownerMention = interaction.guild.ownerId
-            ? `<@${interaction.guild.ownerId}> New report!`
-            : 'New report!';
+            ? t`<@${interaction.guild.ownerId}> New report!`
+            : t('New report!');
 
         await logEvent({
             client,
@@ -35,13 +36,13 @@ export default {
             eventType: EVENT_TYPES.REPORT_FILE,
             content: ownerMention,
             data: {
-                title: 'User Report',
+                title: t('User Report'),
                 lines: [
-                    formatLogLine('Reported User', `${targetUser.tag} (\`${targetUser.id}\`)`),
-                    formatLogLine('Reported By', `${interaction.user.tag} (\`${interaction.user.id}\`)`),
-                    formatLogLine('Channel', interaction.channel.toString()),
+                    formatLogLine(t('Reported User'), `${targetUser.tag} (\`${targetUser.id}\`)`),
+                    formatLogLine(t('Reported By'), `${interaction.user.tag} (\`${interaction.user.id}\`)`),
+                    formatLogLine(t('Channel'), interaction.channel.toString()),
                 ],
-                blockFields: [{ name: 'Reason', value: reason }],
+                blockFields: [{ name: t('Reason'), value: reason }],
                 author: await resolveUserAuthor(client, targetUser.id),
                 thumbnail: targetUser.displayAvatarURL(),
             },
@@ -49,8 +50,8 @@ export default {
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [createEmbed({
-                title: 'Report Submitted',
-                description: `Your report against **${targetUser.tag}** has been successfully filed and sent to the moderation team. Thank you!`,
+                title: t('Report Submitted'),
+                description: t`Your report against **${targetUser.tag}** has been successfully filed and sent to the moderation team. Thank you!`,
             })],
         });
 

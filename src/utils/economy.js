@@ -7,6 +7,7 @@ import { logger } from './logger.js';
 import { validateDiscordId, validateNumber } from './validation.js';
 import { DEFAULT_ECONOMY_DATA } from './constants.js';
 import { createError, ErrorTypes, wrapServiceBoundary } from './errorHandler.js';
+import { t } from '../i18n/index.js';
 
 const ECONOMY_CONFIG = BotConfig.economy || {};
 const BASE_BANK_CAPACITY = ECONOMY_CONFIG.baseBankCapacity || 10000;
@@ -26,7 +27,7 @@ export function getEconomyKey(guildId, userId) {
     const validUserId = validateDiscordId(userId, 'userId');
     
     if (!validGuildId || !validUserId) {
-        throw new Error('Invalid guild ID or user ID');
+        throw new Error(t('Invalid guild ID or user ID'));
     }
     
     return getEconomyStorageKey(validGuildId, validUserId);
@@ -59,7 +60,7 @@ export function formatCurrency(amount) {
 export async function getEconomyData(client, guildId, userId) {
     try {
         if (!client.db || typeof client.db.get !== 'function') {
-            throw new Error('Database not available');
+            throw new Error(t('Database not available'));
         }
 
         const key = getEconomyKey(guildId, userId);
@@ -79,7 +80,7 @@ export async function getEconomyData(client, guildId, userId) {
 export async function setEconomyData(client, guildId, userId, data) {
     try {
         if (!client.db || typeof client.db.set !== 'function') {
-            throw new Error('Database not available');
+            throw new Error(t('Database not available'));
         }
 
         const key = getEconomyKey(guildId, userId);
@@ -149,16 +150,16 @@ function formatCooldown(ms) {
 export function getWorkReward() {
     const amount = Math.floor(Math.random() * (WORK_MAX - WORK_MIN + 1)) + WORK_MIN;
     const jobs = [
-        'worked at a fast food restaurant',
-        'worked as a programmer',
-        'worked as a construction worker',
-        'worked as a doctor',
-        'worked as a streamer',
-        'worked as a YouTuber',
-        'worked as a teacher',
-        'worked as a cashier',
-        'worked as a delivery driver',
-        'worked as a freelancer'
+        t('worked at a fast food restaurant'),
+        t('worked as a programmer'),
+        t('worked as a construction worker'),
+        t('worked as a doctor'),
+        t('worked as a streamer'),
+        t('worked as a YouTuber'),
+        t('worked as a teacher'),
+        t('worked as a cashier'),
+        t('worked as a delivery driver'),
+        t('worked as a freelancer')
     ];
     
     const job = jobs[Math.floor(Math.random() * jobs.length)];
@@ -166,7 +167,7 @@ export function getWorkReward() {
     return {
         amount,
         job,
-        message: `You ${job} and earned ${formatCurrency(amount)}!`
+        message: t`You ${job} and earned ${formatCurrency(amount)}!`
     };
 }
 
@@ -175,32 +176,32 @@ export function getCrimeOutcome() {
         {
             success: true,
             amount: Math.floor(Math.random() * 200) + 50,
-            message: 'You successfully robbed a bank and got away with {amount}!' 
+            message: t('You successfully robbed a bank and got away with {amount}!') 
         },
         {
             success: true,
             amount: Math.floor(Math.random() * 100) + 20,
-            message: 'You pickpocketed someone and stole {amount}!' 
+            message: t('You pickpocketed someone and stole {amount}!') 
         },
         {
             success: true,
             amount: Math.floor(Math.random() * 150) + 30,
-            message: 'You hacked into a bank account and transferred {amount} to yourself!' 
+            message: t('You hacked into a bank account and transferred {amount} to yourself!') 
         },
         {
             success: false,
             fine: Math.floor(Math.random() * 100) + 50,
-            message: 'You got caught and had to pay a fine of {fine}!' 
+            message: t('You got caught and had to pay a fine of {fine}!') 
         },
         {
             success: false,
             fine: Math.floor(Math.random() * 150) + 50,
-            message: 'The police caught you! You paid {fine} to get out of jail.' 
+            message: t('The police caught you! You paid {fine} to get out of jail.') 
         },
         {
             success: false,
             fine: 0,
-            message: 'Your attempt failed, but you managed to escape!' 
+            message: t('Your attempt failed, but you managed to escape!') 
         }
     ];
     
@@ -212,7 +213,7 @@ export function getRobOutcome(targetBalance) {
         return {
             success: false,
             amount: 0,
-            message: 'The target has no money to steal!'
+            message: t('The target has no money to steal!')
         };
     }
     
@@ -227,7 +228,7 @@ Math.floor(Math.random() * (targetBalance * 0.3)) + 1,
         return {
             success: true,
             amount,
-            message: `You successfully robbed them and got away with {amount}!`
+            message: t`You successfully robbed them and got away with {amount}!`
         };
     } else {
         const fine = Math.floor(Math.random() * 200) + 100;
@@ -236,7 +237,7 @@ Math.floor(Math.random() * (targetBalance * 0.3)) + 1,
             success: false,
             amount: 0,
             fine,
-            message: `You got caught! You had to pay a fine of {fine}.`
+            message: t`You got caught! You had to pay a fine of {fine}.`
         };
     }
 }
@@ -251,7 +252,7 @@ export const addMoney = wrapServiceBoundary(async function addMoney(client, guil
         throw createError(
             'Invalid amount',
             ErrorTypes.VALIDATION,
-            'Amount must be a positive number.',
+            t('Amount must be a positive number.'),
             { guildId, userId, amount, operation: 'addMoney' }
         );
     }
@@ -260,7 +261,7 @@ export const addMoney = wrapServiceBoundary(async function addMoney(client, guil
         throw createError(
             'Invalid money type',
             ErrorTypes.VALIDATION,
-            'Type must be "wallet" or "bank".',
+            t('Type must be "wallet" or "bank".'),
             { guildId, userId, type, operation: 'addMoney' }
         );
     }
@@ -273,7 +274,7 @@ export const addMoney = wrapServiceBoundary(async function addMoney(client, guil
             throw createError(
                 'Bank capacity exceeded',
                 ErrorTypes.VALIDATION,
-                `Bank capacity exceeded. Current: ${userData.bank || 0}, Max: ${maxBank}.`,
+                t`Bank capacity exceeded. Current: ${userData.bank || 0}, Max: ${maxBank}.`,
                 { guildId, userId, current: userData.bank || 0, max: maxBank, operation: 'addMoney' }
             );
         }
@@ -291,7 +292,7 @@ export const addMoney = wrapServiceBoundary(async function addMoney(client, guil
 }, {
     service: 'economy',
     operation: 'addMoney',
-    userMessage: 'Failed to add money. Please try again.',
+    userMessage: t('Failed to add money. Please try again.'),
 });
 
 export const removeMoney = wrapServiceBoundary(async function removeMoney(client, guildId, userId, amount, type = 'wallet') {
@@ -300,7 +301,7 @@ export const removeMoney = wrapServiceBoundary(async function removeMoney(client
         throw createError(
             'Invalid amount',
             ErrorTypes.VALIDATION,
-            'Amount must be a positive number.',
+            t('Amount must be a positive number.'),
             { guildId, userId, amount, operation: 'removeMoney' }
         );
     }
@@ -309,7 +310,7 @@ export const removeMoney = wrapServiceBoundary(async function removeMoney(client
         throw createError(
             'Invalid money type',
             ErrorTypes.VALIDATION,
-            'Type must be "wallet" or "bank".',
+            t('Type must be "wallet" or "bank".'),
             { guildId, userId, type, operation: 'removeMoney' }
         );
     }
@@ -321,7 +322,7 @@ export const removeMoney = wrapServiceBoundary(async function removeMoney(client
             throw createError(
                 'Insufficient bank funds',
                 ErrorTypes.VALIDATION,
-                `Insufficient funds in bank. You have ${userData.bank || 0}, need ${validAmount}.`,
+                t`Insufficient funds in bank. You have ${userData.bank || 0}, need ${validAmount}.`,
                 { guildId, userId, current: userData.bank || 0, required: validAmount, operation: 'removeMoney' }
             );
         }
@@ -331,7 +332,7 @@ export const removeMoney = wrapServiceBoundary(async function removeMoney(client
             throw createError(
                 'Insufficient wallet funds',
                 ErrorTypes.VALIDATION,
-                `Insufficient funds in wallet. You have ${userData.wallet || 0}, need ${validAmount}.`,
+                t`Insufficient funds in wallet. You have ${userData.wallet || 0}, need ${validAmount}.`,
                 { guildId, userId, current: userData.wallet || 0, required: validAmount, operation: 'removeMoney' }
             );
         }
@@ -346,52 +347,52 @@ export const removeMoney = wrapServiceBoundary(async function removeMoney(client
 }, {
     service: 'economy',
     operation: 'removeMoney',
-    userMessage: 'Failed to remove money. Please try again.',
+    userMessage: t('Failed to remove money. Please try again.'),
 });
 
 export function getShopInventory() {
     return [
         {
             id: 'fishing_rod',
-            name: 'Fishing Rod',
+            name: t('Fishing Rod'),
             emoji: '🎣',
             price: 500,
-            description: 'Catch fish to sell for profit!',
+            description: t('Catch fish to sell for profit!'),
             type: 'tool'
         },
         {
             id: 'hunting_rifle',
-            name: 'Hunting Rifle',
+            name: t('Hunting Rifle'),
             emoji: '🔫',
             price: 1000,
-            description: 'Hunt animals for meat and fur!',
+            description: t('Hunt animals for meat and fur!'),
             type: 'tool'
         },
         {
             id: 'laptop',
-            name: 'Laptop',
+            name: t('Laptop'),
             emoji: '💻',
             price: 2000,
-            description: 'Work as a programmer for higher pay!',
+            description: t('Work as a programmer for higher pay!'),
             type: 'tool',
             workMultiplier: 1.5
         },
         {
             id: 'bank_loan',
-            name: 'Bank Loan',
+            name: t('Bank Loan'),
             emoji: '🏦',
             price: 5000,
-            description: 'Increases your bank capacity by 50,000!',
+            description: t('Increases your bank capacity by 50,000!'),
             type: 'upgrade',
             effect: 'bank_capacity',
             value: 50000
         },
         {
             id: 'lottery_ticket',
-            name: 'Lottery Ticket',
+            name: t('Lottery Ticket'),
             emoji: '🎫',
             price: 100,
-            description: 'A chance to win big!',
+            description: t('A chance to win big!'),
             type: 'consumable',
             use: 'gamble'
         }

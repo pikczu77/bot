@@ -5,10 +5,11 @@ import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { logger } from '../../../utils/logger.js';
 
 import { replyUserError, ErrorTypes } from '../../../utils/errorHandler.js';
+import { t } from '../../../i18n/index.js';
 export default {
     async execute(interaction, config, client) {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
-            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need **Manage Server** permissions to set the report channel.' });
+            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need **Manage Server** permissions to set the report channel.') });
         }
 
         const channel = interaction.options.getChannel('channel');
@@ -19,14 +20,14 @@ export default {
 
             return InteractionHelper.safeReply(interaction, {
                 embeds: [successEmbed(
-                    'Report Channel Set',
-                    `All new reports will now be sent to ${channel}.\nYou can also manage this from \`/logging dashboard\`.`,
+                    t('Report Channel Set'),
+                    t`All new reports will now be sent to ${channel}.\nYou can also manage this from \`/logging dashboard\`.`,
                 )],
                 ephemeral: true,
             });
         } catch (error) {
             logger.error('report_setchannel error:', error);
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Could not save the channel configuration.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Could not save the channel configuration.') });
         }
     },
 };

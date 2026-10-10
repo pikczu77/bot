@@ -3,6 +3,8 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { logger } from '../../utils/logger.js';
+import { runWithLocale } from '../../i18n/index.js';
+import { resolveEventLocale } from '../../services/languageService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,9 +25,12 @@ export default async function loadEvents(client) {
                 continue;
             }
 
+            // Every event runs inside the language of the guild it happened in, so
+            // t`...` calls anywhere below resolve to the right language.
             const safeExecute = async (...args) => {
                 try {
-                    await event.execute(...args, client);
+                    const locale = await resolveEventLocale(client, args);
+                    await runWithLocale(locale, () => event.execute(...args, client));
                 } catch (error) {
                     logger.error(`Error executing event ${event.name}:`, error);
                 }

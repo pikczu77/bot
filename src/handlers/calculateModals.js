@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { evaluateMathExpression } from '../utils/safeMathParser.js';
 
 import { replyUserError, ErrorTypes } from '../utils/errorHandler.js';
+import { t } from '../i18n/index.js';
 function evaluate(expression) {
     return evaluateMathExpression(expression);
 }
@@ -14,14 +15,14 @@ async function calculateModalHandler(interaction, client, args) {
         const contextKey = operandInput?.customId?.split(':')[1];
         
         if (!contextKey) {
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Failed to retrieve calculation context.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Failed to retrieve calculation context.') });
         }
 
-        const { calculationContexts } = await import('../commands/Tools/calculate.js');
+        const { calculationContexts } = await import('../commands/Tools/modules/calculate.js');
         const context = calculationContexts.get(contextKey);
         
         if (!context) {
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This calculation has expired. Please start a new calculation.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('This calculation has expired. Please start a new calculation.') });
         }
 
         await interaction.deferReply({ ephemeral: false });
@@ -29,7 +30,7 @@ async function calculateModalHandler(interaction, client, args) {
         const operand = interaction.fields.getTextInputValue(operandInput.customId);
         
         if (!operand || isNaN(operand)) {
-            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Please provide a valid number.' });
+            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please provide a valid number.') });
         }
 
         const { expression, formattedResult, operator } = context;
@@ -56,10 +57,10 @@ async function calculateModalHandler(interaction, client, args) {
             }
 
             const updatedEmbed = successEmbed(
-                "🧮 Calculation Result",
-                `**Expression:** \`${newExpression.replace(/`/g, "\`")}\`\n` +
-                    `**Result:** \`${formattedNewResult}\`\n\n` +
-                    `*Use the buttons in the channel message to perform more operations.*`,
+                t("🧮 Calculation Result"),
+                t`**Expression:** \`${newExpression.replace(/`/g, "\`")}\`\n` +
+                    t`**Result:** \`${formattedNewResult}\`\n\n` +
+                    t`*Use the buttons in the channel message to perform more operations.*`,
             );
 
             try {
@@ -77,20 +78,20 @@ async function calculateModalHandler(interaction, client, args) {
             calculationContexts.delete(contextKey);
 
             await interaction.editReply({
-                embeds: [successEmbed('✅ Calculated', `\`${newExpression}\` = \`${formattedNewResult}\``)],
+                embeds: [successEmbed(t('✅ Calculated'), `\`${newExpression}\` = \`${formattedNewResult}\``)],
             });
 
         } catch (calcError) {
             logger.error('Calculate evaluation error:', calcError);
-            await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Failed to evaluate the expression.' });
+            await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Failed to evaluate the expression.') });
         }
     } catch (error) {
         logger.error('Calculate modal handler error:', error);
         try {
             if (!interaction.replied && !interaction.deferred) {
-                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred processing your calculation.' });
+                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred processing your calculation.') });
             } else {
-                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred processing your calculation.' });
+                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred processing your calculation.') });
             }
         } catch (err) {
             logger.error('Failed to send error message:', err);

@@ -17,6 +17,7 @@ import {
     replyMusicSuccess,
 } from '../../services/music/musicActions.js';
 import { deferMusicCommand } from '../../services/music/prefixSupport.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     category: 'Music',
@@ -181,7 +182,7 @@ export default {
             }
             default:
                 await InteractionHelper.safeEditReply(interaction, {
-                    content: 'Unknown music subcommand.',
+                    content: t('Unknown music subcommand.'),
                 });
         }
     },

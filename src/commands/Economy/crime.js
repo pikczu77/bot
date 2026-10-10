@@ -3,17 +3,18 @@ import { createEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 const CRIME_COOLDOWN = 60 * 60 * 1000;
 const JAIL_TIME = 2 * 60 * 60 * 1000;
 const FINE_RATE = 0.2;
 
 const CRIME_TYPES = [
-    { name: "Pickpocketing", min: 100, max: 500, risk: 0.3 },
-    { name: "Burglary", min: 300, max: 1000, risk: 0.4 },
-    { name: "Bank Heist", min: 1000, max: 5000, risk: 0.6 },
-    { name: "Art Theft", min: 2000, max: 10000, risk: 0.7 },
-    { name: "Cybercrime", min: 5000, max: 20000, risk: 0.8 },
+    { name: t("Pickpocketing"), min: 100, max: 500, risk: 0.3 },
+    { name: t("Burglary"), min: 300, max: 1000, risk: 0.4 },
+    { name: t("Bank Heist"), min: 1000, max: 5000, risk: 0.6 },
+    { name: t("Art Theft"), min: 2000, max: 10000, risk: 0.7 },
+    { name: t("Cybercrime"), min: 5000, max: 20000, risk: 0.8 },
 ];
 
 export default {
@@ -50,7 +51,7 @@ export default {
                 throw createError(
                     "User is in jail",
                     ErrorTypes.RATE_LIMIT,
-                    `You're in jail for ${timeLeft} more minutes!`,
+                    t`You're in jail for ${timeLeft} more minutes!`,
                     { jailTimeRemaining: userData.jailedUntil - now }
                 );
             }
@@ -60,7 +61,7 @@ export default {
                 throw createError(
                     "Crime cooldown active",
                     ErrorTypes.RATE_LIMIT,
-                    `You need to wait ${timeLeft} more minutes before committing another crime.`,
+                    t`You need to wait ${timeLeft} more minutes before committing another crime.`,
                     { remaining: lastCrime + CRIME_COOLDOWN - now, cooldownType: 'crime' }
                 );
             }
@@ -74,7 +75,7 @@ export default {
                 throw createError(
                     "Invalid crime type",
                     ErrorTypes.VALIDATION,
-                    "Please select a valid crime type.",
+                    t("Please select a valid crime type."),
                     { crimeType }
                 );
             }
@@ -93,8 +94,8 @@ export default {
                 await setEconomyData(client, guildId, userId, userData);
                 
                 const embed = successEmbed(
-                    "🕵️ Crime Successful!",
-                    `You successfully committed ${crime.name} and earned **${amountEarned}** coins!`
+                    t("🕵️ Crime Successful!"),
+                    t`You successfully committed ${crime.name} and earned **${amountEarned}** coins!`
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
@@ -108,9 +109,9 @@ export default {
                 await setEconomyData(client, guildId, userId, userData);
                 
                 const embed = warningEmbed(
-                    "🚔 Crime Failed!",
-                    `You were caught while attempting ${crime.name} and have been sent to jail! ` +
-                    `You were fined ${fine.toLocaleString()} coins and will be in jail for 2 hours.`
+                    t("🚔 Crime Failed!"),
+                    t`You were caught while attempting ${crime.name} and have been sent to jail! ` +
+                    t`You were fined ${fine.toLocaleString()} coins and will be in jail for 2 hours.`
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

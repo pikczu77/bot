@@ -3,6 +3,7 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { logger } from '../../utils/logger.js';
 import { handleInteractionError, TitanBotError, ErrorTypes, replyUserError } from '../../utils/errorHandler.js';
 import greetDashboard from './modules/greet_dashboard.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     slashOnly: true,
@@ -19,7 +20,7 @@ export default {
     async execute(interaction, config, client) {
         try {
             if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-                return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the **Manage Server** permission to use `/greet`.' });
+                return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the **Manage Server** permission to use `/greet`.') });
             }
 
             const subcommand = interaction.options.getSubcommand();
@@ -32,7 +33,7 @@ export default {
             }
         } catch (error) {
             if (error instanceof TitanBotError) {
-                return await replyUserError(interaction, { type: ErrorTypes.CONFIGURATION, message: error.userMessage || 'Something went wrong.' });
+                return await replyUserError(interaction, { type: ErrorTypes.CONFIGURATION, message: error.userMessage || t('Something went wrong.') });
             }
             await handleInteractionError(interaction, error, { command: 'greet' });
         }

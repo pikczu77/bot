@@ -1,5 +1,6 @@
+import { t } from '../../i18n/index.js';
 export const VOICE_CHANNEL_DENIAL =
-    'You need to be in the same voice channel as the bot to use music controls.';
+    t('You need to be in the same voice channel as the bot to use music controls.');
 
 export function canControlMusic(member, player) {
     const memberChannel = member?.voice?.channel;

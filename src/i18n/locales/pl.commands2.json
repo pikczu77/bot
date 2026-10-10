@@ -1,0 +1,19 @@
+{
+  "Mini games: coin flip and dice": "Minigry: rzut monetą i kości",
+  "Giveaways with entry requirements, bonus entries and rerolls": "Giveawaye z wymaganiami, dodatkowymi losami i ponownym losowaniem",
+  "Only members with this role can enter.": "Tylko osoby z tą rolą mogą wziąć udział.",
+  "Minimum level needed to enter.": "Minimalny poziom potrzebny do udziału.",
+  "Minimum number of invites needed to enter.": "Minimalna liczba zaproszeń potrzebna do udziału.",
+  "Account must be at least this many days old.": "Konto musi mieć co najmniej tyle dni.",
+  "Member must be on the server at least this many days.": "Osoba musi być na serwerze co najmniej tyle dni.",
+  "Role that gets extra entries.": "Rola, która dostaje dodatkowe losy.",
+  "How many extra entries the bonus role gets (default 1).": "Ile dodatkowych losów dostaje rola bonusowa (domyślnie 1).",
+  "Role to ping when the giveaway starts.": "Rola do pingu przy starcie giveawaya.",
+  "Shows running giveaways and the most recent finished ones.": "Pokazuje trwające giveawaye i ostatnio zakończone.",
+  "Adds a member to the current ticket.": "Dodaje osobę do obecnego ticketu.",
+  "The member to add.": "Kogo dodać.",
+  "Removes a member from the current ticket.": "Usuwa osobę z obecnego ticketu.",
+  "The member to remove.": "Kogo usunąć.",
+  "Renames the current ticket channel.": "Zmienia nazwę kanału obecnego ticketu.",
+  "The new channel name.": "Nowa nazwa kanału."
+}

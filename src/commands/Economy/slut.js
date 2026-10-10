@@ -4,40 +4,41 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 const SLUT_COOLDOWN = 45 * 60 * 1000;
 
 const SLUT_ACTIVITIES = [
-    { name: "Cam Stream", min: 120, max: 450, risk: 0.2 },
-    { name: "Private Dance Session", min: 220, max: 700, risk: 0.25 },
-    { name: "After-Hours Club Host", min: 320, max: 900, risk: 0.3 },
-    { name: "VIP Companion Booking", min: 550, max: 1400, risk: 0.35 },
-    { name: "Exclusive Livestream", min: 850, max: 2200, risk: 0.4 },
+    { name: t("Cam Stream"), min: 120, max: 450, risk: 0.2 },
+    { name: t("Private Dance Session"), min: 220, max: 700, risk: 0.25 },
+    { name: t("After-Hours Club Host"), min: 320, max: 900, risk: 0.3 },
+    { name: t("VIP Companion Booking"), min: 550, max: 1400, risk: 0.35 },
+    { name: t("Exclusive Livestream"), min: 850, max: 2200, risk: 0.4 },
 ];
 
 const POSITIVE_OUTCOMES = [
-    "Your stream blew up and tips poured in.",
-    "A VIP booking paid far above average.",
-    "Your after-hours shift was packed and profitable.",
-    "Premium requests came through and your payout jumped.",
+    t("Your stream blew up and tips poured in."),
+    t("A VIP booking paid far above average."),
+    t("Your after-hours shift was packed and profitable."),
+    t("Premium requests came through and your payout jumped."),
 ];
 
 const FINE_OUTCOMES = [
-    "Venue security issued a compliance fine.",
-    "A moderation strike triggered a platform fee.",
-    "You were flagged and had to pay a penalty.",
+    t("Venue security issued a compliance fine."),
+    t("A moderation strike triggered a platform fee."),
+    t("You were flagged and had to pay a penalty."),
 ];
 
 const ROBBED_OUTCOMES = [
-    "A fake buyer chargeback wiped part of your earnings.",
-    "A scam booking cleaned out a chunk of your cash.",
-    "You got baited by a fraud account and lost money.",
+    t("A fake buyer chargeback wiped part of your earnings."),
+    t("A scam booking cleaned out a chunk of your cash."),
+    t("You got baited by a fraud account and lost money."),
 ];
 
 const LOSS_OUTCOMES = [
-    "The set flopped and you had to cover operating costs.",
-    "You burned budget on prep and made no return.",
-    "The shift went sideways and left you in the red.",
+    t("The set flopped and you had to cover operating costs."),
+    t("You burned budget on prep and made no return."),
+    t("The shift went sideways and left you in the red."),
 ];
 
 function randomInt(min, max) {
@@ -60,7 +61,7 @@ function resolveOutcome(activity, wallet) {
             type: 'payout',
             delta: amount,
             message: randomChoice(POSITIVE_OUTCOMES),
-            title: `${activity.name} - Payout`
+            title: t`${activity.name} - Payout`
         };
     }
 
@@ -74,7 +75,7 @@ function resolveOutcome(activity, wallet) {
             type: 'fine',
             delta: -amount,
             message: randomChoice(FINE_OUTCOMES),
-            title: `${activity.name} - Fined`
+            title: t`${activity.name} - Fined`
         };
     }
 
@@ -86,7 +87,7 @@ function resolveOutcome(activity, wallet) {
             type: 'robbed',
             delta: -amount,
             message: randomChoice(ROBBED_OUTCOMES),
-            title: `${activity.name} - Robbed`
+            title: t`${activity.name} - Robbed`
         };
     }
 
@@ -97,7 +98,7 @@ function resolveOutcome(activity, wallet) {
         type: 'loss',
         delta: -amount,
         message: randomChoice(LOSS_OUTCOMES),
-        title: `${activity.name} - Loss`
+        title: t`${activity.name} - Loss`
     };
 }
 
@@ -122,7 +123,7 @@ export default {
                 throw createError(
                     "Failed to load economy data for slut command",
                     ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
+                    t("Failed to load your economy data. Please try again later."),
                     { userId, guildId }
                 );
             }
@@ -134,7 +135,7 @@ export default {
                 throw createError(
                     "Slut cooldown active",
                     ErrorTypes.RATE_LIMIT,
-                    `You need to wait before you can work again! Try again in **${Math.ceil(remainingTime / 60000)}** minutes.`,
+                    t`You need to wait before you can work again! Try again in **${Math.ceil(remainingTime / 60000)}** minutes.`,
                     { timeRemaining: remainingTime, cooldownType: 'slut' }
                 );
             }
@@ -169,11 +170,11 @@ export default {
             const amountLabel = `${outcome.delta >= 0 ? '+' : '-'}$${Math.abs(outcome.delta).toLocaleString()}`;
             const summaryLines = [
                 `${outcome.message}`,
-                `💸 **Net Result:** ${amountLabel}`,
-                `💳 **Current Balance:** $${userData.wallet.toLocaleString()}`,
-                `📊 **Total Sessions:** ${userData.totalSluts}`,
-                `💵 **Total Earned:** $${(userData.totalSlutEarnings || 0).toLocaleString()}`,
-                `🧾 **Total Lost:** $${(userData.totalSlutLosses || 0).toLocaleString()}`
+                t`💸 **Net Result:** ${amountLabel}`,
+                t`💳 **Current Balance:** $${userData.wallet.toLocaleString()}`,
+                t`📊 **Total Sessions:** ${userData.totalSluts}`,
+                t`💵 **Total Earned:** $${(userData.totalSlutEarnings || 0).toLocaleString()}`,
+                t`🧾 **Total Lost:** $${(userData.totalSlutLosses || 0).toLocaleString()}`
             ];
 
             const embed = createEmbed({

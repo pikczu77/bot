@@ -2,6 +2,7 @@ import { EmbedBuilder } from 'discord.js';
 import { setBirthday } from '../../../services/birthdayService.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t } from '../../../i18n/index.js';
 export default {
     async execute(interaction, config, client) {
         await InteractionHelper.safeDefer(interaction);
@@ -15,8 +16,8 @@ export default {
 
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
-            .setTitle('Birthday Set!')
-            .setDescription(`Your birthday has been set to **${result.data.monthName} ${result.data.day}**!`);
+            .setTitle(t('Birthday Set!'))
+            .setDescription(t`Your birthday has been set to **${result.data.monthName} ${result.data.day}**!`);
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [embed]

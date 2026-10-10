@@ -6,6 +6,7 @@ import { WarningService } from '../../services/moderation/warningService.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName("warn")
@@ -46,7 +47,7 @@ export default {
             throw new TitanBotError(
                 'Missing target user',
                 ErrorTypes.USER_INPUT,
-                'You must specify a user to warn.',
+                t('You must specify a user to warn.'),
                 { subtype: 'invalid_user' },
             );
         }
@@ -55,7 +56,7 @@ export default {
             throw new TitanBotError(
                 'Missing warning reason',
                 ErrorTypes.VALIDATION,
-                'You must provide a reason for the warning.',
+                t('You must provide a reason for the warning.'),
                 { subtype: 'missing_required' },
             );
         }
@@ -64,7 +65,7 @@ export default {
             throw new TitanBotError(
                 "Target not found",
                 ErrorTypes.USER_INPUT,
-                "The target user is not currently in this server."
+                t("The target user is not currently in this server.")
             );
         }
 
@@ -99,8 +100,8 @@ export default {
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    `⚠️ **Warned** ${target.tag}`,
-                    `**Reason:** ${reason}\n**Total Warns:** ${totalCount}`,
+                    t`⚠️ **Warned** ${target.tag}`,
+                    t`**Reason:** ${reason}\n**Total Warns:** ${totalCount}`,
                 ),
             ],
         });

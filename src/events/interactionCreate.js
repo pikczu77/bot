@@ -19,6 +19,7 @@ import { resolveSlashAccessKey } from '../utils/messageAdapter.js';
 import { isCollectorManagedComponent } from '../utils/collectorComponents.js';
 import { ResponseCoordinator } from '../utils/responseCoordinator.js';
 import { enforceDefaultCommandPermissions } from '../utils/permissionGuard.js';
+import { t } from '../i18n/index.js';
 
 const COMMAND_ERROR_SUBTYPES = {
   warn: 'warn_failed',
@@ -30,10 +31,7 @@ const COMMAND_ERROR_SUBTYPES = {
   warnings: 'warnings_view_failed',
   ticket: 'ticket_failed',
   serverstats: 'serverstats_failed',
-  gcreate: 'giveaway_failed',
-  gend: 'giveaway_failed',
-  gdelete: 'giveaway_failed',
-  greroll: 'giveaway_failed',
+  giveaway: 'giveaway_failed',
 };
 
 function withTraceContext(context = {}, traceContext = {}) {
@@ -79,7 +77,7 @@ export default {
               throw createError(
                 `No command matching ${interaction.commandName} was found.`,
                 ErrorTypes.CONFIGURATION,
-                'Sorry, that command does not exist.',
+                t('Sorry, that command does not exist.'),
                 withTraceContext({ commandName: interaction.commandName }, interactionTraceContext)
               );
             }
@@ -126,7 +124,7 @@ export default {
               throw createError(
                 `Risky command cooldown active for ${interaction.commandName}`,
                 ErrorTypes.RATE_LIMIT,
-                `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
+                t`This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
                 withTraceContext({
                   commandName: interaction.commandName,
                   subtype: 'command_cooldown',
@@ -146,7 +144,7 @@ export default {
                 throw createError(
                   `Command ${accessKey} is disabled in this guild`,
                   ErrorTypes.CONFIGURATION,
-                  'This command has been disabled for this server.',
+                  t('This command has been disabled for this server.'),
                   withTraceContext({ commandName: accessKey, guildId: interaction.guild.id }, interactionTraceContext)
                 );
               }
@@ -199,7 +197,7 @@ export default {
               
               await interaction.respond(
                 filtered.slice(0, 25).map(role => ({
-                  name: `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
+                  name: `${role.name}${role.enabled === false ? t(' (disabled)') : ''}`,
                   value: role.name
                 }))
               );
@@ -223,7 +221,7 @@ export default {
               
               await interaction.respond(
                 filtered.slice(0, 25).map(role => ({
-                  name: `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
+                  name: `${role.name}${role.enabled === false ? t(' (disabled)') : ''}`,
                   value: role.name
                 }))
               );
@@ -282,7 +280,7 @@ export default {
                     const msg = await channel.messages.fetch(panel.messageId).catch(() => null);
                     if (!msg) return null;
                     
-                    const title = msg?.embeds?.[0]?.title ?? 'Untitled Panel';
+                    const title = msg?.embeds?.[0]?.title ?? t('Untitled Panel');
                     const channelName = channel?.name ?? 'unknown';
                     
                     return {
@@ -307,33 +305,6 @@ export default {
             }
           }
         } else if (interaction.isButton()) {
-          if (interaction.customId.startsWith('shared_todo_')) {
-            const parts = interaction.customId.split('_');
-            const buttonType = parts.slice(0, 3).join('_');
-            const listId = parts[3];
-            const button = client.buttons.get(buttonType);
-
-            if (button) {
-              try {
-                await button.execute(interaction, client, [listId]);
-              } catch (error) {
-                await handleInteractionError(interaction, error, withTraceContext({
-                  type: 'button',
-                  customId: interaction.customId,
-                  handler: 'todo'
-                }, interactionTraceContext));
-              }
-            } else {
-              throw createError(
-                `No button handler found for ${buttonType}`,
-                ErrorTypes.CONFIGURATION,
-                'This button is not available.',
-                withTraceContext({ buttonType }, interactionTraceContext)
-              );
-            }
-            return;
-          }
-
           const [customId, ...args] = interaction.customId.split(':');
           const button = client.buttons.get(customId);
 
@@ -345,7 +316,7 @@ export default {
             throw createError(
               `No button handler found for ${customId}`,
               ErrorTypes.CONFIGURATION,
-              'This button is not available.',
+              t('This button is not available.'),
               withTraceContext({ customId }, interactionTraceContext)
             );
           }
@@ -371,7 +342,7 @@ export default {
             throw createError(
               `No select menu handler found for ${customId}`,
               ErrorTypes.CONFIGURATION,
-              'This select menu is not available.',
+              t('This select menu is not available.'),
               withTraceContext({ customId }, interactionTraceContext)
             );
           }
@@ -424,7 +395,7 @@ export default {
             throw createError(
               `No modal handler found for ${customId}`,
               ErrorTypes.CONFIGURATION,
-              'This form is not available.',
+              t('This form is not available.'),
               withTraceContext({ customId }, interactionTraceContext)
             );
           }

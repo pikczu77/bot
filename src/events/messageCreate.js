@@ -18,6 +18,7 @@ import {
   isValidCountingMessage,
   recordCorrectCount,
 } from '../services/countingGameService.js';
+import { t } from '../i18n/index.js';
 
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
@@ -64,9 +65,20 @@ async function handlePrefixCommand(message, client) {
 
     logger.info(`Prefix command detected: ${commandName}, args: ${args.join(', ')}`);
 
-    const resolvedCommandName = resolveCommandAlias(commandName);
+    let resolvedCommandName = resolveCommandAlias(commandName);
     logger.info(`Resolved command name: ${resolvedCommandName}`);
-    const command = client.commands.get(resolvedCommandName);
+    let command = client.commands.get(resolvedCommandName);
+
+    // Commands that were merged into a group still answer to their old prefix name:
+    // `!calculate 2+2` runs `/tools calculate`.
+    if (!command) {
+      const grouped = client.groupedCommands?.get(resolvedCommandName.toLowerCase());
+      if (grouped) {
+        command = client.commands.get(grouped.group);
+        args = [grouped.member, ...args];
+        resolvedCommandName = grouped.group;
+      }
+    }
 
     if (!command) {
       logger.warn(`Command not found: ${resolvedCommandName}`);
@@ -76,7 +88,7 @@ async function handlePrefixCommand(message, client) {
     if (isMaintenanceMode() && !isBotOwner(message.author.id)) {
       await message.channel.send({
         embeds: [createEmbed({
-          title: 'Maintenance Mode',
+          title: t('Maintenance Mode'),
           description: getBotMessage('maintenanceMode'),
           color: 'warning',
         })],
@@ -87,7 +99,7 @@ async function handlePrefixCommand(message, client) {
     if (!isCommandCategoryEnabled(command.category)) {
       await message.channel.send({
         embeds: [createEmbed({
-          title: 'Feature Disabled',
+          title: t('Feature Disabled'),
           description: getBotMessage('commandDisabled'),
           color: 'error',
         })],
@@ -99,8 +111,8 @@ async function handlePrefixCommand(message, client) {
     if (!supportsPrefixExecution(command) || restriction.blocked) {
       if (restriction.blocked && restriction.reason) {
         const embed = createEmbed({
-          title: 'Slash Command Only',
-          description: `${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
+          title: t('Slash Command Only'),
+          description: t`${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
           color: 'info',
         });
         await message.channel.send({ embeds: [embed] }).catch(() => {});
@@ -110,8 +122,8 @@ async function handlePrefixCommand(message, client) {
 
     if (!(await isCommandEnabled(client, message.guild.id, resolvePrefixAccessKey(command.data, args), command.category))) {
       const embed = createEmbed({
-        title: 'Command Disabled',
-        description: 'This command has been disabled for this server.',
+        title: t('Command Disabled'),
+        description: t('This command has been disabled for this server.'),
         color: 'error',
       });
       await message.channel.send({ embeds: [embed] }).catch(() => {});
@@ -130,8 +142,8 @@ async function handlePrefixCommand(message, client) {
     if (!abuseProtection.allowed) {
       const formattedCooldown = formatCooldownDuration(abuseProtection.remainingMs);
       const embed = createEmbed({
-        title: 'Command Cooldown',
-        description: `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
+        title: t('Command Cooldown'),
+        description: t`This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
         color: 'error',
       });
       await message.channel.send({ embeds: [embed] }).catch(() => {});
@@ -166,7 +178,7 @@ async function handleCountingGame(message, client) {
         currentStreak: 0,
       });
 
-      const failureMessage = await message.channel.send(`❌ Count broken by <@${message.author.id}>. The sequence has been reset to **1**.`);
+      const failureMessage = await message.channel.send(t`❌ Count broken by <@${message.author.id}>. The sequence has been reset to **1**.`);
       setTimeout(() => {
         failureMessage.delete().catch(() => {});
       }, 10000);

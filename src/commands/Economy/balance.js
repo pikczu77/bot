@@ -4,6 +4,7 @@ import { getEconomyData, getMaxBankCapacity } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -32,7 +33,7 @@ export default {
             throw createError(
                 "Bot user queried for balance",
                 ErrorTypes.VALIDATION,
-                "Bots don't have an economy balance."
+                t("Bots don't have an economy balance.")
             );
         }
 
@@ -44,7 +45,7 @@ export default {
             throw createError(
                 "Failed to load economy data",
                 ErrorTypes.DATABASE,
-                "Failed to load economy data. Please try again later.",
+                t("Failed to load economy data. Please try again later."),
                 { userId: targetUser.id, guildId }
             );
         }
@@ -55,28 +56,28 @@ export default {
         const bank = typeof userData.bank === 'number' ? userData.bank : 0;
 
             const embed = createEmbed({
-                title: `${targetUser.username}'s Balance`,
-                description: `Here is the current financial status for ${targetUser.username}.`,
+                title: t`${targetUser.username}'s Balance`,
+                description: t`Here is the current financial status for ${targetUser.username}.`,
             })
                 .addFields(
                     {
-                        name: "💵 Cash",
+                        name: t("💵 Cash"),
                         value: `$${wallet.toLocaleString()}`,
                         inline: true,
                     },
                     {
-                        name: "🏦 Bank",
+                        name: t("🏦 Bank"),
                         value: `$${bank.toLocaleString()} / $${maxBank.toLocaleString()}`,
                         inline: true,
                     },
                     {
-                        name: "💰 Total",
+                        name: t("💰 Total"),
                         value: `$${(wallet + bank).toLocaleString()}`,
                         inline: true,
                     }
                 )
                 .setFooter({
-                    text: `Requested by ${interaction.user.tag}`,
+                    text: t`Requested by ${interaction.user.tag}`,
                     iconURL: interaction.user.displayAvatarURL(),
                 });
 

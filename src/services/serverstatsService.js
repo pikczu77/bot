@@ -5,29 +5,30 @@ import { logEvent, EVENT_TYPES } from './loggingService.js';
 import { formatLogLine } from '../utils/logging/logEmbeds.js';
 import { getServerCountersKey } from '../utils/database/keys.js';
 import botConfig from '../config/bot.js';
+import { t } from '../i18n/index.js';
 
 export const COUNTER_TYPE_CONFIG = {
   members: {
-    label: 'Members + Bots',
-    baseName: 'Members & Bots',
+    label: t('Members + Bots'),
+    baseName: t('Members & Bots'),
     emoji: '👥'
   },
   members_only: {
-    label: 'Members Only',
-    baseName: 'Members',
+    label: t('Members Only'),
+    baseName: t('Members'),
     emoji: '👤'
   },
   bots: {
-    label: 'Bots Only',
-    baseName: 'Bots',
+    label: t('Bots Only'),
+    baseName: t('Bots'),
     emoji: '🤖'
   }
 };
 
 function getCounterConfig(type) {
   return COUNTER_TYPE_CONFIG[type] || {
-    label: 'Unknown',
-    baseName: 'Counter',
+    label: t('Unknown'),
+    baseName: t('Counter'),
     emoji: '❓'
   };
 }
@@ -190,11 +191,11 @@ export async function updateCounter(client, guild, counter) {
             guildId: guild.id,
             eventType: EVENT_TYPES.COUNTER_UPDATE,
             data: {
-              title: 'Counter Updated',
+              title: t('Counter Updated'),
               lines: [
-                formatLogLine('Type', getCounterTypeLabel(type)),
-                formatLogLine('Count', count.toString()),
-                formatLogLine('Channel', channel.toString()),
+                formatLogLine(t('Type'), getCounterTypeLabel(type)),
+                formatLogLine(t('Count'), count.toString()),
+                formatLogLine(t('Channel'), channel.toString()),
               ],
               channelId: channel.id,
             },

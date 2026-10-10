@@ -5,6 +5,7 @@ import { formatWelcomeMessage, truncateForEmbedField } from '../../utils/welcome
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ErrorTypes, replyUserError } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -47,7 +48,7 @@ export default {
         const { options, guild, client } = interaction;
 
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need the **Manage Server** permission to use `/goodbye`.' });
+            return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need the **Manage Server** permission to use `/goodbye`.') });
         }
 
         const subcommand = options.getSubcommand();
@@ -61,12 +62,12 @@ export default {
             const existingConfig = await getWelcomeConfig(client, guild.id);
             if (existingConfig?.goodbyeChannelId) {
                 logger.info(`[Goodbye] Setup blocked because config already exists in channel ${existingConfig.goodbyeChannelId} for guild ${guild.id}`);
-                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: `Goodbye is already configured for <#${existingConfig.goodbyeChannelId}>. Use **/greet dashboard** to customize channel, message, ping, or image.` });
+                return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t`Goodbye is already configured for <#${existingConfig.goodbyeChannelId}>. Use **/greet dashboard** to customize channel, message, ping, or image.` });
             }
 
             if (!message || message.trim().length === 0) {
                 logger.warn(`[Goodbye] Empty message provided by ${interaction.user.tag} in ${guild.name}`);
-                return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Goodbye message cannot be empty' });
+                return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Goodbye message cannot be empty') });
             }
 
             if (image) {
@@ -74,7 +75,7 @@ export default {
                     new URL(image);
                 } catch (e) {
                     logger.warn(`[Goodbye] Invalid image URL provided by ${interaction.user.tag}: ${image}`);
-                    return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Please provide a valid image URL (must start with http:// or https://' });
+                    return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please provide a valid image URL (must start with http:// or https://') });
                 }
             }
 
@@ -85,10 +86,10 @@ export default {
                     leaveMessage: message,
                     goodbyePing: ping,
                     leaveEmbed: {
-                        title: "Goodbye {user.tag}",
+                        title: t("Goodbye {user.tag}"),
                         description: message,
                         color: getColor('error'),
-                        footer: `Goodbye from ${guild.name}!`,
+                        footer: t`Goodbye from ${guild.name}!`,
                         ...(image && { image: { url: image } })
                     }
                 });
@@ -102,14 +103,14 @@ export default {
 
                 const embed = new EmbedBuilder()
                     .setColor(getColor('success'))
-                    .setTitle('Goodbye System Configured')
-                    .setDescription(`Goodbye messages will now be sent to ${channel}`)
+                    .setTitle(t('Goodbye System Configured'))
+                    .setDescription(t`Goodbye messages will now be sent to ${channel}`)
                     .addFields(
-                        { name: 'Message Preview', value: truncateForEmbedField(previewMessage) },
-                        { name: 'Ping User', value: ping ? 'Yes' : 'No' },
-                        { name: 'Status', value: 'Enabled' }
+                        { name: t('Message Preview'), value: truncateForEmbedField(previewMessage) },
+                        { name: t('Ping User'), value: ping ? t('Yes') : t('No') },
+                        { name: t('Status'), value: t('Enabled') }
                     )
-                    .setFooter({ text: 'Tip: Use /greet dashboard to customize goodbye settings' });
+                    .setFooter({ text: t('Tip: Use /greet dashboard to customize goodbye settings') });
 
                 if (image) {
                     embed.setImage(image);
@@ -118,7 +119,7 @@ export default {
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
             } catch (error) {
                 logger.error(`[Goodbye] Failed to setup goodbye system for guild ${guild.id}:`, error);
-                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while configuring the goodbye system. Please try again.' });
+                await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while configuring the goodbye system. Please try again.') });
             }
         }
     },

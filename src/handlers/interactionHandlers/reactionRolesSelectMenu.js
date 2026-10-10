@@ -5,6 +5,7 @@ import { handleInteractionError, createError, ErrorTypes } from '../../utils/err
 import { getColor } from '../../config/bot.js';
 import { logEvent, EVENT_TYPES } from '../../services/loggingService.js';
 import { getReactionRoleMessage } from '../../services/reactionRoleService.js';
+import { t } from '../../i18n/index.js';
 
 export async function handleReactionRolesSelectMenu(interaction, client) {
     try {
@@ -15,7 +16,7 @@ export async function handleReactionRolesSelectMenu(interaction, client) {
             throw createError(
                 'Reaction role interaction used outside a guild context',
                 ErrorTypes.VALIDATION,
-                'This reaction role menu can only be used inside a server.',
+                t('This reaction role menu can only be used inside a server.'),
                 { userId: interaction.user.id }
             );
         }
@@ -29,7 +30,7 @@ export async function handleReactionRolesSelectMenu(interaction, client) {
             return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
-                        .setDescription('❌ This reaction role message is no longer active.')
+                        .setDescription(t('❌ This reaction role message is no longer active.'))
                         .setColor(getColor('error'))
                 ]
             });
@@ -44,7 +45,7 @@ export async function handleReactionRolesSelectMenu(interaction, client) {
             throw createError(
                 'Unable to fetch bot member for permission validation',
                 ErrorTypes.PERMISSION,
-                'I could not verify my server permissions. Please try again.',
+                t('I could not verify my server permissions. Please try again.'),
                 { guildId: interaction.guildId }
             );
         }
@@ -53,7 +54,7 @@ export async function handleReactionRolesSelectMenu(interaction, client) {
             throw createError(
                 'Bot missing ManageRoles permission',
                 ErrorTypes.PERMISSION,
-                'I do not have permission to manage roles in this server.',
+                t('I do not have permission to manage roles in this server.'),
                 { guildId: interaction.guildId }
             );
         }
@@ -135,22 +136,22 @@ export async function handleReactionRolesSelectMenu(interaction, client) {
             }
         }
 
-        let description = '🎭 **Roles updated successfully!**\n\n';
+        let description = t('🎭 **Roles updated successfully!**\n\n');
 
         if (addedRoles.length > 0) {
-            description += `✅ **Added:** ${addedRoles.map(name => `**${name}**`).join(', ')}\n`;
+            description += t`✅ **Added:** ${addedRoles.map(name => `**${name}**`).join(', ')}\n`;
         }
 
         if (removedRoles.length > 0) {
-            description += `❌ **Removed:** ${removedRoles.map(name => `**${name}**`).join(', ')}\n`;
+            description += t`❌ **Removed:** ${removedRoles.map(name => `**${name}**`).join(', ')}\n`;
         }
 
         if (addedRoles.length === 0 && removedRoles.length === 0) {
-            description += 'No changes were made to your roles.';
+            description += t('No changes were made to your roles.');
         }
 
         if (skippedRoles.length > 0) {
-            description += `\n⚠️ **Skipped:** ${skippedRoles.length} role${skippedRoles.length !== 1 ? 's' : ''} (permission issues)`;
+            description += t`\n⚠️ **Skipped:** ${skippedRoles.length} role${skippedRoles.length !== 1 ? 's' : ''} (permission issues)`;
         }
 
         const responseEmbed = new EmbedBuilder()
@@ -167,22 +168,22 @@ export async function handleReactionRolesSelectMenu(interaction, client) {
                     guildId: interaction.guildId,
                     eventType: EVENT_TYPES.REACTION_ROLE_UPDATE,
                     data: {
-                        description: `Reaction roles updated for ${member.user.tag}`,
+                        description: t`Reaction roles updated for ${member.user.tag}`,
                         userId: member.user.id,
                         channelId: interaction.channelId,
                         fields: [
                             {
-                                name: '👤 Member',
+                                name: t('👤 Member'),
                                 value: `${member.user.tag} (${member.user.id})`,
                                 inline: false
                             },
                             ...(addedRoles.length > 0 ? [{
-                                name: '✅ Roles Added',
+                                name: t('✅ Roles Added'),
                                 value: addedRoles.join(', '),
                                 inline: false
                             }] : []),
                             ...(removedRoles.length > 0 ? [{
-                                name: '❌ Roles Removed',
+                                name: t('❌ Roles Removed'),
                                 value: removedRoles.join(', '),
                                 inline: false
                             }] : [])

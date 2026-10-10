@@ -3,6 +3,7 @@ import { getUserBirthday } from '../../../services/birthdayService.js';
 import { logger } from '../../../utils/logger.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t } from '../../../i18n/index.js';
 export default {
     async execute(interaction, config, client) {
         await InteractionHelper.safeDefer(interaction);
@@ -16,10 +17,10 @@ export default {
         if (!birthdayData) {
             const embed = new EmbedBuilder()
                 .setColor(0xFF0000)
-                .setTitle('No Birthday Found')
+                .setTitle(t('No Birthday Found'))
                 .setDescription(targetUser.id === interaction.user.id 
-                    ? "You haven't set your birthday yet. Use `/birthday set` to add it!"
-                    : `${targetUser.username} hasn't set their birthday yet.`);
+                    ? t("You haven't set your birthday yet. Use `/birthday set` to add it!")
+                    : t`${targetUser.username} hasn't set their birthday yet.`);
             return await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed]
             });
@@ -27,8 +28,8 @@ export default {
 
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
-            .setTitle('Birthday Information')
-            .setDescription(`**Date:** ${birthdayData.monthName} ${birthdayData.day}\n**User:** ${targetUser.toString()}`);
+            .setTitle(t('Birthday Information'))
+            .setDescription(t`**Date:** ${birthdayData.monthName} ${birthdayData.day}\n**User:** ${targetUser.toString()}`);
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [embed]

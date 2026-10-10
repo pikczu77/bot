@@ -4,6 +4,8 @@ import { getGuildConfig } from './config/guildConfig.js';
 import { getGuildBirthdays, setBirthday as dbSetBirthday, deleteBirthday as dbDeleteBirthday, getMonthName, getBirthdayTrackingKey } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../utils/errorHandler.js';
+import { t, enterLocale } from '../i18n/index.js';
+import { getGuildLocale } from './languageService.js';
 
 export function validateBirthday(month, day) {
   
@@ -68,7 +70,7 @@ export async function setBirthday(client, guildId, userId, month, day) {
       throw new TitanBotError(
         'Failed to save birthday to database',
         ErrorTypes.DATABASE,
-        'Failed to set your birthday. Please try again later.',
+        t('Failed to set your birthday. Please try again later.'),
         { userId, guildId, month, day }
       );
     }
@@ -173,7 +175,7 @@ export async function deleteBirthday(client, guildId, userId) {
       throw new TitanBotError(
         'Failed to delete birthday from database',
         ErrorTypes.DATABASE,
-        'Failed to remove your birthday. Please try again.',
+        t('Failed to remove your birthday. Please try again.'),
         { userId, guildId }
       );
     }
@@ -282,6 +284,7 @@ export async function checkBirthdays(client) {
 
   for (const [guildId, guild] of client.guilds.cache) {
     try {
+      enterLocale(await getGuildLocale(client, guildId));
       const config = await getGuildConfig(client, guildId);
       const { birthdayChannelId, birthdayRoleId } = config;
 
@@ -305,7 +308,7 @@ export async function checkBirthdays(client) {
           if (birthdayRoleId) {
             const member = await guild.members.fetch(userId).catch(() => null);
             if (member && member.roles.cache.has(birthdayRoleId)) {
-              await member.roles.remove(birthdayRoleId, "Birthday role expired");
+              await member.roles.remove(birthdayRoleId, t("Birthday role expired"));
             }
           }
           delete updatedTrackingData[userId];
@@ -328,7 +331,7 @@ export async function checkBirthdays(client) {
             birthdayMembers.push(member);
             if (birthdayRoleId) {
               try {
-                await member.roles.add(birthdayRoleId, "Happy Birthday! 🎉");
+                await member.roles.add(birthdayRoleId, t("Happy Birthday! 🎉"));
                 updatedTrackingData[userId] = true;
               } catch (error) {
                   logger.error(`Error adding birthday role to ${member.user.tag}:`, error);
@@ -344,10 +347,10 @@ export async function checkBirthdays(client) {
         
         await channel.send({
           embeds: [{
-            title: '🎉 Happy Birthday! 🎂',
-            description: `A very happy birthday to ${mentionList}! Wishing you an amazing day! 🎈`,
+            title: t('🎉 Happy Birthday! 🎂'),
+            description: t`A very happy birthday to ${mentionList}! Wishing you an amazing day! 🎈`,
             color: 0xff69b4,
-            footer: { text: 'Birthday Bot' },
+            footer: { text: t('Birthday Bot') },
             timestamp: new Date()
           }]
         });

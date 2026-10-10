@@ -6,6 +6,7 @@ import { sanitizeInput } from '../../utils/validation.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -89,7 +90,7 @@ export default {
         const guildId = interaction.guild.id;
 
         if (subcommand !== "view" && subcommand !== "remove" && subcommand !== "clear" && subcommand !== "add") {
-            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Please select a valid subcommand.' });
+            return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please select a valid subcommand.') });
         }
 
         let notes = [];
@@ -109,11 +110,11 @@ export default {
                 case "clear":
                     return await handleClearNotes(interaction, targetUser, notes, guildId);
                 default:
-                    return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Please select a valid subcommand.' });
+                    return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please select a valid subcommand.') });
             }
         } catch (error) {
             logger.error(`Error in usernotes command (${subcommand}):`, error);
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while processing your request. Please try again later.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while processing your request. Please try again later.') });
         }
     }
 };
@@ -123,11 +124,11 @@ async function handleAddNote(interaction, targetUser, notes, guildId) {
     const type = interaction.options.getString("type") || "neutral";
 
     if (note.length > 1000) {
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Notes must be 1000 characters or less.' });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Notes must be 1000 characters or less.') });
     }
 
     if (note.length === 0) {
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Note cannot be empty.' });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Note cannot be empty.') });
     }
 
     note = sanitizeInput(note);
@@ -151,11 +152,11 @@ async function handleAddNote(interaction, targetUser, notes, guildId) {
     return InteractionHelper.safeReply(interaction, {
         embeds: [
             successEmbed(
-                `${typeInfo.emoji} Note Added`,
-                `Added a **${type}** note for **${targetUser.tag}**:\n\n` +
+                t`${typeInfo.emoji} Note Added`,
+                t`Added a **${type}** note for **${targetUser.tag}**:\n\n` +
                 `> ${note}\n\n` +
-                `**Moderator:** ${interaction.user.tag}\n` +
-                `**Total Notes:** ${notes.length}`
+                t`**Moderator:** ${interaction.user.tag}\n` +
+                t`**Total Notes:** ${notes.length}`
             )
         ]
     });
@@ -166,8 +167,8 @@ async function handleViewNotes(interaction, targetUser, notes) {
         return InteractionHelper.safeReply(interaction, {
             embeds: [
                 infoEmbed(
-                    "📝 No Notes",
-                    `There are no notes for **${targetUser.tag}**.`
+                    t("📝 No Notes"),
+                    t`There are no notes for **${targetUser.tag}**.`
                 ),
             ],
         });
@@ -175,24 +176,24 @@ async function handleViewNotes(interaction, targetUser, notes) {
 
     const sortedNotes = [...notes].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    let description = `**Notes for ${targetUser.tag} (${targetUser.id}):**\n\n`;
+    let description = t`**Notes for ${targetUser.tag} (${targetUser.id}):**\n\n`;
     
     sortedNotes.forEach((note, index) => {
         const typeInfo = getNoteTypeInfo(note.type);
         const date = new Date(note.timestamp).toLocaleDateString();
-        description += `${typeInfo.emoji} **Note #${index + 1}** (${note.type}) - ${date}\n`;
+        description += t`${typeInfo.emoji} **Note #${index + 1}** (${note.type}) - ${date}\n`;
         description += `> ${note.content}\n`;
-        description += `*Added by ${note.author}*\n\n`;
+        description += t`*Added by ${note.author}*\n\n`;
     });
 
     if (description.length > 4000) {
-        description = description.substring(0, 3900) + "\n... *(truncated)*";
+        description = description.substring(0, 3900) + t("\n... *(truncated)*");
     }
 
     return InteractionHelper.safeReply(interaction, {
         embeds: [
             infoEmbed(
-                `📝 User Notes (${notes.length})`,
+                t`📝 User Notes (${notes.length})`,
                 description
             )
         ]
@@ -203,7 +204,7 @@ async function handleRemoveNote(interaction, targetUser, notes, guildId) {
     const index = interaction.options.getInteger("index") - 1;
 
     if (index < 0 || index >= notes.length) {
-        return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: `Please provide a valid note index (1-${notes.length}).` });
+        return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t`Please provide a valid note index (1-${notes.length}).` });
     }
 
     // The view command displays notes sorted newest-first, so resolve the index
@@ -221,10 +222,10 @@ async function handleRemoveNote(interaction, targetUser, notes, guildId) {
     return InteractionHelper.safeReply(interaction, {
         embeds: [
             successEmbed(
-                `${typeInfo.emoji} Note Removed`,
-                `Removed note #${index + 1} from **${targetUser.tag}**:\n\n` +
+                t`${typeInfo.emoji} Note Removed`,
+                t`Removed note #${index + 1} from **${targetUser.tag}**:\n\n` +
                 `> ${removedNote.content}\n\n` +
-                `**Remaining Notes:** ${notes.length}`
+                t`**Remaining Notes:** ${notes.length}`
             )
         ]
     });
@@ -237,8 +238,8 @@ async function handleClearNotes(interaction, targetUser, notes, guildId) {
         return InteractionHelper.safeReply(interaction, {
             embeds: [
                 infoEmbed(
-                    "No Notes to Clear",
-                    `There are no notes for **${targetUser.tag}** to clear.`
+                    t("No Notes to Clear"),
+                    t`There are no notes for **${targetUser.tag}** to clear.`
                 ),
             ],
         });
@@ -252,8 +253,8 @@ async function handleClearNotes(interaction, targetUser, notes, guildId) {
     return InteractionHelper.safeReply(interaction, {
         embeds: [
             successEmbed(
-                "🗑️ Notes Cleared",
-                `Cleared **${noteCount}** notes from **${targetUser.tag}**.`
+                t("🗑️ Notes Cleared"),
+                t`Cleared **${noteCount}** notes from **${targetUser.tag}**.`
             )
         ]
     });

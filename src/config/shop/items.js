@@ -1,9 +1,10 @@
+import { t } from '../../i18n/index.js';
 export const shopItems = [
     {
         id: 'extra_work',
-        name: 'Extra Work Shift',
+        name: t('Extra Work Shift'),
         price: 5000,
-        description: 'Allows 1 extra use of the `/work` command.',
+        description: t('Allows 1 extra use of the `/work` command.'),
         type: 'consumable',
         maxQuantity: 5,
 cooldown: 86400000,
@@ -15,9 +16,9 @@ cooldown: 86400000,
     },
     {
         id: 'bank_upgrade_1',
-        name: 'Bank Upgrade I',
+        name: t('Bank Upgrade I'),
         price: 15000,
-        description: 'Increases bank capacity and allows more funds to be deposited.',
+        description: t('Increases bank capacity and allows more funds to be deposited.'),
         type: 'upgrade',
         maxLevel: 5,
         effect: {
@@ -27,9 +28,9 @@ cooldown: 86400000,
     },
     {
         id: 'diamond_pickaxe',
-        name: 'Diamond Pickaxe',
+        name: t('Diamond Pickaxe'),
         price: 50000,
-        description: 'Increases yield from `/mine`',
+        description: t('Increases yield from `/mine`'),
         type: 'tool',
         durability: 100,
         effect: {
@@ -39,9 +40,9 @@ cooldown: 86400000,
     },
     {
         id: 'premium_role',
-        name: 'Premium Server Role',
+        name: t('Premium Server Role'),
         price: 15000,
-        description: 'A special role granting a fancy color and a 10% daily bonus.',
+        description: t('A special role granting a fancy color and a 10% daily bonus.'),
         type: 'role',
 roleId: null,
         effect: {
@@ -51,9 +52,9 @@ roleId: null,
     },
     {
         id: 'lucky_clover',
-        name: 'Lucky Clover',
+        name: t('Lucky Clover'),
         price: 10000,
-        description: 'Increases the chance of winning a higher payout on `/gamble` once.',
+        description: t('Increases the chance of winning a higher payout on `/gamble` once.'),
         type: 'consumable',
         maxQuantity: 10,
         effect: {
@@ -64,9 +65,9 @@ roleId: null,
     },
     {
         id: 'fishing_rod',
-        name: '🎣 Fishing Rod',
+        name: t('🎣 Fishing Rod'),
         price: 5000,
-        description: 'Used for fishing commands',
+        description: t('Used for fishing commands'),
         type: 'tool',
         durability: 100,
         effect: {
@@ -76,9 +77,9 @@ roleId: null,
     },
     {
         id: 'pickaxe',
-        name: '⛏️ Pickaxe',
+        name: t('⛏️ Pickaxe'),
         price: 7500,
-        description: 'Used for mining commands',
+        description: t('Used for mining commands'),
         type: 'tool',
         durability: 100,
         effect: {
@@ -88,9 +89,9 @@ roleId: null,
     },
     {
         id: 'laptop',
-        name: '💻 Laptop',
+        name: t('💻 Laptop'),
         price: 15000,
-        description: 'Increases work earnings',
+        description: t('Increases work earnings'),
         type: 'tool',
         durability: 200,
         effect: {
@@ -100,9 +101,9 @@ roleId: null,
     },
     {
         id: 'lucky_charm',
-        name: '🍀 Lucky Charm',
+        name: t('🍀 Lucky Charm'),
         price: 10000,
-        description: 'Increases luck for gambling. Has 3 uses before being consumed.',
+        description: t('Increases luck for gambling. Has 3 uses before being consumed.'),
         type: 'consumable',
         maxQuantity: 10,
         effect: {
@@ -113,9 +114,9 @@ roleId: null,
     },
     {
         id: 'bank_note',
-        name: '📜 Bank Note',
+        name: t('📜 Bank Note'),
         price: 25000,
-        description: 'Increases bank capacity by 10,000. Can be purchased multiple times.',
+        description: t('Increases bank capacity by 10,000. Can be purchased multiple times.'),
         type: 'tool',
         durability: null,
         effect: {
@@ -125,9 +126,9 @@ roleId: null,
     },
     {
         id: 'personal_safe',
-        name: '🔒 Personal Safe',
+        name: t('🔒 Personal Safe'),
         price: 30000,
-        description: 'Protects your money from theft. Prevents others from robbing you.',
+        description: t('Protects your money from theft. Prevents others from robbing you.'),
         type: 'tool',
         durability: null,
         effect: {
@@ -153,7 +154,7 @@ export function getItemPrice(itemId) {
 export function validatePurchase(itemId, userData) {
     const item = getItemById(itemId);
     if (!item) {
-        return { valid: false, reason: 'Item not found' };
+        return { valid: false, reason: t('Item not found') };
     }
 
     const inventory = userData.inventory || {};
@@ -164,7 +165,7 @@ export function validatePurchase(itemId, userData) {
         if (currentQuantity >= item.maxQuantity) {
             return { 
                 valid: false, 
-                reason: `You can only have a maximum of ${item.maxQuantity} ${item.name}s` 
+                reason: t`You can only have a maximum of ${item.maxQuantity} ${item.name}s` 
             };
         }
     }
@@ -174,7 +175,7 @@ export function validatePurchase(itemId, userData) {
         if (upgrades[itemId]) {
             return { 
                 valid: false, 
-                reason: `You've already purchased ${item.name}` 
+                reason: t`You've already purchased ${item.name}` 
             };
         }
     }
@@ -185,7 +186,7 @@ export function validatePurchase(itemId, userData) {
         if (itemId !== 'bank_note' && currentQuantity > 0) {
             return { 
                 valid: false, 
-                reason: `You already have a ${item.name}` 
+                reason: t`You already have a ${item.name}` 
             };
         }
     }
@@ -194,7 +195,7 @@ export function validatePurchase(itemId, userData) {
         if (userData.roles?.includes(item.roleId)) {
             return { 
                 valid: false, 
-                reason: `You already have the ${item.name} role` 
+                reason: t`You already have the ${item.name} role` 
             };
         }
     }

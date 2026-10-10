@@ -2,6 +2,7 @@
 
 import { resolveSubcommandAlias } from '../config/commands/commandAliases.js';
 import { logger } from './logger.js';
+import { t } from '../i18n/index.js';
 
 export function parsePrefixCommand(content, prefix) {
   if (!content || !content.startsWith(prefix)) {
@@ -170,7 +171,7 @@ export function mapArgumentsToOptions(args, commandData) {
       ? subcommands.map((s) => s.name).join(',') || 'none'
       : subcommandGroup?.options?.map((g) => g.name).join(',') || 'none';
     missing.push({
-      name: subcommandGroup ? 'subcommand group' : 'subcommand',
+      name: subcommandGroup ? t('subcommand group') : 'subcommand',
       description: `Available: ${availableSubcommands}`,
       type: 1,
     });

@@ -6,6 +6,7 @@ import { logEvent, EVENT_TYPES } from '../loggingService.js';
 import { formatLogLine } from '../../utils/logging/logEmbeds.js';
 import { Mutex } from '../../utils/mutex.js';
 import { wrapServiceBoundary } from '../../utils/errorHandler.js';
+import { t, trAny } from '../../i18n/index.js';
 
 /**
  * Award XP to a member. Returns null when XP is skipped (disabled/invalid amount).
@@ -58,12 +59,12 @@ export const addXp = wrapServiceBoundary(async function addXp(client, guild, mem
           guildId: guild.id,
           eventType: EVENT_TYPES.LEVELING_LEVELUP,
           data: {
-            title: 'Level Up',
+            title: t('Level Up'),
             lines: [
-              formatLogLine('Member', `${member.user.tag} (\`${member.user.id}\`)`),
-              formatLogLine('New Level', levelData.level.toString()),
-              formatLogLine('Levels Gained', (levelData.level - initialLevel).toString()),
-              formatLogLine('Total XP', levelData.totalXp.toString()),
+              formatLogLine(t('Member'), `${member.user.tag} (\`${member.user.id}\`)`),
+              formatLogLine(t('New Level'), levelData.level.toString()),
+              formatLogLine(t('Levels Gained'), (levelData.level - initialLevel).toString()),
+              formatLogLine(t('Total XP'), levelData.totalXp.toString()),
             ],
             userId: member.user.id,
           },
@@ -86,7 +87,7 @@ export const addXp = wrapServiceBoundary(async function addXp(client, guild, mem
 }, {
   service: 'xpSystem',
   operation: 'addXp',
-  userMessage: 'Failed to award XP. Please try again.',
+  userMessage: t('Failed to award XP. Please try again.'),
 });
 
 async function awardRoleReward(guild, member, roleId, level) {
@@ -102,7 +103,7 @@ async function awardRoleReward(guild, member, roleId, level) {
       return;
     }
 
-    await member.roles.add(role, `Level ${level} reward`);
+    await member.roles.add(role, t`Level ${level} reward`);
     logger.info(`✅ Awarded role ${role.name} to ${member.user.tag} for reaching level ${level}`);
   } catch (error) {
     logger.error(`Failed to award role reward to ${member.user.id}:`, error);
@@ -125,7 +126,7 @@ async function sendLevelUpAnnouncement(guild, member, levelData, config) {
       return;
     }
 
-    const message = config.levelUpMessage
+    const message = trAny(config.levelUpMessage)
       .replace(/{user}/g, member.toString())
       .replace(/{level}/g, levelData.level)
       .replace(/{xp}/g, levelData.xp)

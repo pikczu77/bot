@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import { t, tr } from '../i18n/index.js';
 
 export const botConfig = {
   // =========================
@@ -24,7 +25,7 @@ export const botConfig = {
     activities: [
       {
         name: "Custom Status", // required by Discord API, not shown in the client
-        state: "stalking",     // this is what people actually see
+        state: "pikczu.pl",    // this is what people actually see
         type: 4,               // Custom
       },
     ],
@@ -61,9 +62,9 @@ export const botConfig = {
   applications: {
     // Default questions shown when someone fills out an application.
     defaultQuestions: [
-      { question: "What is your name?", required: true },
-      { question: "How old are you?", required: true },
-      { question: "Why do you want to join?", required: true },
+      { question: t("What is your name?"), required: true },
+      { question: t("How old are you?"), required: true },
+      { question: t("Why do you want to join?"), required: true },
     ],
 
     // Embed colors by application status.
@@ -93,14 +94,14 @@ export const botConfig = {
   embeds: {
     colors: {
       // Main brand colors.
-      primary: "#336699",
+      primary: "#30D158",
       secondary: "#2F3136",
 
       // Standard status colors for success/error/warning/info messages.
-      success: "#57F287",
-      error: "#ED4245",
-      warning: "#FEE75C",
-      info: "#3498DB",
+      success: "#30D158",
+      error: "#FF453A",
+      warning: "#FF9F0A",
+      info: "#0A84FF",
 
       // Neutral utility colors.
       light: "#FFFFFF",
@@ -117,8 +118,8 @@ export const botConfig = {
 
       // Feature-specific colors.
       giveaway: {
-        active: "#57F287",
-        ended: "#ED4245",
+        active: "#30D158",
+        ended: "#8E8E93",
       },
       ticket: {
         open: "#57F287",
@@ -141,7 +142,7 @@ export const botConfig = {
     },
     footer: {
       // Default footer text used in bot embeds.
-      text: "Titan Bot",
+      text: "Klubik Pikcza",
       // Footer icon URL (null = no icon).
       icon: null,
     },
@@ -224,27 +225,27 @@ export const botConfig = {
       none: {
         emoji: "⚪",
         color: "#95A5A6",
-        label: "None",
+        label: t("None"),
       },
       low: {
         emoji: "🟢",
         color: "#2ECC71",
-        label: "Low",
+        label: t("Low"),
       },
       medium: {
         emoji: "🟡",
         color: "#F1C40F",
-        label: "Medium",
+        label: t("Medium"),
       },
       high: {
         emoji: "🔴",
         color: "#E74C3C",
-        label: "High",
+        label: t("High"),
       },
       urgent: {
         emoji: "🚨",
         color: "#E91E63",
-        label: "Urgent",
+        label: t("Urgent"),
       },
     },
 
@@ -302,10 +303,10 @@ export const botConfig = {
   // =========================
   verification: {
     // Message shown when posting the verification panel.
-    defaultMessage: "Click the button below to verify yourself and gain access to the server!",
+    defaultMessage: t("Click the button below to verify yourself and gain access to the server!"),
 
     // Text on the verification button.
-    defaultButtonText: "Verify",
+    defaultButtonText: t("Verify"),
 
     // Automatic verification behavior.
     autoVerify: {
@@ -332,9 +333,9 @@ export const botConfig = {
 
       // Human-readable descriptions for each criteria mode.
       criteria: {
-        account_age: "Account must be older than specified days",
-        server_size: "All users if server has less than 1000 members",
-        none: "All users immediately"
+        account_age: t("Account must be older than specified days"),
+        server_size: t("All users if server has less than 1000 members"),
+        none: t("All users immediately")
       }
     },
 
@@ -372,11 +373,11 @@ export const botConfig = {
     // Welcome template posted when a user joins.
     // Placeholders: {user}, {server}, {memberCount}
     defaultWelcomeMessage:
-      "Welcome {user} to {server}! We now have {memberCount} members!",
+      t("Welcome {user} to {server}! We now have {memberCount} members!"),
     // Goodbye template posted when a user leaves.
     // Placeholders: {user}, {memberCount}
     defaultGoodbyeMessage:
-      "{user} has left the server. We now have {memberCount} members.",
+      t("{user} has left the server. We now have {memberCount} members."),
     // Channel ID for welcome messages.
     defaultWelcomeChannel: null,
     // Channel ID for goodbye messages.
@@ -389,8 +390,8 @@ export const botConfig = {
   counters: {
     defaults: {
       // Default naming/description templates for counter entries.
-      name: "{name} Counter",
-      description: "Server {name} counter",
+      name: t("{name} Counter"),
+      description: t("Server {name} counter"),
       // Channel type used for counters (typically "voice").
       type: "voice",
       // Channel name format. `{count}` is replaced automatically.
@@ -404,26 +405,26 @@ export const botConfig = {
     },
     messages: {
       // Default response messages for counter actions.
-      created: "✅ Created counter **{name}**",
-      deleted: "🗑️ Deleted counter **{name}**",
-      updated: "🔄 Updated counter **{name}**",
+      created: t("✅ Created counter **{name}**"),
+      deleted: t("🗑️ Deleted counter **{name}**"),
+      updated: t("🔄 Updated counter **{name}**"),
     },
     types: {
       // Built-in counter types and how each count is calculated.
       members: {
-        name: "👥 Members",
-        description: "Total members in the server",
+        name: t("👥 Members"),
+        description: t("Total members in the server"),
         getCount: (guild) => guild.memberCount.toString(),
       },
       bots: {
-        name: "🤖 Bots",
-        description: "Total bot accounts in the server",
+        name: t("🤖 Bots"),
+        description: t("Total bot accounts in the server"),
         getCount: (guild) =>
           guild.members.cache.filter((m) => m.user.bot).size.toString(),
       },
       members_only: {
-        name: "👤 Humans",
-        description: "Total human members (non-bots)",
+        name: t("👤 Humans"),
+        description: t("Total human members (non-bots)"),
         getCount: (guild) =>
           guild.members.cache.filter((m) => !m.user.bot).size.toString(),
       },
@@ -434,13 +435,13 @@ export const botConfig = {
   // GENERIC BOT MESSAGES
   // =========================
   messages: {
-    noPermission: "You do not have permission to use this command.",
-    cooldownActive: "Please wait {time} before using this command again.",
-    errorOccurred: "An error occurred while executing this command.",
+    noPermission: t("You do not have permission to use this command."),
+    cooldownActive: t("Please wait {time} before using this command again."),
+    errorOccurred: t("An error occurred while executing this command."),
     missingPermissions:
-      "I am missing required permissions to perform this action.",
-    commandDisabled: "This command has been disabled.",
-    maintenanceMode: "The bot is currently in maintenance mode.",
+      t("I am missing required permissions to perform this action."),
+    commandDisabled: t("This command has been disabled."),
+    maintenanceMode: t("The bot is currently in maintenance mode."),
   },
 
   // =========================
@@ -577,7 +578,7 @@ export function isMaintenanceMode() {
 }
 
 export function getBotMessage(key, replacements = {}) {
-  let message = botConfig.messages?.[key] || key;
+  let message = tr(botConfig.messages?.[key] || key);
 
   for (const [placeholder, value] of Object.entries(replacements)) {
     message = message.replace(new RegExp(`\\{${placeholder}\\}`, "g"), String(value));

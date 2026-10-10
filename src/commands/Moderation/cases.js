@@ -4,6 +4,7 @@ import { getModerationCases } from '../../utils/moderation.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('cases')
@@ -60,8 +61,8 @@ export default {
 
             if (cases.length === 0) {
                 throw new Error(targetUser 
-                    ? `No moderation cases found for ${targetUser.tag}`
-                    : `No ${filterType === 'all' ? '' : filterType} cases found in this server.`
+                    ? t`No moderation cases found for ${targetUser.tag}`
+                    : t`No ${filterType === 'all' ? '' : filterType} cases found in this server.`
                 );
             }
 
@@ -75,8 +76,8 @@ export default {
                 const pageCases = cases.slice(startIndex, endIndex);
 
                 const embed = createEmbed({
-                    title: 'Moderation Cases',
-                    description: `Showing moderation cases for **${interaction.guild.name}**\n\n**Page ${page} of ${totalPages}**`
+                    title: t('Moderation Cases'),
+                    description: t`Showing moderation cases for **${interaction.guild.name}**\n\n**Page ${page} of ${totalPages}**`
                 });
 
                 pageCases.forEach(case_ => {
@@ -84,14 +85,14 @@ export default {
                     const time = new Date(case_.createdAt).toLocaleTimeString();
                     
                     embed.addFields({
-                        name: `Case #${case_.caseId} - ${case_.action}`,
-                        value: `**Target:** ${case_.target}\n**Moderator:** ${case_.executor}\n**Date:** ${date} at ${time}\n**Reason:** ${case_.reason || 'No reason provided'}`,
+                        name: t`Case #${case_.caseId} - ${case_.action}`,
+                        value: t`**Target:** ${case_.target}\n**Moderator:** ${case_.executor}\n**Date:** ${date} at ${time}\n**Reason:** ${case_.reason || t('No reason provided')}`,
                         inline: false
                     });
                 });
 
                 embed.setFooter({
-                    text: `Total cases: ${cases.length} | Filter: ${filterType}${targetUser ?` | User: ${targetUser.tag}`: ''}`
+                    text: t`Total cases: ${cases.length} | Filter: ${filterType}${targetUser ?t` | User: ${targetUser.tag}`: ''}`
                 });
 
                 return embed;
@@ -102,19 +103,19 @@ export default {
                 
                 const prevButton = new ButtonBuilder()
                     .setCustomId('prev_page')
-                    .setLabel('⬅️ Previous')
+                    .setLabel(t('⬅️ Previous'))
                     .setStyle(ButtonStyle.Secondary)
                     .setDisabled(page === 1);
 
                 const pageInfoButton = new ButtonBuilder()
                     .setCustomId('page_info')
-                    .setLabel(`Page ${page}/${totalPages}`)
+                    .setLabel(t`Page ${page}/${totalPages}`)
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(true);
 
                 const nextButton = new ButtonBuilder()
                     .setCustomId('next_page')
-                    .setLabel('Next ➡️')
+                    .setLabel(t('Next ➡️'))
                     .setStyle(ButtonStyle.Secondary)
                     .setDisabled(page === totalPages);
 
@@ -137,7 +138,7 @@ time: 120000
 
                 if (buttonInteraction.user.id !== interaction.user.id) {
                     await buttonInteraction.followUp({
-                        content: 'You cannot use these buttons. Run `/cases` to get your own case view.',
+                        content: t('You cannot use these buttons. Run `/cases` to get your own case view.'),
                         flags: MessageFlags.Ephemeral
                     });
                     return;
@@ -171,7 +172,7 @@ time: 120000
 
         } catch (error) {
             logger.error('Error in cases command:', error);
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while retrieving moderation cases. Please try again later.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while retrieving moderation cases. Please try again later.') });
         }
     }
 };

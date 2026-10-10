@@ -4,6 +4,7 @@ import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { getUserLevelData, getLevelingConfig, getXpForLevel } from '../../services/leveling/leveling.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('rank')
@@ -26,7 +27,7 @@ export default {
         embeds: [
           new EmbedBuilder()
             .setColor('#f1c40f')
-            .setDescription('The leveling system is currently disabled on this server.')
+            .setDescription(t('The leveling system is currently disabled on this server.'))
         ],
         flags: MessageFlags.Ephemeral
       });
@@ -42,7 +43,7 @@ export default {
       throw new TitanBotError(
         `User ${targetUser.id} not found in guild`,
         ErrorTypes.USER_INPUT,
-        'Could not find the specified user in this server.'
+        t('Could not find the specified user in this server.')
       );
     }
 
@@ -59,11 +60,11 @@ export default {
     const progressBar = createProgressBar(progress, 20);
 
     const embed = new EmbedBuilder()
-      .setTitle(`${member.displayName}'s Rank`)
+      .setTitle(t`${member.displayName}'s Rank`)
       .setThumbnail(member.displayAvatarURL({ dynamic: true }))
       .addFields(
         {
-          name: 'Level',
+          name: t('Level'),
           value: safeUserData.level.toString(),
           inline: true
         },
@@ -73,12 +74,12 @@ export default {
           inline: true
         },
         {
-          name: 'Total XP',
+          name: t('Total XP'),
           value: safeUserData.totalXp.toString(),
           inline: true
         },
         {
-          name: `Progress to Level ${safeUserData.level + 1}`,
+          name: t`Progress to Level ${safeUserData.level + 1}`,
           value: `${progressBar} ${progress}%`
         }
       )

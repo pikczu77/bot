@@ -5,6 +5,7 @@ import { logEvent } from '../../utils/moderation.js';
 import { logger } from '../../utils/logger.js';
 import { WarningService } from '../../services/moderation/warningService.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -41,7 +42,7 @@ export default {
                 embeds: [
                     createEmbed({
                         title: `Warnings: ${target.tag}`,
-                        description: "This user has no recorded warnings.",
+                        description: t("This user has no recorded warnings."),
                     }).setColor(getColor('success')),
                 ],
             });
@@ -50,15 +51,15 @@ export default {
 
         const embed = createEmbed({
             title: `Warnings: ${target.tag}`,
-            description: `Total Warnings: **${totalWarns}**`,
+            description: t`Total Warnings: **${totalWarns}**`,
         }).setColor(getColor('warning'));
 
         const warningFields = validWarnings
             .map((w, i) => {
                 const discordTimestamp = Math.floor(w.timestamp / 1000);
                 return {
-                    name: `[#${i + 1}] Reason: ${w.reason.substring(0, 100)}`,
-                    value: `**Moderator:** <@${w.moderatorId}>\n**Date:** <t:${discordTimestamp}:F> (<t:${discordTimestamp}:R>)`,
+                    name: t`[#${i + 1}] Reason: ${w.reason.substring(0, 100)}`,
+                    value: t`**Moderator:** <@${w.moderatorId}>\n**Date:** <t:${discordTimestamp}:F> (<t:${discordTimestamp}:R>)`,
                     inline: false,
                 };
             })
@@ -69,11 +70,11 @@ export default {
         const actionRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`warning_delete_specific:${target.id}:${interaction.user.id}`)
-                .setLabel('Delete Specific Warning')
+                .setLabel(t('Delete Specific Warning'))
                 .setStyle(ButtonStyle.Danger),
             new ButtonBuilder()
                 .setCustomId(`warning_clear_all:${target.id}:${interaction.user.id}`)
-                .setLabel('Clear All Warnings')
+                .setLabel(t('Clear All Warnings'))
                 .setStyle(ButtonStyle.Danger),
         );
 
@@ -84,7 +85,7 @@ export default {
                 action: "Warnings Viewed",
                 target: `${target.tag} (${target.id})`,
                 executor: `${interaction.user.tag} (${interaction.user.id})`,
-                reason: `Viewed ${totalWarns} warnings`,
+                reason: t`Viewed ${totalWarns} warnings`,
                 metadata: {
                     userId: target.id,
                     moderatorId: interaction.user.id,

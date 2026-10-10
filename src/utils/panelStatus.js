@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 /**
  * Shared helpers for detecting bot-posted panel messages (tickets, verification, etc.)
  */
@@ -42,28 +43,28 @@ export function messageHasPanelMarker(message, { buttonCustomId, selectCustomId 
     return false;
 }
 
-export function formatPanelStatusField(panelStatus, { repostHint = 'Repost Panel' } = {}) {
-    if (!panelStatus) return '`Unknown`';
+export function formatPanelStatusField(panelStatus, { repostHint = t('Repost Panel') } = {}) {
+    if (!panelStatus) return t('`Unknown`');
 
     if (panelStatus.exists) {
         return panelStatus.message?.url
-            ? `✅ Active — [view panel](${panelStatus.message.url})`
-            : '✅ Active';
+            ? t`✅ Active — [view panel](${panelStatus.message.url})`
+            : t('✅ Active');
     }
 
     if (panelStatus.reason === 'channel_missing') {
-        return '⚠️ Panel channel missing or deleted';
+        return t('⚠️ Panel channel missing or deleted');
     }
 
     if (panelStatus.reason === 'panel_deleted') {
-        return `⚠️ Panel message was deleted — use **${repostHint}** below`;
+        return t`⚠️ Panel message was deleted — use **${repostHint}** below`;
     }
 
     if (panelStatus.reason === 'no_channel') {
-        return '⚠️ No panel channel configured';
+        return t('⚠️ No panel channel configured');
     }
 
-    return '`Unknown`';
+    return t('`Unknown`');
 }
 
 export async function getBotPanelStatus(client, guild, {

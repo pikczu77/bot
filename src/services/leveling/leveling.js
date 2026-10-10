@@ -6,6 +6,7 @@ import { getGuildConfig, setGuildConfig } from '../config/guildConfig.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { addXp } from './xpSystem.js';
 import { getUserLevelKey } from '../../utils/database/keys.js';
+import { t } from '../../i18n/index.js';
 
 const BASE_XP = 100;
 const XP_MULTIPLIER = 1.5;
@@ -17,7 +18,7 @@ export function getXpForLevel(level) {
     throw new TitanBotError(
       `Invalid level: ${level}. Must be between ${MIN_LEVEL} and ${MAX_LEVEL}`,
       ErrorTypes.VALIDATION,
-      'The level must be a valid number.'
+      t('The level must be a valid number.')
     );
   }
   return 5 * Math.pow(level, 2) + 50 * level + 50;
@@ -28,7 +29,7 @@ export function getLevelFromXp(xp) {
     throw new TitanBotError(
       `Invalid XP: ${xp}`,
       ErrorTypes.VALIDATION,
-      'XP must be a non-negative number.'
+      t('XP must be a non-negative number.')
     );
   }
 
@@ -63,7 +64,7 @@ export async function getLeaderboard(client, guildId, limit = 10) {
       throw new TitanBotError(
         'Invalid guild ID',
         ErrorTypes.VALIDATION,
-        'Guild ID is required.'
+        t('Guild ID is required.')
       );
     }
 
@@ -112,19 +113,19 @@ export async function getLeaderboard(client, guildId, limit = 10) {
     throw new TitanBotError(
       `Failed to fetch leaderboard: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not fetch the leaderboard at this time.'
+      t('Could not fetch the leaderboard at this time.')
     );
   }
 }
 
 export function createLeaderboardEmbed(leaderboard, guild) {
   const embed = new EmbedBuilder()
-    .setTitle(`🏆 ${guild.name} Leaderboard`)
+    .setTitle(t`🏆 ${guild.name} Leaderboard`)
     .setColor('#2ecc71')
     .setTimestamp();
     
   if (!leaderboard || leaderboard.length === 0) {
-    embed.setDescription('No users on the leaderboard yet!');
+    embed.setDescription(t('No users on the leaderboard yet!'));
     return embed;
   }
   
@@ -133,15 +134,15 @@ export function createLeaderboardEmbed(leaderboard, guild) {
   
   const top3Text = top3.map((user, index) => {
     const medal = ['🥇', '🥈', '🥉'][index];
-    return `${medal} **#${user.rank}** ${user.username} - Level ${user.level} (${user.totalXp} XP)`;
+    return t`${medal} **#${user.rank}** ${user.username} - Level ${user.level} (${user.totalXp} XP)`;
   }).join('\n');
   
   const restText = rest.map(user => {
-    return `**#${user.rank}** ${user.username} - Level ${user.level} (${user.totalXp} XP)`;
+    return t`**#${user.rank}** ${user.username} - Level ${user.level} (${user.totalXp} XP)`;
   }).join('\n');
   
   embed.setDescription(
-    `**Top Members**\n${top3Text}${restText ? '\n\n' + restText : ''}`
+    t`**Top Members**\n${top3Text}${restText ? '\n\n' + restText : ''}`
   );
   
   return embed;
@@ -154,7 +155,7 @@ export async function getLevelingConfig(client, guildId) {
       enabled: true,
       xpPerMessage: { min: 15, max: 25 },
       xpCooldown: 20,
-      levelUpMessage: '{user} has leveled up to level {level}!',
+      levelUpMessage: t('{user} has leveled up to level {level}!'),
       levelUpChannel: null,
       ignoredChannels: [],
       ignoredRoles: [],
@@ -169,7 +170,7 @@ export async function getLevelingConfig(client, guildId) {
       enabled: true,
       xpPerMessage: { min: 15, max: 25 },
       xpCooldown: 20,
-      levelUpMessage: '{user} has leveled up to level {level}!',
+      levelUpMessage: t('{user} has leveled up to level {level}!'),
       levelUpChannel: null,
       ignoredChannels: [],
       ignoredRoles: [],
@@ -216,7 +217,7 @@ export async function getUserLevelData(client, guildId, userId) {
     throw new TitanBotError(
       `Failed to fetch user data: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not fetch level data at this time.'
+      t('Could not fetch level data at this time.')
     );
   }
 }
@@ -253,7 +254,7 @@ export async function saveUserLevelData(client, guildId, userId, data) {
     throw new TitanBotError(
       `Failed to save user data: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not save level data at this time.'
+      t('Could not save level data at this time.')
     );
   }
 }
@@ -273,7 +274,7 @@ export async function saveLevelingConfig(client, guildId, config) {
       throw new TitanBotError(
         'XP cooldown must be between 0 and 3600 seconds',
         ErrorTypes.VALIDATION,
-        'Cooldown must be between 0 and 3600 seconds.'
+        t('Cooldown must be between 0 and 3600 seconds.')
       );
     }
 
@@ -281,7 +282,7 @@ export async function saveLevelingConfig(client, guildId, config) {
       throw new TitanBotError(
         'Invalid XP range configuration',
         ErrorTypes.VALIDATION,
-        'Minimum XP must be less than maximum XP, and both must be positive.'
+        t('Minimum XP must be less than maximum XP, and both must be positive.')
       );
     }
 
@@ -295,7 +296,7 @@ export async function saveLevelingConfig(client, guildId, config) {
     throw new TitanBotError(
       `Failed to save config: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not save configuration at this time.'
+      t('Could not save configuration at this time.')
     );
   }
 }
@@ -307,7 +308,7 @@ export async function addLevels(client, guildId, userId, levels) {
       throw new TitanBotError(
         'Leveling system is disabled on this server',
         ErrorTypes.CONFIGURATION,
-        'The leveling system is currently disabled on this server.'
+        t('The leveling system is currently disabled on this server.')
       );
     }
 
@@ -315,7 +316,7 @@ export async function addLevels(client, guildId, userId, levels) {
       throw new TitanBotError(
         `Invalid level amount: ${levels}`,
         ErrorTypes.VALIDATION,
-        'You must add a positive number of levels.'
+        t('You must add a positive number of levels.')
       );
     }
 
@@ -326,7 +327,7 @@ export async function addLevels(client, guildId, userId, levels) {
       throw new TitanBotError(
         `Level ${newLevel} exceeds maximum level ${MAX_LEVEL}`,
         ErrorTypes.VALIDATION,
-        `Maximum level is ${MAX_LEVEL}.`
+        t`Maximum level is ${MAX_LEVEL}.`
       );
     }
 
@@ -347,7 +348,7 @@ export async function addLevels(client, guildId, userId, levels) {
     throw new TitanBotError(
       `Failed to add levels: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not add levels at this time.'
+      t('Could not add levels at this time.')
     );
   }
 }
@@ -359,7 +360,7 @@ export async function removeLevels(client, guildId, userId, levels) {
       throw new TitanBotError(
         'Leveling system is disabled on this server',
         ErrorTypes.CONFIGURATION,
-        'The leveling system is currently disabled on this server.'
+        t('The leveling system is currently disabled on this server.')
       );
     }
 
@@ -367,7 +368,7 @@ export async function removeLevels(client, guildId, userId, levels) {
       throw new TitanBotError(
         `Invalid level amount: ${levels}`,
         ErrorTypes.VALIDATION,
-        'You must remove a positive number of levels.'
+        t('You must remove a positive number of levels.')
       );
     }
 
@@ -391,7 +392,7 @@ export async function removeLevels(client, guildId, userId, levels) {
     throw new TitanBotError(
       `Failed to remove levels: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not remove levels at this time.'
+      t('Could not remove levels at this time.')
     );
   }
 }
@@ -403,7 +404,7 @@ export async function setUserLevel(client, guildId, userId, level) {
       throw new TitanBotError(
         'Leveling system is disabled on this server',
         ErrorTypes.CONFIGURATION,
-        'The leveling system is currently disabled on this server.'
+        t('The leveling system is currently disabled on this server.')
       );
     }
 
@@ -411,7 +412,7 @@ export async function setUserLevel(client, guildId, userId, level) {
       throw new TitanBotError(
         `Invalid level: ${level}`,
         ErrorTypes.VALIDATION,
-        `Level must be between ${MIN_LEVEL} and ${MAX_LEVEL}.`
+        t`Level must be between ${MIN_LEVEL} and ${MAX_LEVEL}.`
       );
     }
 
@@ -434,7 +435,7 @@ export async function setUserLevel(client, guildId, userId, level) {
     throw new TitanBotError(
       `Failed to set level: ${error.message}`,
       ErrorTypes.DATABASE,
-      'Could not set level at this time.'
+      t('Could not set level at this time.')
     );
   }
 }

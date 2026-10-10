@@ -2,6 +2,7 @@ import { logger } from '../../utils/logger.js';
 import { getLevelingConfig, getUserLevelData, saveLevelingConfig } from './leveling.js';
 
 import { getUserLevelPrefix } from '../../utils/database/keys.js';
+import { t } from '../../i18n/index.js';
 
 async function listLevelUserIds(client, guildId) {
     if (!client.db?.list) return [];
@@ -29,7 +30,7 @@ async function tryAwardRole(member, roleId, level) {
     const role = member.guild.roles.cache.get(roleId) || (await member.guild.roles.fetch(roleId).catch(() => null));
     if (!role || member.roles.cache.has(roleId)) return false;
 
-    await member.roles.add(role, `Level ${level} reward (startup sync)`);
+    await member.roles.add(role, t`Level ${level} reward (startup sync)`);
     return true;
 }
 

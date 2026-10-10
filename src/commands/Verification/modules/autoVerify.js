@@ -8,6 +8,7 @@ import { logger } from '../../../utils/logger.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { getWelcomeConfig } from '../../../utils/database.js';
 import autoVerifyDashboard from './autoVerifyDashboard.js';
+import { t } from '../../../i18n/index.js';
 
 const autoVerifyDefaults = botConfig.verification?.autoVerify || {};
 const minAccountAgeDays = autoVerifyDefaults.minAccountAge ?? 1;
@@ -68,7 +69,7 @@ export default {
                     throw createError(
                         `Unknown subcommand: ${subcommand}`,
                         ErrorTypes.VALIDATION,
-                        "Invalid subcommand selected.",
+                        t("Invalid subcommand selected."),
                         { subcommand }
                     );
             }
@@ -95,7 +96,7 @@ async function handleSetup(interaction, guild, client) {
             throw createError(
                 'Auto-verify enable blocked by conflicting onboarding system',
                 ErrorTypes.CONFIGURATION,
-                'You cannot enable **AutoVerify** while the verification system or AutoRole is configured. Disable those first.',
+                t('You cannot enable **AutoVerify** while the verification system or AutoRole is configured. Disable those first.'),
                 {
                     guildId: guild.id,
                     verificationEnabled,
@@ -111,7 +112,7 @@ async function handleSetup(interaction, guild, client) {
             throw createError(
                 'Bot member not found in guild cache',
                 ErrorTypes.CONFIGURATION,
-                'I could not verify my permissions in this server. Please try again in a moment.',
+                t('I could not verify my permissions in this server. Please try again in a moment.'),
                 { guildId: guild.id }
             );
         }
@@ -120,7 +121,7 @@ async function handleSetup(interaction, guild, client) {
             throw createError(
                 'Missing ManageRoles permission',
                 ErrorTypes.PERMISSION,
-                "I need the 'Manage Roles' permission to assign auto-verify roles.",
+                t("I need the 'Manage Roles' permission to assign auto-verify roles."),
                 { guildId: guild.id }
             );
         }
@@ -129,7 +130,7 @@ async function handleSetup(interaction, guild, client) {
             throw createError(
                 'Invalid auto-verify role selected',
                 ErrorTypes.VALIDATION,
-                'Please choose a normal assignable role (not @everyone or an integration-managed role).',
+                t('Please choose a normal assignable role (not @everyone or an integration-managed role).'),
                 { guildId: guild.id, roleId: targetRole.id, managed: targetRole.managed }
             );
         }
@@ -138,7 +139,7 @@ async function handleSetup(interaction, guild, client) {
             throw createError(
                 'Role hierarchy error for auto-verify setup',
                 ErrorTypes.PERMISSION,
-                'The selected auto-verify role must be below my highest role in the server role hierarchy.',
+                t('The selected auto-verify role must be below my highest role in the server role hierarchy.'),
                 { guildId: guild.id, roleId: targetRole.id, rolePosition: targetRole.position, botRolePosition: botMember.roles.highest.position }
             );
         }
@@ -162,10 +163,10 @@ async function handleSetup(interaction, guild, client) {
         let criteriaDescription = "";
         switch (criteria) {
             case "account_age":
-                criteriaDescription = `\`${accountAgeDays} days\` old`;
+                criteriaDescription = t`\`${accountAgeDays} days\` old`;
                 break;
             case "none":
-                criteriaDescription = "All users immediately";
+                criteriaDescription = t("All users immediately");
                 break;
         }
 
@@ -178,8 +179,8 @@ async function handleSetup(interaction, guild, client) {
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [successEmbed(
-                "Auto-Verification Configured",
-                `Automatic verification has been configured!\n\n**Role:** ${targetRole}\n**Criteria:** ${criteriaDescription}\n\nUsers who meet these criteria will receive this role when they join the server.`
+                t("Auto-Verification Configured"),
+                t`Automatic verification has been configured!\n\n**Role:** ${targetRole}\n**Criteria:** ${criteriaDescription}\n\nUsers who meet these criteria will receive this role when they join the server.`
             )]
         });
 

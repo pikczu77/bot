@@ -2,6 +2,7 @@
 
 import { buildUserErrorEmbed } from './embeds.js';
 import { logger } from './logger.js';
+import { t } from '../i18n/index.js';
 
 function getCommandJson(commandData) {
   return commandData?.toJSON ? commandData.toJSON() : commandData;
@@ -181,8 +182,8 @@ export class ResponseCoordinator {
   async respondUsage(usageLine) {
     const embed = buildUserErrorEmbed(
       'validation',
-      `Usage\n\`${usageLine}\``,
-      { titleOverride: 'Wrong Usage' }
+      t`Usage\n\`${usageLine}\``,
+      { titleOverride: t('Wrong Usage') }
     );
 
     const result = await this.respond({ embeds: [embed] });

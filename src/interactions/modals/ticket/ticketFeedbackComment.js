@@ -4,6 +4,7 @@ import { logger } from '../../../utils/logger.js';
 import { getColor } from '../../../config/bot.js';
 import { logTicketFeedback } from '../../../utils/ticket/ticketLogging.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t } from '../../../i18n/index.js';
 
 function buildEmbed(title, description, color) {
     return new EmbedBuilder()
@@ -21,8 +22,8 @@ export default {
         if (!guildId || !channelId) {
             await InteractionHelper.safeReply(interaction, {
                 embeds: [buildEmbed(
-                    '⚠️ Invalid Feedback Submission',
-                    'This feedback form appears to be malformed.',
+                    t('⚠️ Invalid Feedback Submission'),
+                    t('This feedback form appears to be malformed.'),
                     getColor('error'),
                 )],
                 flags: MessageFlags.Ephemeral,
@@ -34,8 +35,8 @@ export default {
         if (!comment) {
             await InteractionHelper.safeReply(interaction, {
                 embeds: [buildEmbed(
-                    '⚠️ Empty Feedback',
-                    'Please enter a comment before submitting your feedback.',
+                    t('⚠️ Empty Feedback'),
+                    t('Please enter a comment before submitting your feedback.'),
                     getColor('warning'),
                 )],
                 flags: MessageFlags.Ephemeral,
@@ -58,8 +59,8 @@ export default {
         if (!ticketData) {
             await InteractionHelper.safeEditReply(interaction, {
                 embeds: [buildEmbed(
-                    '⚠️ Ticket Not Found',
-                    'Could not find the ticket associated with this feedback.',
+                    t('⚠️ Ticket Not Found'),
+                    t('Could not find the ticket associated with this feedback.'),
                     getColor('error'),
                 )],
             });
@@ -69,8 +70,8 @@ export default {
         if (interaction.user.id !== ticketData.userId) {
             await InteractionHelper.safeEditReply(interaction, {
                 embeds: [buildEmbed(
-                    '❌ Not Allowed',
-                    'Only the ticket creator can submit feedback for this ticket.',
+                    t('❌ Not Allowed'),
+                    t('Only the ticket creator can submit feedback for this ticket.'),
                     getColor('error'),
                 )],
             });
@@ -105,8 +106,8 @@ export default {
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [buildEmbed(
-                '✅ Feedback Submitted',
-                'Your written feedback has been recorded. Thank you for helping us improve!',
+                t('✅ Feedback Submitted'),
+                t('Your written feedback has been recorded. Thank you for helping us improve!'),
                 getColor('success'),
             )],
         });

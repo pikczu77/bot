@@ -6,6 +6,7 @@ import {
     buildNowPlayingEmbed,
     buildPlayerButtonRows,
 } from './musicEmbeds.js';
+import { t } from '../../i18n/index.js';
 
 const UPDATE_INTERVAL_MS = 15 * 1000;
 const IDLE_DISCONNECT_MS = 30 * 1000;
@@ -229,7 +230,7 @@ export function setupPlayerHandler(client) {
         if (guildData.playerChannelId) {
             const channel = client.channels.cache.get(guildData.playerChannelId);
             if (channel) {
-                channel.send(`Failed to play **${track?.info?.title || 'track'}**. Skipping...`).catch(() => null);
+                channel.send(t`Failed to play **${track?.info?.title || 'track'}**. Skipping...`).catch(() => null);
             }
         }
     });

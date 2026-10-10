@@ -1,3 +1,4 @@
+import { t } from '../../i18n/index.js';
 /**
  * Prefix command restrictions — dashboard and advanced setup flows stay slash-only.
  */
@@ -80,11 +81,11 @@ export function getPrefixRestriction(command, args, resolveSubcommandAlias) {
   const commandName = commandJson.name?.toLowerCase();
 
   if (command.prefixOnly === false || command.slashOnly === true) {
-    return { blocked: true, reason: 'This command is only available as a slash command.' };
+    return { blocked: true, reason: t('This command is only available as a slash command.') };
   }
 
   if (SLASH_ONLY_COMMANDS.has(commandName)) {
-    return { blocked: true, reason: 'This command is only available as a slash command.' };
+    return { blocked: true, reason: t('This command is only available as a slash command.') };
   }
 
   const [firstArg, secondArg] = args.map((arg) => arg?.toLowerCase?.() || null);
@@ -99,27 +100,27 @@ export function getPrefixRestriction(command, args, resolveSubcommandAlias) {
     allSubcommandNames.every((name) => isSubcommandBlocked(commandName, name));
 
   if (allSubcommandsBlocked) {
-    return { blocked: true, reason: 'This command is only available as a slash command.' };
+    return { blocked: true, reason: t('This command is only available as a slash command.') };
   }
 
   if (firstArg && GLOBAL_BLOCKED_SUBCOMMAND_GROUPS.has(firstArg)) {
     return {
       blocked: true,
-      reason: 'This configuration flow is only available as a slash command.',
+      reason: t('This configuration flow is only available as a slash command.'),
     };
   }
 
   if (resolvedFirstArg && isSubcommandBlocked(commandName, resolvedFirstArg)) {
     return {
       blocked: true,
-      reason: 'This subcommand is only available as a slash command.',
+      reason: t('This subcommand is only available as a slash command.'),
     };
   }
 
   if (subcommandGroup && resolvedSecondArg && isSubcommandBlocked(commandName, resolvedSecondArg)) {
     return {
       blocked: true,
-      reason: 'This subcommand is only available as a slash command.',
+      reason: t('This subcommand is only available as a slash command.'),
     };
   }
 

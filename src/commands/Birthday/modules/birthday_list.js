@@ -4,6 +4,7 @@ import { deleteBirthday } from '../../../utils/database.js';
 import { logger } from '../../../utils/logger.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t } from '../../../i18n/index.js';
 export default {
     async execute(interaction, config, client) {
         await InteractionHelper.safeDefer(interaction);
@@ -15,8 +16,8 @@ export default {
         if (sortedBirthdays.length === 0) {
             const embed = new EmbedBuilder()
                 .setColor(0xFF0000)
-                .setTitle('No Birthdays')
-                .setDescription('No birthdays have been set in this server yet.');
+                .setTitle(t('No Birthdays'))
+                .setDescription(t('No birthdays have been set in this server yet.'));
             return await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed]
             });
@@ -47,19 +48,19 @@ export default {
         if (displayIndex === 0) {
             const embed = new EmbedBuilder()
                 .setColor(0xFF0000)
-                .setTitle('No Birthdays')
-                .setDescription('No birthdays have been set by current server members.');
+                .setTitle(t('No Birthdays'))
+                .setDescription(t('No birthdays have been set by current server members.'));
             return await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed]
             });
         }
 
-        birthdayList = `**${displayIndex} birthday${displayIndex !== 1 ? 's' : ''} in ${interaction.guild.name}**\n\n` + birthdayList;
+        birthdayList = t`**${displayIndex} birthday${displayIndex !== 1 ? 's' : ''} in ${interaction.guild.name}**\n\n` + birthdayList;
 
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
-            .setTitle('Server Birthdays')
-            .setDescription(`${birthdayList}\n\nTotal: ${displayIndex} birthday${displayIndex !== 1 ? 's' : ''}`);
+            .setTitle(t('Server Birthdays'))
+            .setDescription(t`${birthdayList}\n\nTotal: ${displayIndex} birthday${displayIndex !== 1 ? 's' : ''}`);
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [embed]

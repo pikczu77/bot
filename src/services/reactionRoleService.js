@@ -3,6 +3,7 @@
 import { logger } from '../utils/logger.js';
 import { createError, ErrorTypes } from '../utils/errorHandler.js';
 import { getReactionRoleKey, getReactionRolesPrefix } from '../utils/database/keys.js';
+import { t } from '../i18n/index.js';
 
 const MAX_ROLES_PER_MESSAGE = 25;
 
@@ -21,7 +22,7 @@ function validateGuildId(guildId) {
         throw createError(
             `Invalid guild ID: ${guildId}`,
             ErrorTypes.VALIDATION,
-            'Invalid server ID provided.',
+            t('Invalid server ID provided.'),
             { guildId }
         );
     }
@@ -32,7 +33,7 @@ function validateMessageId(messageId) {
         throw createError(
             `Invalid message ID: ${messageId}`,
             ErrorTypes.VALIDATION,
-            'Invalid message ID provided.',
+            t('Invalid message ID provided.'),
             { messageId }
         );
     }
@@ -43,7 +44,7 @@ function validateRoleId(roleId) {
         throw createError(
             `Invalid role ID: ${roleId}`,
             ErrorTypes.VALIDATION,
-            'Invalid role ID provided.',
+            t('Invalid role ID provided.'),
             { roleId }
         );
     }
@@ -66,7 +67,7 @@ async function validateRoleSafety(client, guildId, roleId) {
         throw createError(
             `Guild not found for role validation: ${guildId}`,
             ErrorTypes.VALIDATION,
-            'Server not found while validating reaction roles.',
+            t('Server not found while validating reaction roles.'),
             { guildId, roleId }
         );
     }
@@ -76,7 +77,7 @@ async function validateRoleSafety(client, guildId, roleId) {
         throw createError(
             `Role not found: ${roleId}`,
             ErrorTypes.VALIDATION,
-            'One or more selected roles no longer exist.',
+            t('One or more selected roles no longer exist.'),
             { guildId, roleId }
         );
     }
@@ -85,7 +86,7 @@ async function validateRoleSafety(client, guildId, roleId) {
         throw createError(
             `Dangerous role permission detected: ${roleId}`,
             ErrorTypes.PERMISSION,
-            'For security reasons, high-privilege roles cannot be assigned through reaction roles.',
+            t('For security reasons, high-privilege roles cannot be assigned through reaction roles.'),
             { guildId, roleId, roleName: role.name, dangerousPermissions: DANGEROUS_PERMISSIONS }
         );
     }
@@ -95,7 +96,7 @@ async function validateRoleSafety(client, guildId, roleId) {
         throw createError(
             `Role above bot hierarchy: ${roleId}`,
             ErrorTypes.PERMISSION,
-            'I cannot assign this role because it is equal to or above my highest role.',
+            t('I cannot assign this role because it is equal to or above my highest role.'),
             { guildId, roleId, rolePosition: role.position, botRolePosition: botHighestRole?.position }
         );
     }
@@ -117,7 +118,7 @@ export async function getReactionRoleMessage(client, guildId, messageId) {
         throw createError(
             `Database error retrieving reaction role message`,
             ErrorTypes.DATABASE,
-            'Failed to retrieve reaction role data. Please try again.',
+            t('Failed to retrieve reaction role data. Please try again.'),
             { guildId, messageId, originalError: error.message }
         );
     }
@@ -132,7 +133,7 @@ export async function createReactionRoleMessage(client, guildId, channelId, mess
             throw createError(
                 `Invalid channel ID: ${channelId}`,
                 ErrorTypes.VALIDATION,
-                'Invalid channel ID provided.',
+                t('Invalid channel ID provided.'),
                 { channelId }
             );
         }
@@ -141,7 +142,7 @@ export async function createReactionRoleMessage(client, guildId, channelId, mess
             throw createError(
                 'No roles provided',
                 ErrorTypes.VALIDATION,
-                'You must provide at least one role.',
+                t('You must provide at least one role.'),
                 { roleIds }
             );
         }
@@ -150,7 +151,7 @@ export async function createReactionRoleMessage(client, guildId, channelId, mess
             throw createError(
                 `Too many roles: ${roleIds.length}`,
                 ErrorTypes.VALIDATION,
-                `You can only add up to ${MAX_ROLES_PER_MESSAGE} roles per reaction role message.`,
+                t`You can only add up to ${MAX_ROLES_PER_MESSAGE} roles per reaction role message.`,
                 { roleIds, limit: MAX_ROLES_PER_MESSAGE }
             );
         }
@@ -181,7 +182,7 @@ export async function createReactionRoleMessage(client, guildId, channelId, mess
         throw createError(
             `Database error creating reaction role message`,
             ErrorTypes.DATABASE,
-            'Failed to save reaction role data. Please try again.',
+            t('Failed to save reaction role data. Please try again.'),
             { guildId, messageId, originalError: error.message }
         );
     }
@@ -215,7 +216,7 @@ export async function addReactionRole(client, guildId, messageId, emoji, roleId)
         throw createError(
             `Database error adding reaction role`,
             ErrorTypes.DATABASE,
-            'Failed to add reaction role. Please try again.',
+            t('Failed to add reaction role. Please try again.'),
             { guildId, messageId, originalError: error.message }
         );
     }
@@ -246,7 +247,7 @@ export async function deleteReactionRoleMessage(client, guildId, messageId) {
         throw createError(
             `Database error deleting reaction role message`,
             ErrorTypes.DATABASE,
-            'Failed to delete reaction role message. Please try again.',
+            t('Failed to delete reaction role message. Please try again.'),
             { guildId, messageId, originalError: error.message }
         );
     }
@@ -283,7 +284,7 @@ export async function removeReactionRole(client, guildId, messageId, emoji) {
         throw createError(
             `Database error removing reaction role`,
             ErrorTypes.DATABASE,
-            'Failed to remove reaction role. Please try again.',
+            t('Failed to remove reaction role. Please try again.'),
             { guildId, messageId, originalError: error.message }
         );
     }
@@ -323,7 +324,7 @@ export async function getAllReactionRoleMessages(client, guildId) {
             throw createError(
                 'Database error listing reaction roles',
                 ErrorTypes.DATABASE,
-                'Failed to retrieve reaction role list. Please try again.',
+                t('Failed to retrieve reaction role list. Please try again.'),
                 { guildId, originalError: listError.message }
             );
         }
@@ -369,7 +370,7 @@ export async function getAllReactionRoleMessages(client, guildId) {
         throw createError(
             'Database error retrieving reaction roles',
             ErrorTypes.DATABASE,
-            'Failed to retrieve reaction role messages. Please try again.',
+            t('Failed to retrieve reaction role messages. Please try again.'),
             { guildId, originalError: error.message }
         );
     }
@@ -384,7 +385,7 @@ export async function setReactionRoleChannel(client, guildId, messageId, channel
             throw createError(
                 `Invalid channel ID: ${channelId}`,
                 ErrorTypes.VALIDATION,
-                'Invalid channel ID provided.',
+                t('Invalid channel ID provided.'),
                 { channelId }
             );
         }
@@ -409,7 +410,7 @@ export async function setReactionRoleChannel(client, guildId, messageId, channel
         throw createError(
             `Database error setting reaction role channel`,
             ErrorTypes.DATABASE,
-            'Failed to update reaction role channel. Please try again.',
+            t('Failed to update reaction role channel. Please try again.'),
             { guildId, messageId, channelId, originalError: error.message }
         );
     }

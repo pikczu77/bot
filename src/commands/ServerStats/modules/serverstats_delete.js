@@ -6,6 +6,7 @@ import { logger } from '../../../utils/logger.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes, createError, wrapServiceBoundary } from '../../../utils/errorHandler.js';
+import { t } from '../../../i18n/index.js';
 export async function handleDelete(interaction, client) {
     const guild = interaction.guild;
     const counterId = interaction.options.getString("counter-id");
@@ -18,7 +19,7 @@ export async function handleDelete(interaction, client) {
     }
 
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: 'You need **Manage Channels** permission to delete counters.' }).catch(logger.error);
+        await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need **Manage Channels** permission to delete counters.') }).catch(logger.error);
         return;
     }
 
@@ -26,32 +27,32 @@ export async function handleDelete(interaction, client) {
         const counters = await getServerCounters(client, guild.id);
 
         if (counters.length === 0) {
-            await replyUserError(interaction, { type: ErrorTypes.USER_INPUT, message: 'No counters found to delete.' }).catch(logger.error);
+            await replyUserError(interaction, { type: ErrorTypes.USER_INPUT, message: t('No counters found to delete.') }).catch(logger.error);
             return;
         }
 
         const counterToDelete = counters.find(c => c.id === counterId);
         if (!counterToDelete) {
-            await replyUserError(interaction, { type: ErrorTypes.USER_INPUT, message: `Counter with ID \`${counterId}\` not found. Use \`/serverstats list\` to see all counters.` }).catch(logger.error);
+            await replyUserError(interaction, { type: ErrorTypes.USER_INPUT, message: t`Counter with ID \`${counterId}\` not found. Use \`/serverstats list\` to see all counters.` }).catch(logger.error);
             return;
         }
 
         const channel = guild.channels.cache.get(counterToDelete.channelId);
 
         const embed = createEmbed({
-            title: "Delete Counter & Channel",
-            description: `Are you sure you want to delete this counter and its channel?\n\n**ID:** \`${counterToDelete.id}\`\n**Type:** ${getCounterTypeDisplay(counterToDelete.type)}\n**Channel:** ${channel || 'Deleted Channel'}\n\n **The channel will be permanently deleted!**`,
+            title: t("Delete Counter & Channel"),
+            description: t`Are you sure you want to delete this counter and its channel?\n\n**ID:** \`${counterToDelete.id}\`\n**Type:** ${getCounterTypeDisplay(counterToDelete.type)}\n**Channel:** ${channel || t('Deleted Channel')}\n\n **The channel will be permanently deleted!**`,
             color: getColor('error')
         });
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`counter-delete:confirm:${counterToDelete.id}:${interaction.user.id}`)
-                .setLabel("Confirm Delete")
+                .setLabel(t("Confirm Delete"))
                 .setStyle(ButtonStyle.Danger),
             new ButtonBuilder()
                 .setCustomId(`counter-delete:cancel:${counterToDelete.id}:${interaction.user.id}`)
-                .setLabel("Cancel")
+                .setLabel(t("Cancel"))
                 .setStyle(ButtonStyle.Secondary)
         );
 
@@ -59,7 +60,7 @@ export async function handleDelete(interaction, client) {
 
     } catch (error) {
         logger.error("Error in handleDelete:", error);
-        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while fetching counters. Please try again.' }).catch(logger.error);
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while fetching counters. Please try again.') }).catch(logger.error);
     }
 }
 
@@ -71,7 +72,7 @@ export const performDeletionByCounterId = wrapServiceBoundary(async function per
         throw createError(
             'Counter not found',
             ErrorTypes.USER_INPUT,
-            `Counter with ID \`${counterId}\` was not found.`,
+            t`Counter with ID \`${counterId}\` was not found.`,
             { guildId: guild.id, counterId, operation: 'performDeletionByCounterId' }
         );
     }
@@ -83,7 +84,7 @@ export const performDeletionByCounterId = wrapServiceBoundary(async function per
         throw createError(
             'Counter delete failed',
             ErrorTypes.DATABASE,
-            'Failed to delete counter. Please try again.',
+            t('Failed to delete counter. Please try again.'),
             { guildId: guild.id, counterId, operation: 'performDeletionByCounterId' }
         );
     }
@@ -100,21 +101,21 @@ export const performDeletionByCounterId = wrapServiceBoundary(async function per
         }
     }
 
-    let message = `✅ **Counter Deleted Successfully!**\n\n**ID:** \`${counter.id}\`\n**Type:** ${getCounterTypeDisplay(counter.type)}`;
+    let message = t`✅ **Counter Deleted Successfully!**\n\n**ID:** \`${counter.id}\`\n**Type:** ${getCounterTypeDisplay(counter.type)}`;
 
     if (channelDeleted) {
-        message += `\n**Channel:** ${channel.name} (deleted)`;
+        message += t`\n**Channel:** ${channel.name} (deleted)`;
     } else if (channel) {
-        message += `\n**Channel:** ${channel.name} (failed to delete)`;
+        message += t`\n**Channel:** ${channel.name} (failed to delete)`;
     } else {
-        message += `\n**Channel:** Already deleted`;
+        message += t`\n**Channel:** Already deleted`;
     }
 
     return { message };
 }, {
     service: 'serverstats',
     operation: 'performDeletionByCounterId',
-    userMessage: 'An error occurred while deleting the counter. Please try again.',
+    userMessage: t('An error occurred while deleting the counter. Please try again.'),
 });
 
 function getCounterTypeDisplay(type) {

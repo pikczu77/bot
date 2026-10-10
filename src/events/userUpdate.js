@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { logger } from '../utils/logger.js';
+import { t } from '../i18n/index.js';
 
 export default {
   name: Events.UserUpdate,
@@ -19,12 +20,12 @@ export default {
 
       if (usernameChanged) {
         fields.push({
-          name: '🏷️ Old Username',
+          name: t('🏷️ Old Username'),
           value: oldUser.username,
           inline: true
         });
         fields.push({
-          name: '🏷️ New Username',
+          name: t('🏷️ New Username'),
           value: newUser.username,
           inline: true
         });
@@ -32,12 +33,12 @@ export default {
 
       if (discriminatorChanged) {
         fields.push({
-          name: '🔢 Old Tag',
+          name: t('🔢 Old Tag'),
           value: `#${oldUser.discriminator}`,
           inline: true
         });
         fields.push({
-          name: '🔢 New Tag',
+          name: t('🔢 New Tag'),
           value: `#${newUser.discriminator}`,
           inline: true
         });
@@ -52,11 +53,11 @@ export default {
           guildId: guild.id,
           eventType: EVENT_TYPES.MEMBER_NAME_CHANGE,
           data: {
-            description: `${newUser.tag} updated their username`,
+            description: t`${newUser.tag} updated their username`,
             userId: newUser.id,
             fields: [
               {
-                name: '👤 User',
+                name: t('👤 User'),
                 value: `${newUser.tag} (${newUser.id})`,
                 inline: true
               },

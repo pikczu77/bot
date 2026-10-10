@@ -1,6 +1,7 @@
 // logEmbeds.js — shared helpers for clean, scannable log embeds
 
 import { EmbedBuilder } from 'discord.js';
+import { t } from '../../i18n/index.js';
 
 const EMOJI_PREFIX = /^[\p{Extended_Pictographic}\uFE0F\s]+/u;
 
@@ -120,7 +121,7 @@ export async function resolveUserAuthor(client, userId) {
     };
   } catch {
     return {
-      name: `User ${userId}`,
+      name: t`User ${userId}`,
     };
   }
 }
@@ -178,17 +179,17 @@ const MAX_DISPLAYED_ROLE_PERMISSIONS = 5;
 export function buildRoleAuditFields(role, { includeMemberCount = false } = {}) {
   const fields = [
     {
-      name: 'Role Name',
+      name: t('Role Name'),
       value: role.name,
       inline: true
     },
     {
-      name: 'Color',
+      name: t('Color'),
       value: role.hexColor || '#000000',
       inline: true
     },
     {
-      name: 'Role ID',
+      name: t('Role ID'),
       value: role.id,
       inline: true
     }
@@ -198,9 +199,9 @@ export function buildRoleAuditFields(role, { includeMemberCount = false } = {}) 
   if (permissions.length > 0) {
     const displayPerms = permissions.slice(0, MAX_DISPLAYED_ROLE_PERMISSIONS).join(',');
     fields.push({
-      name: 'Permissions',
+      name: t('Permissions'),
       value: permissions.length > MAX_DISPLAYED_ROLE_PERMISSIONS
-        ? `${displayPerms}... (+${permissions.length - MAX_DISPLAYED_ROLE_PERMISSIONS} more)`
+        ? t`${displayPerms}... (+${permissions.length - MAX_DISPLAYED_ROLE_PERMISSIONS} more)`
         : displayPerms,
       inline: false
     });
@@ -208,17 +209,17 @@ export function buildRoleAuditFields(role, { includeMemberCount = false } = {}) 
 
   fields.push(
     {
-      name: 'Hoisted',
-      value: role.hoist ? 'Yes' : 'No',
+      name: t('Hoisted'),
+      value: role.hoist ? t('Yes') : t('No'),
       inline: true
     },
     {
-      name: 'Managed',
-      value: role.managed ? 'Yes (Bot role)' : 'No',
+      name: t('Managed'),
+      value: role.managed ? t('Yes (Bot role)') : t('No'),
       inline: true
     },
     {
-      name: 'Position',
+      name: t('Position'),
       value: role.position.toString(),
       inline: true
     }
@@ -226,7 +227,7 @@ export function buildRoleAuditFields(role, { includeMemberCount = false } = {}) 
 
   if (includeMemberCount) {
     fields.push({
-      name: 'Members with Role',
+      name: t('Members with Role'),
       value: role.members.size.toString(),
       inline: true
     });

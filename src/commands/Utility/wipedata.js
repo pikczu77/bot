@@ -4,6 +4,7 @@ import { getConfirmationButtons } from '../../utils/components.js';
 import { logger } from '../../utils/logger.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 export default {
     slashOnly: true,
     data: new SlashCommandBuilder()
@@ -12,18 +13,18 @@ export default {
 
     async execute(interaction, guildConfig, client) {
         const warningMessage = 
-            `⚠️ **THIS ACTION IS IRREVERSIBLE!** ⚠️\n\n` +
-            `This will permanently delete **ALL** your data from this server including:\n` +
-            `• 💰 Economy balance (wallet & bank)\n` +
-            `• 📊 Levels and XP\n` +
-            `• 🎒 Inventory items\n` +
-            `• 🛍️ Shop purchases\n` +
-            `• 🎂 Birthday information\n` +
-            `• 🔢 Counter data\n` +
-            `• 📋 All other personal data\n\n` +
-            `**This cannot be undone. Are you absolutely sure?**`;
+            t`⚠️ **THIS ACTION IS IRREVERSIBLE!** ⚠️\n\n` +
+            t`This will permanently delete **ALL** your data from this server including:\n` +
+            t`• 💰 Economy balance (wallet & bank)\n` +
+            t`• 📊 Levels and XP\n` +
+            t`• 🎒 Inventory items\n` +
+            t`• 🛍️ Shop purchases\n` +
+            t`• 🎂 Birthday information\n` +
+            t`• 🔢 Counter data\n` +
+            t`• 📋 All other personal data\n\n` +
+            t`**This cannot be undone. Are you absolutely sure?**`;
 
-        const embed = warningEmbed('Wipe All Data', warningMessage);
+        const embed = warningEmbed(t('Wipe All Data'), warningMessage);
 
         const confirmButtons = getConfirmationButtons('wipedata');
 

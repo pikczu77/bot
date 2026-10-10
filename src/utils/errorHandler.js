@@ -21,6 +21,7 @@ import { buildUserErrorEmbed } from './embeds.js';
 import { MessageFlags } from 'discord.js';
 import { getErrorMetadata, getDefaultErrorCodeByType, resolveErrorCode, ErrorCodes } from './errorRegistry.js';
 import { InteractionHelper } from './interactionHelper.js';
+import { t } from '../i18n/index.js';
 
 // Re-export so consumers only ever need to import from errorHandler.js
 export { ErrorCodes, getErrorMetadata, resolveErrorCode, getDefaultErrorCodeByType } from './errorRegistry.js';
@@ -239,57 +240,57 @@ export function categorizeError(error) {
 
 const UserMessages = {
     [ErrorTypes.VALIDATION]: {
-        default: 'Please check your input and try again.',
-        missing_required: "You're missing some required information. Check the command options and try again.",
-        invalid_format: 'The format you provided is incorrect. Check the command usage and try again.'
+        default: t('Please check your input and try again.'),
+        missing_required: t("You're missing some required information. Check the command options and try again."),
+        invalid_format: t('The format you provided is incorrect. Check the command usage and try again.')
     },
     [ErrorTypes.PERMISSION]: {
-        default: "You don't have permission to do that.",
-        user_permission: "You don't have permission to use this command.",
-        bot_permission: "I don't have the permissions needed to do that in this channel."
+        default: t("You don't have permission to do that."),
+        user_permission: t("You don't have permission to use this command."),
+        bot_permission: t("I don't have the permissions needed to do that in this channel.")
     },
     [ErrorTypes.CONFIGURATION]: {
-        default: 'This feature is not set up yet. Ask a server administrator to configure it.',
-        missing_config: 'This feature has not been configured yet. Ask a server administrator to set it up.',
-        invalid_config: 'The server configuration for this feature is invalid. Ask a server administrator to review it.'
+        default: t('This feature is not set up yet. Ask a server administrator to configure it.'),
+        missing_config: t('This feature has not been configured yet. Ask a server administrator to set it up.'),
+        invalid_config: t('The server configuration for this feature is invalid. Ask a server administrator to review it.')
     },
     [ErrorTypes.DATABASE]: {
-        default: 'Something went wrong while saving data. Please try again in a moment.',
-        connection_failed: 'I could not reach the database. Please try again later.',
-        timeout: 'That took too long to complete. Please try again.'
+        default: t('Something went wrong while saving data. Please try again in a moment.'),
+        connection_failed: t('I could not reach the database. Please try again later.'),
+        timeout: t('That took too long to complete. Please try again.')
     },
     [ErrorTypes.NETWORK]: {
-        default: 'I could not reach an external service. Please try again in a moment.',
-        timeout: 'The request timed out. Please try again.',
-        unreachable: 'The service is unavailable right now. Please try again later.'
+        default: t('I could not reach an external service. Please try again in a moment.'),
+        timeout: t('The request timed out. Please try again.'),
+        unreachable: t('The service is unavailable right now. Please try again later.')
     },
     [ErrorTypes.DISCORD_API]: {
-        default: 'Discord rejected that request. Please try again in a moment.',
-        rate_limit: "You're doing that too quickly. Wait a moment and try again.",
-        forbidden: "I'm not allowed to do that here. Check my role permissions.",
-        interaction_expired: 'That interaction expired. Please run the command again.',
-        already_acknowledged: 'That action was already handled. Run the command again if you still need help.',
-        invalid_form_body: 'Discord rejected the request payload. Try again with different input.'
+        default: t('Discord rejected that request. Please try again in a moment.'),
+        rate_limit: t("You're doing that too quickly. Wait a moment and try again."),
+        forbidden: t("I'm not allowed to do that here. Check my role permissions."),
+        interaction_expired: t('That interaction expired. Please run the command again.'),
+        already_acknowledged: t('That action was already handled. Run the command again if you still need help.'),
+        invalid_form_body: t('Discord rejected the request payload. Try again with different input.')
     },
     [ErrorTypes.USER_INPUT]: {
-        default: 'There was a problem with your request. Check your input and try again.',
-        invalid_user: 'I could not find that user. Check the mention or ID and try again.',
-        invalid_channel: 'I could not find that channel. Check the mention or ID and try again.'
+        default: t('There was a problem with your request. Check your input and try again.'),
+        invalid_user: t('I could not find that user. Check the mention or ID and try again.'),
+        invalid_channel: t('I could not find that channel. Check the mention or ID and try again.')
     },
     [ErrorTypes.RATE_LIMIT]: {
-        default: "You're doing that too quickly. Wait a moment and try again.",
-        command_cooldown: 'This command is on cooldown. Wait before using it again.',
-        global_rate_limit: 'Discord is rate limiting requests. Wait a moment and try again.'
+        default: t("You're doing that too quickly. Wait a moment and try again."),
+        command_cooldown: t('This command is on cooldown. Wait before using it again.'),
+        global_rate_limit: t('Discord is rate limiting requests. Wait a moment and try again.')
     },
     [ErrorTypes.UNKNOWN]: {
-        default: 'Something went wrong. Please try again in a moment.',
-        unexpected: 'An unexpected error occurred. Please try again later.',
-        warn_failed: 'I could not warn that member. Check my permissions and role hierarchy, then try again.',
-        kick_failed: 'I could not kick that member. Check my permissions and role hierarchy, then try again.',
-        ban_failed: 'I could not ban that member. Check my permissions and role hierarchy, then try again.',
-        unban_failed: 'I could not unban that user. Check my permissions and try again.',
-        timeout_failed: 'I could not timeout that member. Check my permissions and role hierarchy, then try again.',
-        untimeout_failed: 'I could not remove the timeout. Check my permissions and try again.'
+        default: t('Something went wrong. Please try again in a moment.'),
+        unexpected: t('An unexpected error occurred. Please try again later.'),
+        warn_failed: t('I could not warn that member. Check my permissions and role hierarchy, then try again.'),
+        kick_failed: t('I could not kick that member. Check my permissions and role hierarchy, then try again.'),
+        ban_failed: t('I could not ban that member. Check my permissions and role hierarchy, then try again.'),
+        unban_failed: t('I could not unban that user. Check my permissions and try again.'),
+        timeout_failed: t('I could not timeout that member. Check my permissions and role hierarchy, then try again.'),
+        untimeout_failed: t('I could not remove the timeout. Check my permissions and try again.')
     }
 };
 
@@ -515,7 +516,7 @@ export async function handleInteractionError(interaction, error, context = {}) {
     const isUserError = USER_ERROR_TYPES.has(errorType) || normalizedError?.context?.expected === true;
     const description = isUserError
         ? userMessage
-        : `${userMessage}\n\n-# Ref: \`${buildErrorReference(resolvedErrorCode, traceId)}\``;
+        : t`${userMessage}\n\n-# Ref: \`${buildErrorReference(resolvedErrorCode, traceId)}\``;
 
     const embed = buildUserErrorEmbed(errorType, description);
     await sendErrorResponse(interaction, embed, { ...context, traceId });

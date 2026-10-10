@@ -8,6 +8,7 @@ import {
   formatRatingStars,
   resolveUserAuthor,
 } from '../logging/logEmbeds.js';
+import { t } from '../../i18n/index.js';
 
 export async function logTicketEvent({ client, guildId, event }) {
   try {
@@ -98,20 +99,20 @@ function getLogChannelForEventType(config, eventType) {
 }
 
 const TICKET_EVENT_STYLES = {
-  open: { color: 0x5865F2, title: 'Ticket Created' },
-  close: { color: 0xED4245, title: 'Ticket Closed' },
-  delete: { color: 0x8b0000, title: 'Ticket Deleted' },
-  claim: { color: 0x5865F2, title: 'Ticket Claimed' },
-  unclaim: { color: 0xFAA61A, title: 'Ticket Unclaimed' },
-  priority: { color: 0x9b59b6, title: 'Priority Updated' },
-  transcript: { color: 0x57F287, title: 'Transcript Generated' },
-  feedback: { color: 0x57F287, title: 'Feedback Received' },
+  open: { color: 0x5865F2, title: t('Ticket Created') },
+  close: { color: 0xED4245, title: t('Ticket Closed') },
+  delete: { color: 0x8b0000, title: t('Ticket Deleted') },
+  claim: { color: 0x5865F2, title: t('Ticket Claimed') },
+  unclaim: { color: 0xFAA61A, title: t('Ticket Unclaimed') },
+  priority: { color: 0x9b59b6, title: t('Priority Updated') },
+  transcript: { color: 0x57F287, title: t('Transcript Generated') },
+  feedback: { color: 0x57F287, title: t('Feedback Received') },
 };
 
 async function createTicketLogEmbed(guild, event) {
-  const style = TICKET_EVENT_STYLES[event.type] || { color: 0x95a5a6, title: 'Ticket Event' };
+  const style = TICKET_EVENT_STYLES[event.type] || { color: 0x95a5a6, title: t('Ticket Event') };
   const ticketNumber = event.ticketNumber || event.ticketId;
-  const ticketRef = ticketNumber ? `#${ticketNumber}` : 'Unknown';
+  const ticketRef = ticketNumber ? `#${ticketNumber}` : t('Unknown');
   const channelMention = event.ticketId ? `<#${event.ticketId}>` : null;
   const executorMention = event.executorId ? `<@${event.executorId}>` : null;
   const userMention = event.userId ? `<@${event.userId}>` : null;
@@ -119,42 +120,42 @@ async function createTicketLogEmbed(guild, event) {
   let inlineFields = [];
   let fields = [];
   let author = null;
-  let footer = { text: 'TitanBot Ticketing' };
+  let footer = { text: t('Klubik Pikcza Ticketing') };
 
   switch (event.type) {
     case 'open':
       author = await resolveUserAuthor(guild.client, event.userId);
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
-        { name: 'Creator', value: userMention || 'Unknown', inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
+        { name: t('Creator'), value: userMention || t('Unknown'), inline: true },
       ];
       if (channelMention) {
-        inlineFields.push({ name: 'Channel', value: channelMention, inline: true });
+        inlineFields.push({ name: t('Channel'), value: channelMention, inline: true });
       }
       if (event.reason) {
-        fields.push({ name: 'Reason', value: String(event.reason).slice(0, 1024), inline: false });
+        fields.push({ name: t('Reason'), value: String(event.reason).slice(0, 1024), inline: false });
       }
       break;
 
     case 'close':
       author = await resolveUserAuthor(guild.client, event.executorId);
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
-        { name: 'Closed by', value: executorMention || 'Unknown', inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
+        { name: t('Closed by'), value: executorMention || t('Unknown'), inline: true },
       ];
       if (channelMention) {
-        inlineFields.push({ name: 'Channel', value: channelMention, inline: true });
+        inlineFields.push({ name: t('Channel'), value: channelMention, inline: true });
       }
       if (event.reason) {
-        fields.push({ name: 'Reason', value: String(event.reason).slice(0, 1024), inline: false });
+        fields.push({ name: t('Reason'), value: String(event.reason).slice(0, 1024), inline: false });
       }
       break;
 
     case 'delete':
       author = await resolveUserAuthor(guild.client, event.executorId);
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
-        { name: 'Deleted by', value: executorMention || 'Unknown', inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
+        { name: t('Deleted by'), value: executorMention || t('Unknown'), inline: true },
       ];
       break;
 
@@ -162,10 +163,10 @@ async function createTicketLogEmbed(guild, event) {
     case 'unclaim':
       author = await resolveUserAuthor(guild.client, event.executorId);
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
         {
-          name: event.type === 'claim' ? 'Claimed by' : 'Unclaimed by',
-          value: executorMention || 'Unknown',
+          name: event.type === 'claim' ? t('Claimed by') : t('Unclaimed by'),
+          value: executorMention || t('Unknown'),
           inline: true,
         },
       ];
@@ -175,30 +176,30 @@ async function createTicketLogEmbed(guild, event) {
       const priorityEmojis = { none: '⚪', low: '🔵', medium: '🟢', high: '🟡', urgent: '🔴' };
       const priorityLabel = event.priority
         ? `${priorityEmojis[event.priority] || '⚪'} ${event.priority.charAt(0).toUpperCase()}${event.priority.slice(1)}`
-        : 'Unknown';
+        : t('Unknown');
       author = await resolveUserAuthor(guild.client, event.executorId);
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
-        { name: 'Priority', value: priorityLabel, inline: true },
-        { name: 'Updated by', value: executorMention || 'Unknown', inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
+        { name: t('Priority'), value: priorityLabel, inline: true },
+        { name: t('Updated by'), value: executorMention || t('Unknown'), inline: true },
       ];
       break;
     }
 
     case 'transcript':
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
-        { name: 'Creator', value: userMention || 'Unknown', inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
+        { name: t('Creator'), value: userMention || t('Unknown'), inline: true },
       ];
       if (event.metadata?.messageCount) {
-        inlineFields.push({ name: 'Messages', value: String(event.metadata.messageCount), inline: true });
+        inlineFields.push({ name: t('Messages'), value: String(event.metadata.messageCount), inline: true });
       }
       if (event.metadata?.duration) {
-        fields.push({ name: 'Duration', value: String(event.metadata.duration), inline: false });
+        fields.push({ name: t('Duration'), value: String(event.metadata.duration), inline: false });
       }
       if (event.metadata?.subject || event.reason) {
         fields.push({
-          name: 'Subject',
+          name: t('Subject'),
           value: String(event.metadata?.subject || event.reason).slice(0, 1024),
           inline: false,
         });
@@ -208,17 +209,17 @@ async function createTicketLogEmbed(guild, event) {
     case 'feedback': {
       const rating = event.metadata?.rating ?? event.rating;
       const comment = event.metadata?.comment;
-      const ratingDisplay = formatRatingStars(rating) || 'No rating';
+      const ratingDisplay = formatRatingStars(rating) || t('No rating');
 
       author = await resolveUserAuthor(guild.client, event.userId);
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
-        { name: 'Rating', value: ratingDisplay, inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
+        { name: t('Rating'), value: ratingDisplay, inline: true },
       ];
 
       if (comment) {
         fields.push({
-          name: 'Comment',
+          name: t('Comment'),
           value: String(comment).slice(0, 1024),
           inline: false,
         });
@@ -228,10 +229,10 @@ async function createTicketLogEmbed(guild, event) {
 
     default:
       inlineFields = [
-        { name: 'Ticket', value: ticketRef, inline: true },
+        { name: t('Ticket'), value: ticketRef, inline: true },
       ];
       if (event.reason) {
-        fields.push({ name: 'Details', value: String(event.reason).slice(0, 1024), inline: false });
+        fields.push({ name: t('Details'), value: String(event.reason).slice(0, 1024), inline: false });
       }
   }
 

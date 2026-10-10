@@ -3,6 +3,7 @@ import { infoEmbed, successEmbed } from '../../utils/embeds.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { verifyUser } from '../../services/verificationService.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -19,15 +20,15 @@ export default {
 
         if (result.status === 'already_verified') {
             return await InteractionHelper.safeReply(interaction, {
-                embeds: [infoEmbed('Already Verified', "You are already verified.")],
+                embeds: [infoEmbed(t('Already Verified'), t("You are already verified."))],
                 flags: MessageFlags.Ephemeral
             });
         }
 
         await InteractionHelper.safeReply(interaction, {
             embeds: [successEmbed(
-                "Verification Complete",
-                `You have been verified and given the **${result.roleName}** role! Welcome to the server! 🎉`
+                t("Verification Complete"),
+                t`You have been verified and given the **${result.roleName}** role! Welcome to the server! 🎉`
             )],
             flags: MessageFlags.Ephemeral
         });

@@ -9,6 +9,7 @@ import { SLASH_ONLY_COMMANDS } from '../config/commands/prefixRestrictions.js';
 import { getCommandPrefix } from '../config/bot.js';
 import { ResponseCoordinator, buildPrefixUsage } from './responseCoordinator.js';
 import { enforceDefaultCommandPermissions } from './permissionGuard.js';
+import { t } from '../i18n/index.js';
 
 export { buildPrefixUsage };
 
@@ -88,7 +89,7 @@ export function createMockInteraction(message, commandData, args) {
 
         return {
           id,
-          username: 'Unknown',
+          username: t('Unknown'),
           bot: false,
           tag: 'Unknown#0000',
         };

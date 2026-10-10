@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { Collection } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import botConfig from '../../config/bot.js';
+import { localizeCommandJson } from '../../i18n/commandLocalizations.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +54,8 @@ async function getAllFiles(directory, fileList = []) {
 
 export async function loadCommands(client) {
     client.commands = new Collection();
+    // Old top-level names of commands that now live inside a group (for prefix use).
+    client.groupedCommands = new Collection();
     const commandsPath = path.join(__dirname, '../../commands');
     const commandFiles = await getAllFiles(commandsPath);
     
@@ -85,6 +88,17 @@ export async function loadCommands(client) {
                 uniqueCommandNames.add(primaryCommandName);
                 
                 client.commands.set(primaryCommandName, command);
+
+                if (command.isCommandGroup) {
+                    for (const [memberName, member] of command.members) {
+                        member.category = category;
+                        const target = { group: primaryCommandName, member: memberName };
+                        client.groupedCommands.set(member.data.name, target);
+                        if (!client.groupedCommands.has(memberName)) {
+                            client.groupedCommands.set(memberName, target);
+                        }
+                    }
+                }
             }
             
             const subcommands = getSubcommandInfo(command.data.toJSON());
@@ -140,7 +154,7 @@ function collectCommandPayloads(client) {
         }
 
         registeredNames.add(commandName);
-        const commandJson = command.data.toJSON();
+        const commandJson = localizeCommandJson(command.data.toJSON());
         commands.push(commandJson);
         totalSubcommands += getSubcommandInfo(commandJson).length;
 
@@ -159,7 +173,7 @@ function validateCommands(commands) {
         if (cmd.name && cmd.name.length > 32) {
             validationErrors.push(`Command ${cmd.name} has name longer than 32 chars: "${cmd.name}" (${cmd.name.length} chars)`);
         }
-        if (cmd.description && cmd.description.length > 110) {
+        if (cmd.description && cmd.description.length > 100) {
             validationErrors.push(`Command ${cmd.name} has description longer than 110 chars: "${cmd.description}" (${cmd.description.length} chars)`);
         }
 

@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { getEconomyData, setEconomyData, getMaxBankCapacity } from '../utils/economy.js';
 import { createError, ErrorTypes } from '../utils/errorHandler.js';
 import { wrapServiceClassMethods } from '../utils/serviceErrorBoundary.js';
+import { t } from '../i18n/index.js';
 
 class EconomyService {
 
@@ -24,7 +25,7 @@ class EconomyService {
       throw createError(
         "Invalid balance state",
         ErrorTypes.VALIDATION,
-        "Operation would create an invalid account balance.",
+        t("Operation would create an invalid account balance."),
         { value, ...context }
       );
     }
@@ -39,7 +40,7 @@ class EconomyService {
       throw createError(
         "Failed to load economy data",
         ErrorTypes.DATABASE,
-        "Failed to load your economy data. Please try again later.",
+        t("Failed to load your economy data. Please try again later."),
         { userId, guildId }
       );
     }
@@ -56,7 +57,7 @@ class EconomyService {
       throw createError(
         "Daily cooldown active",
         ErrorTypes.RATE_LIMIT,
-        `You need to wait before claiming daily again. Try again in **${this.formatDuration(remaining)}**.`,
+        t`You need to wait before claiming daily again. Try again in **${this.formatDuration(remaining)}**.`,
         { remaining, cooldownType: 'daily' }
       );
     }
@@ -93,7 +94,7 @@ class EconomyService {
       throw createError(
         "Failed to save daily claim",
         ErrorTypes.DATABASE,
-        "Failed to process your daily. Please try again.",
+        t("Failed to process your daily. Please try again."),
         { userId, guildId }
       );
     }
@@ -111,7 +112,7 @@ class EconomyService {
       throw createError(
         "Invalid transfer amount",
         ErrorTypes.VALIDATION,
-        "Amount must be greater than zero.",
+        t("Amount must be greater than zero."),
         { amount, senderId }
       );
     }
@@ -120,7 +121,7 @@ class EconomyService {
       throw createError(
         "Cannot pay self",
         ErrorTypes.VALIDATION,
-        "You cannot pay yourself.",
+        t("You cannot pay yourself."),
         { senderId, receiverId }
       );
     }
@@ -140,7 +141,7 @@ class EconomyService {
       throw createError(
         "Failed to load economy data",
         ErrorTypes.DATABASE,
-        "Failed to load economy data. Please try again later.",
+        t("Failed to load economy data. Please try again later."),
         { senderId, receiverId, guildId }
       );
     }
@@ -154,7 +155,7 @@ class EconomyService {
       throw createError(
         "Insufficient funds",
         ErrorTypes.VALIDATION,
-        `You only have **$${senderData.wallet.toLocaleString()}** in cash.`,
+        t`You only have **$${senderData.wallet.toLocaleString()}** in cash.`,
         { required: amount, available: senderData.wallet, senderId }
       );
     }
@@ -220,7 +221,7 @@ class EconomyService {
       throw createError(
         "Failed to save transfer",
         ErrorTypes.DATABASE,
-        "Failed to process transfer. Please try again.",
+        t("Failed to process transfer. Please try again."),
         { senderId, receiverId, amount }
       );
     }
@@ -231,7 +232,7 @@ class EconomyService {
       throw createError(
         "Invalid amount",
         ErrorTypes.VALIDATION,
-        "Amount must be positive",
+        t("Amount must be positive"),
         { amount, userId, source }
       );
     }
@@ -265,7 +266,7 @@ class EconomyService {
       throw createError(
         "Invalid amount",
         ErrorTypes.VALIDATION,
-        "Amount must be positive",
+        t("Amount must be positive"),
         { amount, userId, reason }
       );
     }
@@ -279,7 +280,7 @@ class EconomyService {
       throw createError(
         "Insufficient funds",
         ErrorTypes.VALIDATION,
-        `You only have **$${balanceBefore.toLocaleString()}**.`,
+        t`You only have **$${balanceBefore.toLocaleString()}**.`,
         { required: amount, available: balanceBefore, reason }
       );
     }
@@ -312,7 +313,7 @@ class EconomyService {
       throw createError(
         "Insufficient cash",
         ErrorTypes.VALIDATION,
-        `You only have **$${userData.wallet.toLocaleString()}** in cash.`,
+        t`You only have **$${userData.wallet.toLocaleString()}** in cash.`,
         { required: amount, available: userData.wallet }
       );
     }
@@ -322,7 +323,7 @@ class EconomyService {
       throw createError(
         "Bank capacity exceeded",
         ErrorTypes.VALIDATION,
-        `Your bank can only hold **$${maxBank.toLocaleString()}**. You would exceed capacity by **$${(currentBank + amount - maxBank).toLocaleString()}**.`,
+        t`Your bank can only hold **$${maxBank.toLocaleString()}**. You would exceed capacity by **$${(currentBank + amount - maxBank).toLocaleString()}**.`,
         { capacity: maxBank, current: currentBank, requested: amount }
       );
     }
@@ -360,7 +361,7 @@ class EconomyService {
       throw createError(
         "Insufficient bank balance",
         ErrorTypes.VALIDATION,
-        `You only have **$${bank.toLocaleString()}** in your bank.`,
+        t`You only have **$${bank.toLocaleString()}** in your bank.`,
         { required: amount, available: bank }
       );
     }
@@ -407,7 +408,7 @@ class EconomyService {
       throw createError(
         "Invalid amount - not an integer",
         ErrorTypes.VALIDATION,
-        "Amount must be a whole number",
+        t("Amount must be a whole number"),
         context
       );
     }
@@ -416,7 +417,7 @@ class EconomyService {
       throw createError(
         "Invalid amount - not positive",
         ErrorTypes.VALIDATION,
-        "Amount must be positive",
+        t("Amount must be positive"),
         context
       );
     }
@@ -426,7 +427,7 @@ class EconomyService {
       throw createError(
         "Amount too large",
         ErrorTypes.VALIDATION,
-        "The amount is too large to process",
+        t("The amount is too large to process"),
         context
       );
     }
@@ -457,7 +458,7 @@ wrapServiceClassMethods(EconomyService, (methodName) => ({
   service: 'EconomyService',
   operation: methodName,
   message: `Economy service operation failed: ${methodName}`,
-  userMessage: 'An economy operation failed. Please try again in a moment.'
+  userMessage: t('An economy operation failed. Please try again in a moment.')
 }));
 
 export default EconomyService;

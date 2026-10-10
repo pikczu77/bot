@@ -10,6 +10,7 @@ import { handleDelete } from './modules/serverstats_delete.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
         .setName("serverstats")
@@ -104,7 +105,7 @@ export default {
                 await handleDelete(interaction, client);
                 break;
             default:
-                await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: 'Unknown subcommand.' });
+                await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Unknown subcommand.') });
         }
     }
 };

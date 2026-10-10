@@ -7,6 +7,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { botConfig } from '../../config/bot.js';
+import { t } from '../../i18n/index.js';
 
 const DAILY_COOLDOWN = 24 * 60 * 60 * 1000;
 const DAILY_AMOUNT = botConfig.economy?.dailyAmount ?? 100;
@@ -33,7 +34,7 @@ export default {
                 throw createError(
                     "Failed to load economy data for daily",
                     ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
+                    t("Failed to load your economy data. Please try again later."),
                     { userId, guildId }
                 );
             }
@@ -45,7 +46,7 @@ export default {
                 throw createError(
                     "Daily cooldown active",
                     ErrorTypes.RATE_LIMIT,
-                    `You need to wait before claiming daily again. Try again in **${formatDuration(timeRemaining)}**.`,
+                    t`You need to wait before claiming daily again. Try again in **${formatDuration(timeRemaining)}**.`,
                     { timeRemaining, cooldownType: 'daily' }
                 );
             }
@@ -66,7 +67,7 @@ export default {
                     DAILY_AMOUNT * PREMIUM_BONUS_PERCENTAGE,
                 );
                 earned += bonusAmount;
-                bonusMessage = `\n✨ **Premium Bonus:** +$${bonusAmount.toLocaleString()}`;
+                bonusMessage = t`\n✨ **Premium Bonus:** +$${bonusAmount.toLocaleString()}`;
                 hasPremiumRole = true;
             }
 
@@ -85,18 +86,18 @@ export default {
             });
 
             const embed = successEmbed(
-                "✅ Daily Claimed!",
-                `You have claimed your daily **$${earned.toLocaleString()}**!${bonusMessage}`
+                t("✅ Daily Claimed!"),
+                t`You have claimed your daily **$${earned.toLocaleString()}**!${bonusMessage}`
             )
                 .addFields({
-                    name: "New Cash Balance",
+                    name: t("New Cash Balance"),
                     value: `$${userData.wallet.toLocaleString()}`,
                     inline: true,
                 })
                 .setFooter({
                     text: hasPremiumRole
-                        ? `Next claim in 24 hours. (Premium Active)`
-                        : `Next claim in 24 hours.`,
+                        ? t`Next claim in 24 hours. (Premium Active)`
+                        : t`Next claim in 24 hours.`,
                 });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

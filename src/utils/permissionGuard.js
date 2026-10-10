@@ -4,6 +4,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { logger } from './logger.js';
 import { replyUserError, ErrorTypes } from './errorHandler.js';
 import { isBotOwner, getBotMessage } from '../config/bot.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Read default_member_permissions from a SlashCommandBuilder (or its JSON).
@@ -122,7 +123,7 @@ export async function checkModerationPermissions(
   interaction,
   guildConfig,
   requiredPermissions,
-  errorMessage = 'You do not have permission to use this command.'
+  errorMessage = t('You do not have permission to use this command.')
 ) {
   if (memberHasModerationCommandAccess(interaction.member, guildConfig, requiredPermissions)) {
     return true;
@@ -218,7 +219,7 @@ export function botHasPermission(channel, permissions) {
 export async function checkUserPermissions(
   interaction,
   requiredPermissions,
-  errorMessage = 'You do not have permission to use this command.'
+  errorMessage = t('You do not have permission to use this command.')
 ) {
   const member = interaction.member;
 
@@ -248,7 +249,7 @@ export async function checkBotPermissions(
   if (!targetChannel || !targetChannel.guild) {
     await replyUserError(interaction, {
       type: ErrorTypes.UNKNOWN,
-      message: 'Could not determine channel.',
+      message: t('Could not determine channel.'),
       context: { source: 'permissionGuard.checkBotPermissions' }
     });
     return false;
@@ -258,7 +259,7 @@ export async function checkBotPermissions(
   if (!botMember) {
     await replyUserError(interaction, {
       type: ErrorTypes.UNKNOWN,
-      message: 'Could not find bot member in this guild.',
+      message: t('Could not find bot member in this guild.'),
       context: { source: 'permissionGuard.checkBotPermissions' }
     });
     return false;
@@ -277,7 +278,7 @@ export async function checkBotPermissions(
   if (missingPerms.length > 0) {
     await replyUserError(interaction, {
       type: ErrorTypes.PERMISSION,
-      message: `I need the following permissions in ${targetChannel}: ${missingPerms.join(', ')}`,
+      message: t`I need the following permissions in ${targetChannel}: ${missingPerms.join(', ')}`,
       context: { source: 'permissionGuard.checkBotPermissions', subtype: 'bot_permission' }
     });
 

@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -36,7 +37,7 @@ export default {
             throw new TitanBotError(
                 'Missing target user',
                 ErrorTypes.USER_INPUT,
-                'You must specify a user to untimeout.',
+                t('You must specify a user to untimeout.'),
                 { subtype: 'invalid_user' },
             );
         }
@@ -45,7 +46,7 @@ export default {
             throw new TitanBotError(
                 "Target not found",
                 ErrorTypes.USER_INPUT,
-                "The target user is not currently in this server.",
+                t("The target user is not currently in this server."),
             );
         }
 
@@ -58,7 +59,7 @@ export default {
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    `🔓 **Removed timeout** from ${targetUser.tag}`,
+                    t`🔓 **Removed timeout** from ${targetUser.tag}`,
                 ),
             ],
         });

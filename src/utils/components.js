@@ -2,17 +2,18 @@
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
 import { getColor } from '../config/bot.js';
+import { t } from '../i18n/index.js';
 
 export function getConfirmationButtons(customIdPrefix = 'confirm') {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`${customIdPrefix}_yes`)
-            .setLabel('Confirm')
+            .setLabel(t('Confirm'))
             .setStyle(ButtonStyle.Success)
             .setEmoji('✅'),
         new ButtonBuilder()
             .setCustomId(`${customIdPrefix}_no`)
-            .setLabel('Cancel')
+            .setLabel(t('Cancel'))
             .setStyle(ButtonStyle.Danger)
             .setEmoji('❌')
     );
@@ -32,7 +33,7 @@ export function getPaginationRow(customIdPrefix = 'page', currentPage = 1, total
             .setDisabled(currentPage === 1),
         new ButtonBuilder()
             .setCustomId(`${customIdPrefix}_page`)
-            .setLabel(`Page ${currentPage} of ${totalPages}`)
+            .setLabel(t`Page ${currentPage} of ${totalPages}`)
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(true),
         new ButtonBuilder()
@@ -62,10 +63,10 @@ export function createSelectMenu(customId, placeholder, options = [], min = 1, m
 export function createButton(customId, label, style = 'primary', emoji = null, disabled = false) {
     
     if (!customId || typeof customId !== 'string' || customId.length === 0) {
-        throw new Error('customId must be a non-empty string');
+        throw new Error(t('customId must be a non-empty string'));
     }
     if (!label || typeof label !== 'string' || label.length === 0) {
-        throw new Error('label must be a non-empty string');
+        throw new Error(t('label must be a non-empty string'));
     }
 
     const validCustomId = customId.substring(0, 100);
@@ -94,10 +95,10 @@ export function createButton(customId, label, style = 'primary', emoji = null, d
 export function createLinkButton(label, url, emoji = null) {
     
     if (!label || typeof label !== 'string') {
-        throw new Error('label must be a non-empty string');
+        throw new Error(t('label must be a non-empty string'));
     }
     if (!url || typeof url !== 'string') {
-        throw new Error('url must be a non-empty string');
+        throw new Error(t('url must be a non-empty string'));
     }
     
     const validLabel = label.substring(0, 80);

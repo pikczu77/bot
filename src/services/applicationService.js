@@ -16,6 +16,7 @@ import {
     saveApplicationRoles
 } from '../utils/database.js';
 import botConfig from '../config/bot.js';
+import { t } from '../i18n/index.js';
 
 const applicationCooldowns = new Map();
 const APPLICATION_SUBMIT_COOLDOWN = (botConfig.applications?.applicationCooldown ?? 24) * 60 * 60 * 1000;
@@ -30,7 +31,7 @@ class ApplicationService {
             throw createError(
                 'Missing required fields for application submission',
                 ErrorTypes.VALIDATION,
-                'Invalid application data. Please try again.',
+                t('Invalid application data. Please try again.'),
                 { data }
             );
         }
@@ -39,7 +40,7 @@ class ApplicationService {
             throw createError(
                 'Application must have answers',
                 ErrorTypes.VALIDATION,
-                'You must answer all application questions.',
+                t('You must answer all application questions.'),
                 { data }
             );
         }
@@ -52,7 +53,7 @@ class ApplicationService {
                 throw createError(
                     'Invalid answer format',
                     ErrorTypes.VALIDATION,
-                    'All questions must have answers.',
+                    t('All questions must have answers.'),
                     { answer }
                 );
             }
@@ -61,7 +62,7 @@ class ApplicationService {
                 throw createError(
                     'Answer too long',
                     ErrorTypes.VALIDATION,
-                    'Each answer must be less than 1000 characters.',
+                    t('Each answer must be less than 1000 characters.'),
                     { length: sanitizedAnswer.length }
                 );
             }
@@ -70,7 +71,7 @@ class ApplicationService {
                 throw createError(
                     'Answer too short',
                     ErrorTypes.VALIDATION,
-                    'Please provide meaningful answers (at least 10 characters).',
+                    t('Please provide meaningful answers (at least 10 characters).'),
                     { length: sanitizedAnswer.length }
                 );
             }
@@ -89,7 +90,7 @@ class ApplicationService {
             throw createError(
                 'Application submission on cooldown',
                 ErrorTypes.RATE_LIMIT,
-                `Please wait ${Math.ceil(remainingTime / 60)} minute(s) before submitting another application.`,
+                t`Please wait ${Math.ceil(remainingTime / 60)} minute(s) before submitting another application.`,
                 { remainingTime, userId }
             );
         }
@@ -110,7 +111,7 @@ class ApplicationService {
             throw createError(
                 'User lacks permission to manage applications',
                 ErrorTypes.PERMISSION,
-                'You do not have permission to manage applications.',
+                t('You do not have permission to manage applications.'),
                 { userId: member.id, guildId }
             );
         }
@@ -130,7 +131,7 @@ class ApplicationService {
                 throw createError(
                     'Applications are disabled',
                     ErrorTypes.CONFIGURATION,
-                    'Applications are currently disabled in this server.',
+                    t('Applications are currently disabled in this server.'),
                     { guildId: data.guildId }
                 );
             }
@@ -142,7 +143,7 @@ class ApplicationService {
                 throw createError(
                     'User already has pending application',
                     ErrorTypes.VALIDATION,
-                    'You already have a pending application. Please wait for it to be reviewed.',
+                    t('You already have a pending application. Please wait for it to be reviewed.'),
                     { userId: data.userId, pendingAppId: pendingApp.id }
                 );
             }
@@ -185,7 +186,7 @@ class ApplicationService {
                 throw createError(
                     'Invalid review action',
                     ErrorTypes.VALIDATION,
-                    'Review action must be either approve or deny.',
+                    t('Review action must be either approve or deny.'),
                     { action }
                 );
             }
@@ -195,7 +196,7 @@ class ApplicationService {
                 throw createError(
                     'Application not found',
                     ErrorTypes.CONFIGURATION,
-                    'The application you are trying to review does not exist.',
+                    t('The application you are trying to review does not exist.'),
                     { applicationId, guildId }
                 );
             }
@@ -204,13 +205,13 @@ class ApplicationService {
                 throw createError(
                     'Application already processed',
                     ErrorTypes.VALIDATION,
-                    'This application has already been reviewed.',
+                    t('This application has already been reviewed.'),
                     { applicationId, status: application.status }
                 );
             }
 
             const status = action === 'approve' ? 'approved' : 'denied';
-            const sanitizedReason = reason ? reason.trim().substring(0, 500) : 'No reason provided.';
+            const sanitizedReason = reason ? reason.trim().substring(0, 500) : t('No reason provided.');
 
             const updatedApplication = await updateApplication(client, guildId, applicationId, {
                 status,
@@ -260,7 +261,7 @@ class ApplicationService {
             throw createError(
                 'Failed to retrieve applications',
                 ErrorTypes.DATABASE,
-                'An error occurred while retrieving applications.',
+                t('An error occurred while retrieving applications.'),
                 { guildId, filters }
             );
         }
@@ -273,7 +274,7 @@ class ApplicationService {
                 throw createError(
                     'Invalid log channel ID',
                     ErrorTypes.VALIDATION,
-                    'Invalid channel ID provided.',
+                    t('Invalid channel ID provided.'),
                     { logChannelId: updates.logChannelId }
                 );
             }
@@ -282,7 +283,7 @@ class ApplicationService {
                 throw createError(
                     'Invalid manager roles format',
                     ErrorTypes.VALIDATION,
-                    'Manager roles must be an array.',
+                    t('Manager roles must be an array.'),
                     { managerRoles: updates.managerRoles }
                 );
             }
@@ -292,7 +293,7 @@ class ApplicationService {
                     throw createError(
                         'Invalid questions format',
                         ErrorTypes.VALIDATION,
-                        'Questions must be a non-empty array.',
+                        t('Questions must be a non-empty array.'),
                         { questions: updates.questions }
                     );
                 }
@@ -333,7 +334,7 @@ class ApplicationService {
                     throw createError(
                         'Missing role ID',
                         ErrorTypes.VALIDATION,
-                        'You must specify a role to add.',
+                        t('You must specify a role to add.'),
                         { action }
                     );
                 }
@@ -342,14 +343,14 @@ class ApplicationService {
                     throw createError(
                         'Role already configured',
                         ErrorTypes.VALIDATION,
-                        'This role is already configured for applications.',
+                        t('This role is already configured for applications.'),
                         { roleId }
                     );
                 }
 
                 currentRoles.push({
                     roleId,
-                    name: name ? name.trim().substring(0, 50) : 'Application Role'
+                    name: name ? name.trim().substring(0, 50) : t('Application Role')
                 });
 
                 await saveApplicationRoles(client, guildId, currentRoles);
@@ -364,7 +365,7 @@ class ApplicationService {
                     throw createError(
                         'Missing role ID',
                         ErrorTypes.VALIDATION,
-                        'You must specify a role to remove.',
+                        t('You must specify a role to remove.'),
                         { action }
                     );
                 }
@@ -374,7 +375,7 @@ class ApplicationService {
                     throw createError(
                         'Role not configured',
                         ErrorTypes.VALIDATION,
-                        'This role is not configured for applications.',
+                        t('This role is not configured for applications.'),
                         { roleId }
                     );
                 }
@@ -421,7 +422,7 @@ class ApplicationService {
             throw createError(
                 'Failed to retrieve your applications',
                 ErrorTypes.DATABASE,
-                'An error occurred while retrieving your applications.',
+                t('An error occurred while retrieving your applications.'),
                 { guildId, userId }
             );
         }
@@ -435,7 +436,7 @@ class ApplicationService {
                 throw createError(
                     'Application not found',
                     ErrorTypes.CONFIGURATION,
-                    'The application you are looking for does not exist.',
+                    t('The application you are looking for does not exist.'),
                     { applicationId, guildId }
                 );
             }

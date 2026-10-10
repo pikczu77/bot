@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 /**
  * Standard slash-command export shape.
  *
@@ -15,7 +16,7 @@
 
 export function defineSlashCommand(command) {
     if (!command?.data || typeof command.execute !== 'function') {
-        throw new Error('defineSlashCommand requires { data, execute }');
+        throw new Error(t('defineSlashCommand requires { data, execute }'));
     }
     return command;
 }

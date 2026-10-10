@@ -18,14 +18,15 @@ import {
 } from '../../utils/database.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import appDashboard from './modules/app_dashboard.js';
+import { t } from '../../i18n/index.js';
 
 function getApplicationStatusPresentation(statusValue) {
     const normalized = typeof statusValue === 'string' ? statusValue.trim().toLowerCase() : 'unknown';
     const statusLabel =
-        normalized === 'pending' ? 'In Progress' :
-        normalized === 'approved' ? 'Accepted' :
-        normalized === 'denied' ? 'Denied' :
-        'Unknown';
+        normalized === 'pending' ? t('In Progress') :
+        normalized === 'approved' ? t('Accepted') :
+        normalized === 'denied' ? t('Denied') :
+        t('Unknown');
     const statusEmoji =
         normalized === 'pending' ? '🟡' :
         normalized === 'approved' ? '🟢' :
@@ -103,7 +104,7 @@ export default {
 
     execute: withErrorHandling(async (interaction) => {
         if (!interaction.inGuild()) {
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This command can only be used in a server.' });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('This command can only be used in a server.') });
         }
 
         const { options, guild, member } = interaction;
@@ -137,56 +138,56 @@ export default {
 async function handleSetup(interaction) {
     
     if (interaction.deferred || interaction.replied) {
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This interaction has already been processed. Please try the command again.' });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('This interaction has already been processed. Please try the command again.') });
     }
 
     const modal = new ModalBuilder()
         .setCustomId('app_setup_modal')
-        .setTitle('Set Up New Application');
+        .setTitle(t('Set Up New Application'));
 
     const roleSelect = new RoleSelectMenuBuilder()
         .setCustomId('role_id')
-        .setPlaceholder('Select the role users will apply for')
+        .setPlaceholder(t('Select the role users will apply for'))
         .setRequired(true);
 
     const roleLabel = new LabelBuilder()
-        .setLabel('Application Role')
-        .setDescription('The role that users will be applying for')
+        .setLabel(t('Application Role'))
+        .setDescription(t('The role that users will be applying for'))
         .setRoleSelectMenuComponent(roleSelect);
 
     const appNameInput = new TextInputBuilder()
         .setCustomId('app_name')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g., Moderator, Helper, Developer')
+        .setPlaceholder(t('e.g., Moderator, Helper, Developer'))
         .setMaxLength(50)
         .setMinLength(1)
         .setRequired(true);
 
     const appNameLabel = new LabelBuilder()
-        .setLabel('Application Name')
+        .setLabel(t('Application Name'))
         .setTextInputComponent(appNameInput);
 
     const q1Input = new TextInputBuilder()
         .setCustomId('app_question_1')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Why do you want this role?')
+        .setPlaceholder(t('Why do you want this role?'))
         .setMaxLength(100)
         .setMinLength(1)
         .setRequired(true);
 
     const q1Label = new LabelBuilder()
-        .setLabel('Question 1 (required)')
+        .setLabel(t('Question 1 (required)'))
         .setTextInputComponent(q1Input);
 
     const q2Input = new TextInputBuilder()
         .setCustomId('app_question_2')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('What experience do you have?')
+        .setPlaceholder(t('What experience do you have?'))
         .setMaxLength(100)
         .setRequired(false);
 
     const q2Label = new LabelBuilder()
-        .setLabel('Question 2 (optional)')
+        .setLabel(t('Question 2 (optional)'))
         .setTextInputComponent(q2Input);
 
     const q3Input = new TextInputBuilder()
@@ -196,7 +197,7 @@ async function handleSetup(interaction) {
         .setRequired(false);
 
     const q3Label = new LabelBuilder()
-        .setLabel('Question 3 (optional)')
+        .setLabel(t('Question 3 (optional)'))
         .setTextInputComponent(q3Input);
 
     modal.addLabelComponents(roleLabel, appNameLabel, q1Label, q2Label, q3Label);
@@ -220,7 +221,7 @@ async function handleSetup(interaction) {
     const roleId = selectedRoles.first()?.id;
 
     if (!roleId) {
-        await replyUserError(submitted, { type: ErrorTypes.USER_INPUT, message: 'You must select a role for the application.' });
+        await replyUserError(submitted, { type: ErrorTypes.USER_INPUT, message: t('You must select a role for the application.') });
         return;
     }
 
@@ -232,13 +233,13 @@ async function handleSetup(interaction) {
 
     const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
     if (!role) {
-        await replyUserError(submitted, { type: ErrorTypes.VALIDATION, message: 'The selected role could not be found.' });
+        await replyUserError(submitted, { type: ErrorTypes.VALIDATION, message: t('The selected role could not be found.') });
         return;
     }
 
     const existingRoles = await getApplicationRoles(interaction.client, interaction.guild.id);
     if (existingRoles.some(r => r.roleId === roleId)) {
-        await replyUserError(submitted, { type: ErrorTypes.CONFIGURATION, message: `The role ${role} is already configured as an application.` });
+        await replyUserError(submitted, { type: ErrorTypes.CONFIGURATION, message: t`The role ${role} is already configured as an application.` });
         return;
     }
 
@@ -259,8 +260,8 @@ async function handleSetup(interaction) {
 
     await submitted.reply({
         embeds: [successEmbed(
-            '✅ Application Created',
-            `**${appName}** application has been created for ${role}.\n\nYou can customize the log channel, manager roles, questions, and retention period in the dashboard.`,
+            t('✅ Application Created'),
+            t`**${appName}** application has been created for ${role}.\n\nYou can customize the log channel, manager roles, questions, and retention period in the dashboard.`,
         )],
         flags: ['Ephemeral'],
     });
@@ -279,16 +280,16 @@ async function handleReview(interaction) {
         appId,
     );
     if (!application) {
-        return await replyUserError(interaction, { type: ErrorTypes.USER_INPUT, message: 'Application not found.' });
+        return await replyUserError(interaction, { type: ErrorTypes.USER_INPUT, message: t('Application not found.') });
     }
 
     if (application.status !== "pending") {
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'This application has already been processed.' });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('This application has already been processed.') });
     }
 
     const appEmbed = createEmbed({
-        title: `Review Application`,
-        description: `**User:** <@${application.userId}>\n**Application:** ${application.roleName}\n**Application ID:** \`${appId}\``,
+        title: t`Review Application`,
+        description: t`**User:** <@${application.userId}>\n**Application:** ${application.roleName}\n**Application ID:** \`${appId}\``,
         color: 'info',
     });
 
@@ -296,7 +297,7 @@ async function handleReview(interaction) {
         application.answers.forEach((item, index) => {
             appEmbed.addFields({
                 name: `Q${index + 1}: ${item.question}`,
-                value: item.answer || '*No answer provided*',
+                value: item.answer || t('*No answer provided*'),
                 inline: false
             });
         });
@@ -305,11 +306,11 @@ async function handleReview(interaction) {
     const buttonRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`app_review_approve_${appId}`)
-            .setLabel('Approve')
+            .setLabel(t('Approve'))
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId(`app_review_deny_${appId}`)
-            .setLabel('Deny')
+            .setLabel(t('Deny'))
             .setStyle(ButtonStyle.Danger),
     );
 
@@ -334,15 +335,15 @@ async function handleReview(interaction) {
 
         const reasonModal = new ModalBuilder()
             .setCustomId(`app_review_reason_${appId}_${isApprove ? 'approve' : 'deny'}`)
-            .setTitle(`${isApprove ? 'Approve' : 'Deny'} Application - Reason`);
+            .setTitle(t`${isApprove ? t('Approve') : t('Deny')} Application - Reason`);
 
         reasonModal.addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('review_reason')
-                    .setLabel('Reason (optional)')
+                    .setLabel(t('Reason (optional)'))
                     .setStyle(TextInputStyle.Paragraph)
-                    .setPlaceholder('Provide a reason for this decision...')
+                    .setPlaceholder(t('Provide a reason for this decision...'))
                     .setMaxLength(500)
                     .setRequired(false),
             ),
@@ -360,7 +361,7 @@ async function handleReview(interaction) {
 
             if (!reasonSubmit) return;
 
-            const reason = reasonSubmit.fields.getTextInputValue('review_reason').trim() || "No reason provided.";
+            const reason = reasonSubmit.fields.getTextInputValue('review_reason').trim() || t("No reason provided.");
             const action = isApprove ? 'approve' : 'deny';
             const status = isApprove ? 'approved' : 'denied';
 
@@ -380,10 +381,10 @@ async function handleReview(interaction) {
                 const statusColor = getApplicationStatusColor(status);
                 const reviewStatus = getApplicationStatusPresentation(status);
                 const dmEmbed = createEmbed({
-                    title: `${reviewStatus.statusEmoji} Application ${reviewStatus.statusLabel}`,
-                    description: `Your application for **${application.roleName}** has been **${status}**\n` +
-                        `**Note:** ${reason}\n\n` +
-                        `Use \`/apply status id:${appId}\` to view details.`
+                    title: t`${reviewStatus.statusEmoji} Application ${reviewStatus.statusLabel}`,
+                    description: t`Your application for **${application.roleName}** has been **${status}**\n` +
+                        t`**Note:** ${reason}\n\n` +
+                        t`Use \`/apply status id:${appId}\` to view details.`
                 }).setColor(statusColor);
 
                 await user.send({ embeds: [dmEmbed] });
@@ -412,7 +413,7 @@ async function handleReview(interaction) {
                                 const newEmbed = EmbedBuilder.from(embed)
                                     .setColor(statusColor)
                                     .spliceFields(0, 1, {
-                                        name: "Status",
+                                        name: t("Status"),
                                         value: `${reviewStatus.statusEmoji} ${reviewStatus.statusLabel}`,
                                     });
 
@@ -451,8 +452,8 @@ async function handleReview(interaction) {
             await reasonSubmit.reply({
                 embeds: [
                     successEmbed(
-                        `Application ${status}`,
-                        `The application has been **${status}**.`,
+                        t`Application ${status}`,
+                        t`The application has been **${status}**.`,
                     ),
                 ],
                 flags: ["Ephemeral"],
@@ -460,15 +461,15 @@ async function handleReview(interaction) {
 
         } catch (error) {
             logger.error('Error reviewing application:', error);
-            await replyUserError(buttonInteraction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while reviewing the application.' });
+            await replyUserError(buttonInteraction, { type: ErrorTypes.UNKNOWN, message: t('An error occurred while reviewing the application.') });
         }
     });
 
     collector.on('end', async (collected, reason) => {
         if (reason === 'time') {
             const timeoutEmbed = createEmbed({
-                title: 'Review Timeout',
-                description: 'The review buttons have timed out.',
+                title: t('Review Timeout'),
+                description: t('The review buttons have timed out.'),
                 color: 'warning',
             });
 
@@ -523,29 +524,29 @@ async function handleList(interaction) {
         
         if (applicationRoles.length > 0) {
             const embed = createEmbed({ 
-                title: "No Applications Found", 
-                description: "No submitted applications found matching the specified criteria.\n\nHowever, the following application roles are configured:" 
+                title: t("No Applications Found"), 
+                description: t("No submitted applications found matching the specified criteria.\n\nHowever, the following application roles are configured:") 
             });
 
             applicationRoles.forEach((appRole, index) => {
                 const role = interaction.guild.roles.cache.get(appRole.roleId);
                 embed.addFields({
                     name: `${index + 1}. ${appRole.name}`,
-                    value: `**Role:** ${role ?`<@&${appRole.roleId}>`: 'Role not found'}\n**Available for applications:** Yes`,
+                    value: t`**Role:** ${role ?`<@&${appRole.roleId}>`: t('Role not found')}\n**Available for applications:** Yes`,
                     inline: false
                 });
             });
 
             embed.setFooter({
-                text: "Users can apply with /apply submit or see available roles with /apply list"
+                text: t("Users can apply with /apply submit or see available roles with /apply list")
             });
 
             return InteractionHelper.safeEditReply(interaction, { embeds: [embed], flags: ["Ephemeral"] });
         } else {
             return await replyUserError(interaction, {
                 type: ErrorTypes.CONFIGURATION,
-                message: 'No applications found and no application roles configured.\n' +
-                    'Use `/app-admin roles add` to configure application roles first.'
+                message: t('No applications found and no application roles configured.\n') +
+                    t('Use `/app-admin roles add` to configure application roles first.')
             });
         }
     }
@@ -554,23 +555,23 @@ async function handleList(interaction) {
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, limit);
 
-    const embed = createEmbed({ title: "Submitted Applications", description: `Showing ${applications.length} applications.`, });
+    const embed = createEmbed({ title: t("Submitted Applications"), description: t`Showing ${applications.length} applications.`, });
 
     applications.forEach((app) => {
         const statusView = getApplicationStatusPresentation(app?.status);
-        const roleName = app?.roleName || 'Unknown Role';
-        const username = app?.username || 'Unknown User';
+        const roleName = app?.roleName || t('Unknown Role');
+        const username = app?.username || t('Unknown User');
         const createdAt = app?.createdAt ? new Date(app.createdAt) : null;
         const createdAtDisplay = createdAt && !Number.isNaN(createdAt.getTime())
             ? createdAt.toLocaleString()
-            : 'Unknown date';
+            : t('Unknown date');
 
         embed.addFields({
             name: `${statusView.statusEmoji} ${roleName} - ${username}`,
             value:
-                `**ID:** \`${app.id}\`\n` +
-                `**Status:** ${statusView.statusEmoji} ${statusView.statusLabel}\n` +
-                `**Date:** ${createdAtDisplay}`,
+                t`**ID:** \`${app.id}\`\n` +
+                t`**Status:** ${statusView.statusEmoji} ${statusView.statusLabel}\n` +
+                t`**Date:** ${createdAtDisplay}`,
             inline: true,
         });
     });

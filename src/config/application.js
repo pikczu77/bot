@@ -58,7 +58,8 @@ const appConfig = {
   },
 
   api: {
-    port: process.env.PORT || 3000,
+    // Hosts that assign the public port themselves (bot-hosting.net) pass it as SERVER_PORT.
+    port: process.env.SERVER_PORT || process.env.PORT || 3000,
     cors: {
       origin: process.env.CORS_ORIGIN?.split(",") || "*",
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
