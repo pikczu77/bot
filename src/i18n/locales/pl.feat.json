@@ -310,7 +310,7 @@
   "🚨 Possible raid": "🚨 Możliwy raid",
   "**{0}** members joined within {1} seconds.": "**{0}** osób dołączyło w ciągu {1} sekund.",
   "New members will be kicked for the next {0} minutes.": "Nowe osoby będą wyrzucane przez najbliższe {0} minut.",
-  "Nobody is kicked automatically. Turn on kicking with `/automod raid`.": "Nikt nie jest wyrzucany automatycznie. Włącz wyrzucanie przez `/automod raid`.",
+  "Nobody is kicked automatically. Turn on kicking in the web panel.": "Nikt nie jest wyrzucany automatycznie. Włącz wyrzucanie w panelu na stronie.",
   "Join to Create Updated": "Zmieniono Join to Create",
   "Action": "Akcja",
   "Level Up": "Nowy poziom",

@@ -1,11 +1,12 @@
-import { Events, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
-import { getColor, botConfig } from '../config/bot.js';
+import { Events, PermissionFlagsBits } from 'discord.js';
 import { getWelcomeConfig, getUserApplications, deleteApplication } from '../utils/database.js';
-import { formatWelcomeMessage } from '../utils/welcome.js';
+import { buildGreetingMessage } from '../utils/welcome.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { getServerCounters, updateCounter } from '../services/serverstatsService.js';
 import { getGuildBirthdays, deleteBirthday } from '../utils/database.js';
-import { deleteUserLevelData } from '../services/leveling/leveling.js';
+import { deleteUserLevelData, getLevelingConfig } from '../services/leveling/leveling.js';
+import { getEconomySettings } from '../services/economySettings.js';
+import { getEconomyKey } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n/index.js';
 
@@ -30,52 +31,12 @@ export default {
                     return;
                 }
 
-                const formatData = { user, guild, member };
-                const goodbyeMessage = formatWelcomeMessage(
-                    welcomeConfig.leaveMessage || welcomeConfig.leaveEmbed?.description || botConfig.welcome?.defaultGoodbyeMessage || t('{user} has left the server.'),
-                    formatData
-                );
-
-                const embedTitle = formatWelcomeMessage(
-                    welcomeConfig.leaveEmbed?.title || t('👋 Goodbye'),
-                    formatData
-                );
-                const embedFooter = welcomeConfig.leaveEmbed?.footer
-                    ? formatWelcomeMessage(welcomeConfig.leaveEmbed.footer, formatData)
-                    : t`Goodbye from ${guild.name}!`;
-
-                const canEmbed = permissions.has(PermissionFlagsBits.EmbedLinks);
-
-                if (!canEmbed) {
-                    await channel.send({
-                        content: welcomeConfig?.goodbyePing ? `<@${user.id}> ${goodbyeMessage}` : goodbyeMessage,
-                        allowedMentions: welcomeConfig?.goodbyePing ? { users: [user.id] } : { parse: [] }
-                    });
-                } else {
-                    const embed = new EmbedBuilder()
-                        .setTitle(embedTitle)
-                        .setDescription(goodbyeMessage)
-                        .setColor(welcomeConfig.leaveEmbed?.color || getColor('error'))
-                        .setThumbnail(user.displayAvatarURL())
-                        .addFields(
-                            { name: t('User'), value: `${user.tag} (${user.id})`, inline: true },
-                            { name: t('Member Count'), value: guild.memberCount.toString(), inline: true }
-                        )
-                        .setTimestamp()
-                        .setFooter({ text: embedFooter });
-
-                    if (typeof welcomeConfig.leaveEmbed?.image === 'string') {
-                        embed.setImage(welcomeConfig.leaveEmbed.image);
-                    } else if (welcomeConfig.leaveEmbed?.image?.url) {
-                        embed.setImage(welcomeConfig.leaveEmbed.image.url);
-                    }
-
-                    await channel.send({
-                        content: welcomeConfig?.goodbyePing ? `<@${user.id}>` : undefined,
-                        allowedMentions: welcomeConfig?.goodbyePing ? { users: [user.id] } : { parse: [] },
-                        embeds: [embed]
-                    });
-                }
+                await channel.send(buildGreetingMessage('goodbye', welcomeConfig, {
+                    user,
+                    guild,
+                    member,
+                    canEmbed: permissions.has(PermissionFlagsBits.EmbedLinks)
+                }));
             }
         }
 
@@ -139,8 +100,21 @@ export default {
         }
 
         try {
-            await deleteUserLevelData(member.client, guild.id, user.id);
-            logger.debug(`Removed leveling data for user ${user.id} in guild ${guild.id}`);
+            const economy = await getEconomySettings(guild.id);
+            if (economy.clearOnLeave) {
+                await member.client.db.delete(getEconomyKey(guild.id, user.id));
+                logger.debug(`Removed economy data for user ${user.id} in guild ${guild.id}`);
+            }
+        } catch (error) {
+            logger.debug('Error handling economy data on member leave:', error);
+        }
+
+        try {
+            const leveling = await getLevelingConfig(member.client, guild.id);
+            if (leveling.clearOnLeave !== false) {
+                await deleteUserLevelData(member.client, guild.id, user.id);
+                logger.debug(`Removed leveling data for user ${user.id} in guild ${guild.id}`);
+            }
         } catch (error) {
             logger.debug('Error handling leveling data on member leave:', error);
         }

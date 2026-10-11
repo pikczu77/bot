@@ -1,15 +1,10 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { successEmbed, warningEmbed, buildUserErrorEmbed } from '../../utils/embeds.js';
+import { successEmbed, warningEmbed, buildUserErrorEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { BotConfig } from '../../config/bot.js';
 import { t } from '../../i18n/index.js';
-
-const ROB_COOLDOWN = BotConfig.economy?.cooldowns?.rob ?? 4 * 60 * 60 * 1000;
-const BASE_ROB_SUCCESS_CHANCE = BotConfig.economy?.robSuccessRate ?? 0.4;
-const ROB_PERCENTAGE = 0.15;
-const FINE_PERCENTAGE = 0.1;
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -49,6 +44,9 @@ export default {
                 );
             }
 
+            const { rob } = (await getEconomySettings(guildId)).commands;
+            const ROB_COOLDOWN = cooldownMs(rob.cooldownMinutes);
+
             const robberData = await getEconomyData(client, guildId, robberId);
             const victimData = await getEconomyData(client, guildId, victimUser.id);
             
@@ -76,12 +74,12 @@ export default {
                 );
             }
 
-            if (victimData.wallet < 500) {
+            if (victimData.wallet < rob.minVictimCash) {
                 throw createError(
                     "Victim too poor",
                     ErrorTypes.VALIDATION,
-                    t`${victimUser.username} is too poor. They need at least $500 cash to be worth robbing.`,
-                    { victimWallet: victimData.wallet, required: 500 }
+                    t`${victimUser.username} is too poor. They need at least ${money(guildId, rob.minVictimCash)} cash to be worth robbing.`,
+                    { victimWallet: victimData.wallet, required: rob.minVictimCash }
                 );
             }
 
@@ -101,21 +99,21 @@ export default {
                 });
             }
 
-            const isSuccessful = Math.random() < BASE_ROB_SUCCESS_CHANCE;
+            const isSuccessful = Math.random() * 100 < rob.successPercent;
             let resultEmbed;
 
             if (isSuccessful) {
-                const amountStolen = Math.floor(victimData.wallet * ROB_PERCENTAGE);
+                const amountStolen = Math.floor(victimData.wallet * rob.stealPercent / 100);
 
                 robberData.wallet = (robberData.wallet || 0) + amountStolen;
                 victimData.wallet = (victimData.wallet || 0) - amountStolen;
 
                 resultEmbed = successEmbed(
                     t('Robbery Successful'),
-                    t`You successfully stole **$${amountStolen.toLocaleString()}** from ${victimUser.username}!`
+                    t`You successfully stole **${money(guildId, amountStolen)}** from ${victimUser.username}!`
                 );
             } else {
-                const fineAmount = Math.floor((robberData.wallet || 0) * FINE_PERCENTAGE);
+                const fineAmount = Math.floor((robberData.wallet || 0) * rob.finePercent / 100);
 
                 if ((robberData.wallet || 0) < fineAmount) {
                     robberData.wallet = 0;
@@ -125,7 +123,7 @@ export default {
 
                 resultEmbed = buildUserErrorEmbed(
                     'unknown',
-                    t`You failed the robbery and were caught! You were fined **$${fineAmount.toLocaleString()}** of your own cash.`,
+                    t`You failed the robbery and were caught! You were fined **${money(guildId, fineAmount)}** of your own cash.`,
                     { titleOverride: t('Robbery Failed') }
                 );
             }
@@ -139,16 +137,16 @@ export default {
                 .addFields(
                     {
                         name: t`Your New Cash (${interaction.user.username})`,
-                        value: `$${robberData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, robberData.wallet)}`,
                         inline: true,
                     },
                     {
                         name: t`Victim's New Cash (${victimUser.username})`,
-                        value: `$${victimData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, victimData.wallet)}`,
                         inline: true,
                     },
                 )
-                .setFooter({ text: t`Next robbery available in ${Math.ceil(ROB_COOLDOWN / (60 * 60 * 1000))} hours.` });
+                .setFooter({ text: t`Next robbery available in ${formatDuration(ROB_COOLDOWN)}.` });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed] });
     }, { command: 'rob' })

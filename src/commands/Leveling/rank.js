@@ -7,7 +7,7 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 export default {
   data: new SlashCommandBuilder()
-    .setName('rank')
+    .setName('poziom')
     .setDescription("Check your or another user's rank and level")
     .addUserOption((option) =>
       option
@@ -55,7 +55,7 @@ export default {
       totalXp: userData?.totalXp ?? 0
     };
 
-    const xpNeeded = getXpForLevel(safeUserData.level + 1);
+    const xpNeeded = getXpForLevel(safeUserData.level);
     const progress = xpNeeded > 0 ? Math.floor((safeUserData.xp / xpNeeded) * 100) : 0;
     const progressBar = createProgressBar(progress, 20);
 

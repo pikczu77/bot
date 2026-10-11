@@ -358,7 +358,7 @@ export async function handleJoinForRaid(member) {
         t`**${times.length}** members joined within ${raid.seconds} seconds.`,
         raid.action === 'kick'
           ? t`New members will be kicked for the next ${raid.lockMinutes} minutes.`
-          : t('Nobody is kicked automatically. Turn on kicking with `/automod raid`.'),
+          : t('Nobody is kicked automatically. Turn on kicking in the web panel.'),
       ].join('\n'),
       color: 'error',
       footer: false,

@@ -5,6 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../../utils/error
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { t } from '../../../i18n/index.js';
+import { money } from '../../../services/economySettings.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('withdraw')
@@ -66,17 +67,17 @@ export default {
 
             const embed = successEmbed(
                 t('Withdrawal Successful'),
-                t`You successfully withdrew **$${withdrawAmount.toLocaleString()}** from your bank.`
+                t`You successfully withdrew **${money(guildId, withdrawAmount)}** from your bank.`
             )
                 .addFields(
                     {
                         name: t("New Cash Balance"),
-                        value: `$${userData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, userData.wallet)}`,
                         inline: true,
                     },
                     {
                         name: t("New Bank Balance"),
-                        value: `$${userData.bank.toLocaleString()}`,
+                        value: `${money(guildId, userData.bank)}`,
                         inline: true,
                     },
                 );

@@ -1,13 +1,11 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../../utils/embeds.js';
-import { shopItems } from '../../../config/shop/items.js';
 import { getEconomyData, setEconomyData } from '../../../utils/economy.js';
 import { getGuildConfig } from '../../../services/config/guildConfig.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { t } from '../../../i18n/index.js';
-
-const SHOP_ITEMS = shopItems;
+import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -37,7 +35,8 @@ export default {
             const itemId = interaction.options.getString("item_id").toLowerCase();
             const quantity = interaction.options.getInteger("quantity") || 1;
 
-            const item = SHOP_ITEMS.find(i => i.id === itemId);
+            const settings = await getEconomySettings(guildId);
+            const item = getShopItems(settings, interaction.guild).find(i => i.id === itemId);
 
             if (!item) {
                 throw createError(
@@ -68,13 +67,15 @@ export default {
                 throw createError(
                     "Insufficient funds",
                     ErrorTypes.VALIDATION,
-                    t`You need **$${totalCost.toLocaleString()}** to purchase ${quantity}x **${item.name}**, but you only have **$${userData.wallet.toLocaleString()}** in cash.`,
+                    t`You need **${money(guildId, totalCost)}** to purchase ${quantity}x **${item.name}**, but you only have **${money(guildId, userData.wallet)}** in cash.`,
                     { required: totalCost, current: userData.wallet, itemId, quantity }
                 );
             }
 
-            if (item.type === "role" && itemId === "premium_role") {
-                if (!PREMIUM_ROLE_ID) {
+            const roleId = item.type === "role" ? (item.roleId || PREMIUM_ROLE_ID) : null;
+
+            if (item.type === "role") {
+                if (!roleId) {
                     throw createError(
                         "Premium role not configured",
                         ErrorTypes.CONFIGURATION,
@@ -82,12 +83,12 @@ export default {
                         { itemId }
                     );
                 }
-                if (interaction.member.roles.cache.has(PREMIUM_ROLE_ID)) {
+                if (interaction.member.roles.cache.has(roleId)) {
                     throw createError(
                         "Role already owned",
                         ErrorTypes.VALIDATION,
                         t`You already have the **${item.name}** role.`,
-                        { itemId, roleId: PREMIUM_ROLE_ID }
+                        { itemId, roleId }
                     );
                 }
                 if (quantity > 1) {
@@ -102,19 +103,19 @@ export default {
 
             userData.wallet -= totalCost;
 
-            let successDescription = t`You successfully purchased ${quantity}x **${item.name}** for **$${totalCost.toLocaleString()}**!`;
+            let successDescription = t`You successfully purchased ${quantity}x **${item.name}** for **${money(guildId, totalCost)}**!`;
 
-            if (item.type === "role" && itemId === "premium_role") {
+            if (item.type === "role") {
                 const member = interaction.member;
 
-                const role = interaction.guild.roles.cache.get(PREMIUM_ROLE_ID);
+                const role = interaction.guild.roles.cache.get(roleId);
 
                 if (!role) {
                     throw createError(
                         "Role not found",
                         ErrorTypes.CONFIGURATION,
                         t("The configured premium role no longer exists in this guild."),
-                        { roleId: PREMIUM_ROLE_ID }
+                        { roleId }
                     );
                 }
 
@@ -131,7 +132,7 @@ export default {
                         "Role assignment failed",
                         ErrorTypes.DISCORD_API,
                         t("Successfully deducted money, but failed to grant the role. Your cash has been refunded."),
-                        { roleId: PREMIUM_ROLE_ID, originalError: roleError.message }
+                        { roleId, originalError: roleError.message }
                     );
                 }
             } else if (item.type === "upgrade") {
@@ -152,7 +153,7 @@ export default {
                 successDescription,
             ).addFields({
                 name: t("New Balance"),
-                value: `$${userData.wallet.toLocaleString()}`,
+                value: `${money(guildId, userData.wallet)}`,
                 inline: true,
             });
 

@@ -144,3 +144,7 @@ dist
 # Database backup artifacts
 backups/
 *.dump
+
+# Klubik Pikcza: the bot's own data and files set aside at startup stay on the host
+data/
+stale-files/

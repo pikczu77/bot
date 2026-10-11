@@ -5,6 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
+import { money } from '../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -62,17 +63,17 @@ export default {
                 .addFields(
                     {
                         name: t("💵 Cash"),
-                        value: `$${wallet.toLocaleString()}`,
+                        value: `${money(guildId, wallet)}`,
                         inline: true,
                     },
                     {
                         name: t("🏦 Bank"),
-                        value: `$${bank.toLocaleString()} / $${maxBank.toLocaleString()}`,
+                        value: `${money(guildId, bank)} / ${money(guildId, maxBank)}`,
                         inline: true,
                     },
                     {
                         name: t("💰 Total"),
-                        value: `$${(wallet + bank).toLocaleString()}`,
+                        value: `${money(guildId, (wallet + bank))}`,
                         inline: true,
                     }
                 )

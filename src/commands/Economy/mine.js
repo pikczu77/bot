@@ -1,13 +1,11 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
+import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
-const MINE_COOLDOWN = 60 * 60 * 1000;
-const BASE_MIN_REWARD = 400;
-const BASE_MAX_REWARD = 1200;
 const PICKAXE_MULTIPLIER = 1.2;
 const DIAMOND_PICKAXE_MULTIPLIER = 2.0;
 
@@ -32,6 +30,9 @@ export default {
             const guildId = interaction.guildId;
             const now = Date.now();
 
+            const { mine } = (await getEconomySettings(guildId)).commands;
+            const MINE_COOLDOWN = cooldownMs(mine.cooldownMinutes);
+
             const userData = await getEconomyData(client, guildId, userId);
             const lastMine = userData.lastMine || 0;
             const hasDiamondPickaxe = userData.inventory["diamond_pickaxe"] || 0;
@@ -54,8 +55,8 @@ export default {
 
             const baseEarned =
                 Math.floor(
-                    Math.random() * (BASE_MAX_REWARD - BASE_MIN_REWARD + 1),
-                ) + BASE_MIN_REWARD;
+                    Math.random() * (mine.max - mine.min + 1),
+                ) + mine.min;
 
             let finalEarned = baseEarned;
             let multiplierMessage = "";
@@ -80,14 +81,14 @@ userData.lastMine = now;
 
             const embed = successEmbed(
                 t("💰 Mining Expedition Successful!"),
-                t`You explored a **${location}** and managed to find minerals worth **$${finalEarned.toLocaleString()}**!${multiplierMessage}`,
+                t`You explored a **${location}** and managed to find minerals worth **${money(guildId, finalEarned)}**!${multiplierMessage}`,
             )
                 .addFields({
                     name: t("New Cash Balance"),
-                    value: `$${userData.wallet.toLocaleString()}`,
+                    value: `${money(guildId, userData.wallet)}`,
                     inline: true,
                 })
-                .setFooter({ text: t`Next mine available in 1 hour.` });
+                .setFooter({ text: t`Next mine available in ${formatDuration(MINE_COOLDOWN)}.` });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
     }, { command: 'mine' })

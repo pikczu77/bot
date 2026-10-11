@@ -1,5 +1,6 @@
 // panelApi.js — HTTP API for a web panel (pikczu.pl/bot) to read and change
-// module settings: language, welcome, auto-role, automod, invites, YouTube.
+// module settings: language, welcome, auto-role, automod, invites, YouTube,
+// economy (settings, shop, balances), leveling (settings, rewards, member levels).
 //
 // Disabled unless PANEL_API_KEY is set. Every request must send
 //   Authorization: Bearer <PANEL_API_KEY>
@@ -11,15 +12,43 @@ import express from 'express';
 import { ChannelType } from 'discord.js';
 import { TitanBotError } from '../utils/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { LOCALE_INFO, SUPPORTED_LOCALES, normalizeLocale, runWithLocale } from '../i18n/index.js';
+import { LOCALE_INFO, SUPPORTED_LOCALES, normalizeLocale, runWithLocale, tr, trAny } from '../i18n/index.js';
 import { getGuildLocale, setGuildLocale } from '../services/languageService.js';
-import { getWelcomeConfig, updateWelcomeConfig } from '../utils/database.js';
+import { getGuildConfig, updateGuildConfig } from '../services/config/guildConfig.js';
+import { getEconomyPrefix, getWelcomeConfig, updateWelcomeConfig } from '../utils/database.js';
+import { GREETING_STYLES, getGreetingLayout } from '../utils/welcome.js';
+import { getEconomyData, setEconomyData } from '../utils/economy.js';
+import {
+  COMMAND_LIMITS,
+  CURRENCY_POSITIONS,
+  CURRENCY_SEPARATORS,
+  LIST_MODES,
+  MAX_MONEY,
+  MAX_SHOP_ROLES,
+  getEconomySettings,
+  getShopCatalog,
+  isValidCurrencySymbol,
+  updateEconomySettings,
+} from '../services/economySettings.js';
+import {
+  LONG_MESSAGE_LENGTH,
+  MAX_LEVEL,
+  calculateTotalXp,
+  getLevelingConfig,
+  getMessageXpRange,
+  getUserLevelData,
+  getXpForLevel,
+  saveLevelingConfig,
+  saveUserLevelData,
+} from '../services/leveling/leveling.js';
+import { getUserLevelPrefix } from '../utils/database/keys.js';
 import { ACTIONS, RULES, getAutomodConfig, updateAutomodConfig } from '../services/automodService.js';
 import { cacheGuildInvites, getInviteConfig, updateInviteConfig } from '../services/inviteService.js';
 import { addFeed, fetchVideos, getFeeds, removeFeed, resolveChannel, sendTestNotification, updateFeed } from '../services/notifications/youtube.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const TEXT_CHANNEL_TYPES = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement]);
 
 class ApiError extends Error {
@@ -79,18 +108,46 @@ function guildSummary(guild) {
   return { id: guild.id, name: guild.name, icon: guild.iconURL?.({ size: 128 }) ?? null, memberCount: guild.memberCount };
 }
 
+const hexColor = (color) => `#${color.toString(16).padStart(6, '0')}`;
+
 function welcomeView(config) {
+  const welcome = getGreetingLayout('welcome', config);
+  const goodbye = getGreetingLayout('goodbye', config);
   return {
     enabled: config.enabled,
     channelId: config.channelId ?? null,
     message: config.welcomeMessage ?? '',
+    style: welcome.style,
+    embedTitle: welcome.title,
+    embedColor: hexColor(welcome.color),
+    embedExtras: welcome.extras,
     ping: config.welcomePing,
     image: config.welcomeImage ?? null,
     goodbyeEnabled: config.goodbyeEnabled,
     goodbyeChannelId: config.goodbyeChannelId ?? null,
     goodbyeMessage: config.leaveMessage ?? '',
+    goodbyeStyle: goodbye.style,
+    goodbyeEmbedTitle: goodbye.title,
+    goodbyeEmbedColor: hexColor(goodbye.color),
+    goodbyeEmbedExtras: goodbye.extras,
     autoRoleId: config.roleIds?.[0] ?? null,
   };
+}
+
+function greetingStyle(value, field) {
+  if (!GREETING_STYLES.includes(value)) throw new ApiError(400, `${field}: one of ${GREETING_STYLES.join(', ')}`);
+  return value;
+}
+
+// Title and colour of the welcome / goodbye embed, merged into what is stored; null when the body changes neither.
+function greetingEmbed(body, titleField, colorField, current) {
+  const embed = { ...current };
+  if (titleField in body) embed.title = optionalString(body[titleField], titleField, 256) ?? '';
+  if (colorField in body) {
+    if (typeof body[colorField] !== 'string' || !HEX_COLOR_RE.test(body[colorField])) throw new ApiError(400, `${colorField}: colour like #30d158 expected`);
+    embed.color = parseInt(body[colorField].slice(1), 16);
+  }
+  return titleField in body || colorField in body ? embed : null;
 }
 
 function automodView(config) {
@@ -119,9 +176,18 @@ const feedView = (feed) => ({
 
 async function applyWelcome(client, guild, body) {
   const updates = {};
+  const current = await getWelcomeConfig(client, guild.id);
   if ('enabled' in body) updates.enabled = boolean(body.enabled, 'enabled');
   if ('channelId' in body) updates.channelId = requireTextChannel(guild, body.channelId, 'channelId');
   if ('message' in body) updates.welcomeMessage = optionalString(body.message, 'message', 2000) ?? '';
+  if ('style' in body) updates.welcomeStyle = greetingStyle(body.style, 'style');
+  if ('embedExtras' in body) updates.welcomeExtras = boolean(body.embedExtras, 'embedExtras');
+  if ('goodbyeStyle' in body) updates.goodbyeStyle = greetingStyle(body.goodbyeStyle, 'goodbyeStyle');
+  if ('goodbyeEmbedExtras' in body) updates.goodbyeExtras = boolean(body.goodbyeEmbedExtras, 'goodbyeEmbedExtras');
+  const welcomeEmbed = greetingEmbed(body, 'embedTitle', 'embedColor', current.welcomeEmbed);
+  if (welcomeEmbed) updates.welcomeEmbed = welcomeEmbed;
+  const leaveEmbed = greetingEmbed(body, 'goodbyeEmbedTitle', 'goodbyeEmbedColor', current.leaveEmbed);
+  if (leaveEmbed) updates.leaveEmbed = leaveEmbed;
   if ('ping' in body) updates.welcomePing = boolean(body.ping, 'ping');
   if ('image' in body) {
     const image = optionalString(body.image, 'image', 500);
@@ -135,11 +201,8 @@ async function applyWelcome(client, guild, body) {
     const roleId = requireRole(guild, body.autoRoleId, 'autoRoleId');
     updates.roleIds = roleId ? [roleId] : [];
   }
-  if (updates.enabled === true || updates.goodbyeEnabled === true) {
-    const current = await getWelcomeConfig(client, guild.id);
-    if (updates.enabled === true && !(updates.channelId ?? current.channelId)) throw new ApiError(400, 'channelId: choose a channel before enabling welcome messages');
-    if (updates.goodbyeEnabled === true && !(updates.goodbyeChannelId ?? current.goodbyeChannelId)) throw new ApiError(400, 'goodbyeChannelId: choose a channel before enabling goodbye messages');
-  }
+  if (updates.enabled === true && !(updates.channelId ?? current.channelId)) throw new ApiError(400, 'channelId: choose a channel before enabling welcome messages');
+  if (updates.goodbyeEnabled === true && !(updates.goodbyeChannelId ?? current.goodbyeChannelId)) throw new ApiError(400, 'goodbyeChannelId: choose a channel before enabling goodbye messages');
   return welcomeView(await updateWelcomeConfig(client, guild.id, updates));
 }
 
@@ -179,6 +242,273 @@ async function applyAutomod(guild, body) {
     }
   });
   return automodView(config);
+}
+
+function oneOf(value, field, allowed) {
+  if (!allowed.includes(value)) throw new ApiError(400, `${field}: one of ${allowed.map((item) => JSON.stringify(item)).join(', ')}`);
+  return value;
+}
+
+function plainObject(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError(400, `${field}: object expected`);
+  return value;
+}
+
+// { mode: "block" | "allow", list: [ids] } — ids must exist in `known` (guild channels or roles).
+function applyIdList(target, patch, field, known) {
+  plainObject(patch, field);
+  if ('mode' in patch) target.mode = oneOf(patch.mode, `${field}.mode`, LIST_MODES);
+  if ('list' in patch) {
+    const list = stringList(patch.list, `${field}.list`, { max: 100, itemMax: 20, pattern: SNOWFLAKE_RE });
+    if (list.some((id) => !known.has(id))) throw new ApiError(400, `${field}.list: not from this server`);
+    target.list = list;
+  }
+}
+
+function economyView(settings, guild, premiumRoleId) {
+  const { shop, ...rest } = settings;
+  return {
+    ...rest,
+    shop: {
+      premiumRoleId: premiumRoleId ?? null,
+      items: getShopCatalog(settings, guild).filter((item) => !item.custom).map((item) => ({
+        id: item.id,
+        name: tr(item.name),
+        description: tr(item.description),
+        type: item.type,
+        price: item.price,
+        defaultPrice: item.defaultPrice,
+        enabled: item.enabled,
+      })),
+      roles: shop.roles,
+    },
+    limits: COMMAND_LIMITS,
+  };
+}
+
+async function applyEconomy(client, guild, body) {
+  let premiumRoleId;
+  const settings = await updateEconomySettings(guild.id, (data) => {
+    if ('currency' in body) {
+      const currency = plainObject(body.currency, 'currency');
+      if ('symbol' in currency) {
+        if (!isValidCurrencySymbol(currency.symbol)) throw new ApiError(400, 'currency.symbol: short text or one emoji expected (no @, no line breaks)');
+        data.currency.symbol = currency.symbol.trim();
+      }
+      if ('position' in currency) data.currency.position = oneOf(currency.position, 'currency.position', CURRENCY_POSITIONS);
+      if ('separator' in currency) data.currency.separator = oneOf(currency.separator, 'currency.separator', CURRENCY_SEPARATORS);
+    }
+    if ('startingWallet' in body) data.startingWallet = integer(body.startingWallet, 'startingWallet', 0, MAX_MONEY);
+    if ('startingBank' in body) data.startingBank = integer(body.startingBank, 'startingBank', 0, MAX_MONEY);
+    if ('clearOnLeave' in body) data.clearOnLeave = boolean(body.clearOnLeave, 'clearOnLeave');
+    if ('payTaxPercent' in body) data.payTaxPercent = integer(body.payTaxPercent, 'payTaxPercent', 0, 90);
+
+    if ('activity' in body) {
+      const activity = plainObject(body.activity, 'activity');
+      if ('enabled' in activity) data.activity.enabled = boolean(activity.enabled, 'activity.enabled');
+      if ('amount' in activity) data.activity.amount = integer(activity.amount, 'activity.amount', 0, MAX_MONEY);
+      if ('cooldownSeconds' in activity) data.activity.cooldownSeconds = integer(activity.cooldownSeconds, 'activity.cooldownSeconds', 5, 86400);
+    }
+
+    if ('channels' in body) applyIdList(data.channels, body.channels, 'channels', guild.channels.cache);
+    if ('roles' in body) applyIdList(data.roles, body.roles, 'roles', guild.roles.cache);
+
+    for (const [name, patch] of Object.entries('commands' in body ? plainObject(body.commands, 'commands') : {})) {
+      const limits = COMMAND_LIMITS[name];
+      if (!limits) throw new ApiError(400, `commands.${name}: unknown command`);
+      for (const [key, value] of Object.entries(plainObject(patch, `commands.${name}`))) {
+        if (!limits[key]) throw new ApiError(400, `commands.${name}.${key}: unknown setting`);
+        data.commands[name][key] = integer(value, `commands.${name}.${key}`, ...limits[key]);
+      }
+      if ('min' in limits && data.commands[name].min > data.commands[name].max) {
+        throw new ApiError(400, `commands.${name}: min cannot be higher than max`);
+      }
+    }
+
+    if ('shop' in body) {
+      const shop = plainObject(body.shop, 'shop');
+      if ('premiumRoleId' in shop) premiumRoleId = requireRole(guild, shop.premiumRoleId, 'shop.premiumRoleId');
+
+      const builtIn = new Set(getShopCatalog(data).filter((item) => !item.custom).map((item) => item.id));
+      for (const [itemId, patch] of Object.entries('items' in shop ? plainObject(shop.items, 'shop.items') : {})) {
+        if (!builtIn.has(itemId)) throw new ApiError(400, `shop.items.${itemId}: unknown item`);
+        plainObject(patch, `shop.items.${itemId}`);
+        const entry = { ...data.shop.items[itemId] };
+        if ('enabled' in patch) entry.enabled = boolean(patch.enabled, `shop.items.${itemId}.enabled`);
+        if ('price' in patch) entry.price = integer(patch.price, `shop.items.${itemId}.price`, 0, MAX_MONEY);
+        data.shop.items[itemId] = entry;
+      }
+
+      if ('roles' in shop) {
+        if (!Array.isArray(shop.roles) || shop.roles.length > MAX_SHOP_ROLES) throw new ApiError(400, `shop.roles: list of up to ${MAX_SHOP_ROLES} roles expected`);
+        const roles = shop.roles.map((entry, index) => {
+          plainObject(entry, `shop.roles.${index}`);
+          const roleId = requireRole(guild, entry.roleId ?? null, `shop.roles.${index}.roleId`);
+          if (!roleId) throw new ApiError(400, `shop.roles.${index}.roleId: required`);
+          return {
+            roleId,
+            price: integer(entry.price, `shop.roles.${index}.price`, 1, MAX_MONEY),
+            description: (optionalString(entry.description ?? null, `shop.roles.${index}.description`, 200) ?? '').trim(),
+          };
+        });
+        if (new Set(roles.map((entry) => entry.roleId)).size !== roles.length) throw new ApiError(400, 'shop.roles: the same role is listed twice');
+        data.shop.roles = roles;
+      }
+    }
+  });
+
+  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId);
+  await updateGuildConfig(client, guild.id, { premiumRoleId });
+  return economyView(settings, guild, premiumRoleId);
+}
+
+function requireUserId(value) {
+  if (!SNOWFLAKE_RE.test(String(value))) throw new ApiError(400, 'userId: Discord user ID expected');
+  return String(value);
+}
+
+function userName(client, guild, userId) {
+  const user = guild.members.cache.get(userId)?.user ?? client.users?.cache?.get(userId) ?? null;
+  return user ? (user.globalName || user.displayName || user.username || null) : null;
+}
+
+async function listEconomyAccounts(client, guild) {
+  const prefix = getEconomyPrefix(guild.id);
+  const keys = await client.db.list(prefix);
+  const accounts = [];
+  for (const key of Array.isArray(keys) ? keys : []) {
+    const data = await client.db.get(key);
+    if (!data) continue;
+    accounts.push({ key, userId: key.slice(prefix.length), wallet: Number(data.wallet) || 0, bank: Number(data.bank) || 0 });
+  }
+  return accounts;
+}
+
+const DEFAULT_LEVEL_UP_MESSAGE = '{user} has leveled up to level {level}!';
+
+function levelingView(config) {
+  const { min, max } = getMessageXpRange(config);
+  return {
+    enabled: config.enabled !== false,
+    xpMin: min,
+    xpMax: max,
+    cooldownSeconds: config.xpCooldown ?? 60,
+    multiplierPercent: Math.round((Number(config.xpMultiplier) > 0 ? Number(config.xpMultiplier) : 1) * 100),
+    announce: config.announceLevelUp !== false,
+    // "same" = the channel where the member wrote, null = the server's system channel.
+    levelUpChannel: config.levelUpSameChannel ? 'same' : (config.levelUpChannel ?? null),
+    levelUpMessage: trAny(config.levelUpMessage || DEFAULT_LEVEL_UP_MESSAGE),
+    rewards: Object.entries(config.roleRewards ?? {})
+      .map(([level, roleId]) => ({ level: Number(level), roleId }))
+      .sort((a, b) => a.level - b.level),
+    removePreviousRoles: config.removePreviousRoles === true,
+    moneyPerLevel: config.moneyPerLevel,
+    channels: { mode: config.channelMode, list: config.ignoredChannels ?? [] },
+    roles: { mode: config.roleMode, list: config.ignoredRoles ?? [] },
+    roleMultipliers: config.roleMultipliers,
+    channelMultipliers: config.channelMultipliers,
+    longMessageBonusPercent: config.longMessageBonusPercent,
+    attachmentBonusPercent: config.attachmentBonusPercent,
+    longMessageLength: LONG_MESSAGE_LENGTH,
+    voice: { xpPerMinute: config.voiceXpPerMinute, countMuted: config.voiceCountMuted, countAlone: config.voiceCountAlone },
+    clearOnLeave: config.clearOnLeave !== false,
+    // Total XP needed to reach each of the first levels (the formula is fixed in the bot).
+    thresholds: Array.from({ length: 15 }, (_, index) => ({ level: index + 1, xp: calculateTotalXp(index + 1) })),
+  };
+}
+
+// [{ id, percent }] — ids must exist in `known` (guild roles or channels), each at most once.
+function multiplierList(value, field, known) {
+  if (!Array.isArray(value) || value.length > 25) throw new ApiError(400, `${field}: list of up to 25 items expected`);
+  const list = value.map((entry, index) => {
+    plainObject(entry, `${field}.${index}`);
+    const id = String(entry.id ?? '');
+    if (!SNOWFLAKE_RE.test(id) || !known.has(id)) throw new ApiError(400, `${field}.${index}.id: not from this server`);
+    return { id, percent: integer(entry.percent, `${field}.${index}.percent`, 10, 1000) };
+  });
+  if (new Set(list.map((entry) => entry.id)).size !== list.length) throw new ApiError(400, `${field}: the same item is listed twice`);
+  return list;
+}
+
+async function applyLeveling(client, guild, body) {
+  const config = await getLevelingConfig(client, guild.id);
+
+  if ('enabled' in body) config.enabled = boolean(body.enabled, 'enabled');
+  if ('xpMin' in body || 'xpMax' in body) {
+    const current = getMessageXpRange(config);
+    const min = 'xpMin' in body ? integer(body.xpMin, 'xpMin', 1, 500) : current.min;
+    const max = 'xpMax' in body ? integer(body.xpMax, 'xpMax', 1, 500) : current.max;
+    if (min > max) throw new ApiError(400, 'xpMin: cannot be higher than xpMax');
+    config.xpRange = { min, max };
+    config.xpPerMessage = { min, max };
+  }
+  if ('cooldownSeconds' in body) config.xpCooldown = integer(body.cooldownSeconds, 'cooldownSeconds', 0, 3600);
+  if ('multiplierPercent' in body) config.xpMultiplier = integer(body.multiplierPercent, 'multiplierPercent', 10, 1000) / 100;
+  if ('announce' in body) config.announceLevelUp = boolean(body.announce, 'announce');
+  if ('levelUpChannel' in body) {
+    config.levelUpSameChannel = body.levelUpChannel === 'same';
+    if (!config.levelUpSameChannel) config.levelUpChannel = requireTextChannel(guild, body.levelUpChannel, 'levelUpChannel');
+  }
+  if ('levelUpMessage' in body) config.levelUpMessage = (optionalString(body.levelUpMessage, 'levelUpMessage', 1000) ?? '').trim() || DEFAULT_LEVEL_UP_MESSAGE;
+
+  if ('rewards' in body) {
+    if (!Array.isArray(body.rewards) || body.rewards.length > 50) throw new ApiError(400, 'rewards: list of up to 50 rewards expected');
+    const rewards = {};
+    body.rewards.forEach((entry, index) => {
+      plainObject(entry, `rewards.${index}`);
+      const level = integer(entry.level, `rewards.${index}.level`, 1, MAX_LEVEL);
+      if (rewards[level]) throw new ApiError(400, `rewards: level ${level} is listed twice`);
+      const roleId = requireRole(guild, entry.roleId ?? null, `rewards.${index}.roleId`);
+      if (!roleId) throw new ApiError(400, `rewards.${index}.roleId: required`);
+      rewards[level] = roleId;
+    });
+    config.roleRewards = rewards;
+  }
+  if ('removePreviousRoles' in body) config.removePreviousRoles = boolean(body.removePreviousRoles, 'removePreviousRoles');
+  if ('moneyPerLevel' in body) config.moneyPerLevel = integer(body.moneyPerLevel, 'moneyPerLevel', 0, MAX_MONEY);
+
+  if ('channels' in body) {
+    const target = { mode: config.channelMode, list: config.ignoredChannels ?? [] };
+    applyIdList(target, body.channels, 'channels', guild.channels.cache);
+    config.channelMode = target.mode;
+    config.ignoredChannels = target.list;
+  }
+  if ('roles' in body) {
+    const target = { mode: config.roleMode, list: config.ignoredRoles ?? [] };
+    applyIdList(target, body.roles, 'roles', guild.roles.cache);
+    config.roleMode = target.mode;
+    config.ignoredRoles = target.list;
+  }
+
+  if ('roleMultipliers' in body) config.roleMultipliers = multiplierList(body.roleMultipliers, 'roleMultipliers', guild.roles.cache);
+  if ('channelMultipliers' in body) config.channelMultipliers = multiplierList(body.channelMultipliers, 'channelMultipliers', guild.channels.cache);
+  if ('longMessageBonusPercent' in body) config.longMessageBonusPercent = integer(body.longMessageBonusPercent, 'longMessageBonusPercent', 0, 500);
+  if ('attachmentBonusPercent' in body) config.attachmentBonusPercent = integer(body.attachmentBonusPercent, 'attachmentBonusPercent', 0, 500);
+
+  if ('voice' in body) {
+    const voice = plainObject(body.voice, 'voice');
+    if ('xpPerMinute' in voice) config.voiceXpPerMinute = integer(voice.xpPerMinute, 'voice.xpPerMinute', 0, 100);
+    if ('countMuted' in voice) config.voiceCountMuted = boolean(voice.countMuted, 'voice.countMuted');
+    if ('countAlone' in voice) config.voiceCountAlone = boolean(voice.countAlone, 'voice.countAlone');
+  }
+  if ('clearOnLeave' in body) config.clearOnLeave = boolean(body.clearOnLeave, 'clearOnLeave');
+
+  // Marks the server as set up (older configs were created by a setup command).
+  config.configured = true;
+  await saveLevelingConfig(client, guild.id, config);
+  return levelingView(config);
+}
+
+async function listLevelAccounts(client, guild) {
+  const prefix = getUserLevelPrefix(guild.id);
+  const keys = await client.db.list(prefix);
+  const accounts = [];
+  for (const key of Array.isArray(keys) ? keys : []) {
+    const data = await client.db.get(key);
+    if (!data) continue;
+    accounts.push({ key, userId: key.slice(prefix.length), level: Number(data.level) || 0, xp: Number(data.xp) || 0, totalXp: Number(data.totalXp) || 0 });
+  }
+  return accounts;
 }
 
 /**
@@ -242,6 +572,8 @@ export function createPanelRouter(client) {
       automod: automodView(await getAutomodConfig(guild.id, { fresh: true })),
       invites: await getInviteConfig(guild.id),
       youtube: (await getFeeds(guild.id)).map(feedView),
+      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId),
+      leveling: levelingView(await getLevelingConfig(client, guild.id)),
     },
   })));
 
@@ -263,6 +595,91 @@ export function createPanelRouter(client) {
     });
     if (config.enabled) await cacheGuildInvites(guild);
     return config;
+  }));
+
+  router.patch('/guilds/:guildId/economy', route(({ guild, body }) => applyEconomy(client, guild, body)));
+
+  // Richest accounts plus the totals of the whole server.
+  router.get('/guilds/:guildId/economy/top', route(async ({ guild }) => {
+    const accounts = await listEconomyAccounts(client, guild);
+    accounts.sort((a, b) => (b.wallet + b.bank) - (a.wallet + a.bank));
+    return {
+      accounts: accounts.length,
+      total: accounts.reduce((sum, account) => sum + account.wallet + account.bank, 0),
+      top: accounts.slice(0, 25).map(({ userId, wallet, bank }) => ({ userId, name: userName(client, guild, userId), wallet, bank })),
+    };
+  }));
+
+  router.get('/guilds/:guildId/economy/users/:userId', route(async ({ guild, req }) => {
+    const userId = requireUserId(req.params.userId);
+    const data = await getEconomyData(client, guild.id, userId);
+    return { userId, name: userName(client, guild, userId), wallet: data.wallet, bank: data.bank };
+  }));
+
+  // mode "set" writes the given amounts; "add" adds them (negative takes money away, never below 0).
+  router.patch('/guilds/:guildId/economy/users/:userId', route(async ({ guild, body, req }) => {
+    const userId = requireUserId(req.params.userId);
+    const mode = oneOf(body.mode ?? 'set', 'mode', ['set', 'add']);
+    const low = mode === 'add' ? -MAX_MONEY : 0;
+    const changes = {};
+    if ('wallet' in body) changes.wallet = integer(body.wallet, 'wallet', low, MAX_MONEY);
+    if ('bank' in body) changes.bank = integer(body.bank, 'bank', low, MAX_MONEY);
+    if (!Object.keys(changes).length) throw new ApiError(400, 'wallet or bank: amount expected');
+
+    const data = await getEconomyData(client, guild.id, userId);
+    for (const [field, amount] of Object.entries(changes)) {
+      data[field] = Math.min(MAX_MONEY * 1000, Math.max(0, mode === 'add' ? (data[field] || 0) + amount : amount));
+    }
+    if (!(await setEconomyData(client, guild.id, userId, data))) throw new Error('Could not save the balance');
+    logger.info(`Panel: balance of ${userId} in guild ${guild.id} changed (${mode})`, changes);
+    return { userId, name: userName(client, guild, userId), wallet: data.wallet, bank: data.bank };
+  }));
+
+  // Deletes every balance and inventory of the server. Cannot be undone.
+  router.post('/guilds/:guildId/economy/reset', route(async ({ guild, body }) => {
+    if (body.confirm !== guild.id) throw new ApiError(400, 'confirm: the server ID is required to reset the economy');
+    const accounts = await listEconomyAccounts(client, guild);
+    for (const account of accounts) await client.db.delete(account.key);
+    logger.warn(`Panel: economy of guild ${guild.id} was reset (${accounts.length} accounts removed)`);
+    return { removed: accounts.length };
+  }));
+
+  router.patch('/guilds/:guildId/leveling', route(({ guild, body }) => applyLeveling(client, guild, body)));
+
+  // Members with the most XP.
+  router.get('/guilds/:guildId/leveling/top', route(async ({ guild }) => {
+    const accounts = await listLevelAccounts(client, guild);
+    accounts.sort((a, b) => b.totalXp - a.totalXp);
+    return {
+      members: accounts.length,
+      top: accounts.slice(0, 25).map(({ userId, level, xp, totalXp }) => ({ userId, name: userName(client, guild, userId), level, xp, totalXp })),
+    };
+  }));
+
+  router.get('/guilds/:guildId/leveling/users/:userId', route(async ({ guild, req }) => {
+    const userId = requireUserId(req.params.userId);
+    const data = await getUserLevelData(client, guild.id, userId);
+    return { userId, name: userName(client, guild, userId), level: data.level, xp: data.xp, totalXp: data.totalXp, xpNeeded: getXpForLevel(data.level) };
+  }));
+
+  // Sets a member's level; XP inside the level starts from 0 unless `xp` is given.
+  router.patch('/guilds/:guildId/leveling/users/:userId', route(async ({ guild, body, req }) => {
+    const userId = requireUserId(req.params.userId);
+    const level = integer(body.level, 'level', 0, MAX_LEVEL);
+    const xp = 'xp' in body ? integer(body.xp, 'xp', 0, Math.max(0, getXpForLevel(level) - 1)) : 0;
+    const data = await getUserLevelData(client, guild.id, userId);
+    await saveUserLevelData(client, guild.id, userId, { ...data, level, xp, totalXp: calculateTotalXp(level, xp) });
+    logger.info(`Panel: level of ${userId} in guild ${guild.id} set to ${level}`);
+    return { userId, name: userName(client, guild, userId), level, xp, totalXp: calculateTotalXp(level, xp), xpNeeded: getXpForLevel(level) };
+  }));
+
+  // Deletes the level and XP of every member of the server. Cannot be undone.
+  router.post('/guilds/:guildId/leveling/reset', route(async ({ guild, body }) => {
+    if (body.confirm !== guild.id) throw new ApiError(400, 'confirm: the server ID is required to reset the levels');
+    const accounts = await listLevelAccounts(client, guild);
+    for (const account of accounts) await client.db.delete(account.key);
+    logger.warn(`Panel: levels of guild ${guild.id} were reset (${accounts.length} members)`);
+    return { removed: accounts.length };
   }));
 
   router.post('/guilds/:guildId/youtube', route(async ({ guild, body }) => {

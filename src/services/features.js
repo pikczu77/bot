@@ -8,11 +8,13 @@ import { cacheAllInvites } from './inviteService.js';
 import { checkYoutubeFeeds } from './notifications/youtube.js';
 import { refreshMinecraftServers } from './minecraftService.js';
 import { liftExpiredBans } from './moderation/tempbanService.js';
+import { awardVoiceXp } from './leveling/voiceXp.js';
 
 const JOBS = [
   { name: 'youtube_check', schedule: '*/5 * * * *', run: checkYoutubeFeeds },
   { name: 'minecraft_status', schedule: '*/2 * * * *', run: refreshMinecraftServers },
   { name: 'tempban_expiry', schedule: '* * * * *', run: liftExpiredBans },
+  { name: 'voice_xp', schedule: '* * * * *', run: awardVoiceXp },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */

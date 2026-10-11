@@ -13,6 +13,37 @@ const XP_MULTIPLIER = 1.5;
 const MAX_LEVEL = 1000;
 const MIN_LEVEL = 0;
 
+/**
+ * Settings added with the web panel. They live in the same `leveling` object of the
+ * guild config; a config saved before they existed gets these values.
+ */
+export const LEVELING_EXTRAS = Object.freeze({
+  // Announce in the channel where the member wrote (instead of levelUpChannel).
+  levelUpSameChannel: false,
+  // "block": XP everywhere except ignoredChannels / ignoredRoles; "allow": only there.
+  channelMode: 'block',
+  roleMode: 'block',
+  // Keep only the highest reward role a member has reached.
+  removePreviousRoles: false,
+  // Economy money for every level gained (0 = off).
+  moneyPerLevel: 0,
+  // [{ id, percent }] — 150 means x1.5. With several matching roles the highest counts.
+  roleMultipliers: [],
+  channelMultipliers: [],
+  // Extra XP in percent for a message longer than LONG_MESSAGE_LENGTH / with an attachment.
+  longMessageBonusPercent: 0,
+  attachmentBonusPercent: 0,
+  // XP per minute in a voice channel (0 = off).
+  voiceXpPerMinute: 0,
+  voiceCountMuted: false,
+  voiceCountAlone: false,
+  // Delete a member's level when they leave the server.
+  clearOnLeave: true,
+});
+
+export const LONG_MESSAGE_LENGTH = 150;
+export { MAX_LEVEL };
+
 export function getXpForLevel(level) {
   if (!Number.isInteger(level) || level < 0 || level > MAX_LEVEL) {
     throw new TitanBotError(
@@ -148,38 +179,77 @@ export function createLeaderboardEmbed(leaderboard, guild) {
   return embed;
 }
 
+function defaultLevelingConfig() {
+  return {
+    enabled: true,
+    xpPerMessage: { min: 15, max: 25 },
+    xpCooldown: 20,
+    levelUpMessage: t('{user} has leveled up to level {level}!'),
+    levelUpChannel: null,
+    ignoredChannels: [],
+    ignoredRoles: [],
+    blacklistedUsers: [],
+    roleRewards: {},
+    announceLevelUp: true,
+    xpMultiplier: 1
+  };
+}
+
 export async function getLevelingConfig(client, guildId) {
   try {
     const guildConfig = await getGuildConfig(client, guildId);
-    return guildConfig.leveling || {
-      enabled: true,
-      xpPerMessage: { min: 15, max: 25 },
-      xpCooldown: 20,
-      levelUpMessage: t('{user} has leveled up to level {level}!'),
-      levelUpChannel: null,
-      ignoredChannels: [],
-      ignoredRoles: [],
-      blacklistedUsers: [],
-      roleRewards: {},
-      announceLevelUp: true,
-      xpMultiplier: 1
-    };
+    return { ...structuredClone(LEVELING_EXTRAS), ...(guildConfig.leveling || defaultLevelingConfig()) };
   } catch (error) {
     logger.error(`Error getting leveling config for guild ${guildId}:`, error);
-    return {
-      enabled: true,
-      xpPerMessage: { min: 15, max: 25 },
-      xpCooldown: 20,
-      levelUpMessage: t('{user} has leveled up to level {level}!'),
-      levelUpChannel: null,
-      ignoredChannels: [],
-      ignoredRoles: [],
-      blacklistedUsers: [],
-      roleRewards: {},
-      announceLevelUp: true,
-      xpMultiplier: 1
-    };
+    return { ...structuredClone(LEVELING_EXTRAS), ...defaultLevelingConfig() };
   }
+}
+
+/** XP a message earns: lowest and highest amount, seconds between two rewards. */
+export function getMessageXpRange(config) {
+  const min = Math.max(1, config.xpRange?.min || config.xpPerMessage?.min || 15);
+  const max = Math.max(min, config.xpRange?.max || config.xpPerMessage?.max || 25);
+  return { min, max };
+}
+
+function listAllows(mode, list, ids) {
+  if (!Array.isArray(list) || list.length === 0) return true;
+  const listed = ids.some((id) => list.includes(id));
+  return mode === 'allow' ? listed : !listed;
+}
+
+/** May this member earn XP in this channel (channel and role exceptions, blacklist)? */
+export function canEarnXp(config, member, channel) {
+  if (!config?.enabled || !member || member.user?.bot) return false;
+  if (config.blacklistedUsers?.includes(member.id)) return false;
+  if (!listAllows(config.channelMode, config.ignoredChannels, [channel?.id, channel?.parentId].filter(Boolean))) return false;
+  return listAllows(config.roleMode, config.ignoredRoles, [...(member.roles?.cache?.keys?.() ?? [])]);
+}
+
+const percentOf = (entries, ids) => (Array.isArray(entries) ? entries : [])
+  .filter((entry) => ids.includes(entry.id))
+  .reduce((highest, entry) => Math.max(highest, Number(entry.percent) || 0), 0);
+
+/**
+ * Apply the multipliers of the server to a base XP amount: global multiplier, the best
+ * role multiplier of the member, the multiplier of the channel, and (for messages)
+ * the bonuses for a long text and for an attachment.
+ */
+export function applyXpMultipliers(config, baseXp, { member, channel, message = null } = {}) {
+  let factor = Number(config.xpMultiplier) > 0 ? Number(config.xpMultiplier) : 1;
+
+  const rolePercent = percentOf(config.roleMultipliers, [...(member?.roles?.cache?.keys?.() ?? [])]);
+  if (rolePercent > 0) factor *= rolePercent / 100;
+
+  const channelPercent = percentOf(config.channelMultipliers, [channel?.id, channel?.parentId].filter(Boolean));
+  if (channelPercent > 0) factor *= channelPercent / 100;
+
+  if (message) {
+    if ((message.content?.length ?? 0) > LONG_MESSAGE_LENGTH) factor *= 1 + (Number(config.longMessageBonusPercent) || 0) / 100;
+    if ((message.attachments?.size ?? 0) > 0) factor *= 1 + (Number(config.attachmentBonusPercent) || 0) / 100;
+  }
+
+  return Math.max(1, Math.floor(baseXp * factor));
 }
 
 export async function getUserLevelData(client, guildId, userId) {

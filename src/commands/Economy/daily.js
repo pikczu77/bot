@@ -6,11 +6,9 @@ import { formatDuration } from '../../utils/embeds.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { botConfig } from '../../config/bot.js';
 import { t } from '../../i18n/index.js';
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
-const DAILY_COOLDOWN = 24 * 60 * 60 * 1000;
-const DAILY_AMOUNT = botConfig.economy?.dailyAmount ?? 100;
 const PREMIUM_BONUS_PERCENTAGE = 0.1;
 
 export default {
@@ -27,6 +25,10 @@ export default {
             const now = Date.now();
 
             logger.debug(`[ECONOMY] Daily claimed started for ${userId}`, { userId, guildId });
+
+            const { daily } = (await getEconomySettings(guildId)).commands;
+            const DAILY_COOLDOWN = cooldownMs(daily.cooldownMinutes);
+            const DAILY_AMOUNT = daily.amount;
 
             const userData = await getEconomyData(client, guildId, userId);
             
@@ -67,7 +69,7 @@ export default {
                     DAILY_AMOUNT * PREMIUM_BONUS_PERCENTAGE,
                 );
                 earned += bonusAmount;
-                bonusMessage = t`\n✨ **Premium Bonus:** +$${bonusAmount.toLocaleString()}`;
+                bonusMessage = t`\n✨ **Premium Bonus:** +${money(guildId, bonusAmount)}`;
                 hasPremiumRole = true;
             }
 
@@ -87,17 +89,17 @@ export default {
 
             const embed = successEmbed(
                 t("✅ Daily Claimed!"),
-                t`You have claimed your daily **$${earned.toLocaleString()}**!${bonusMessage}`
+                t`You have claimed your daily **${money(guildId, earned)}**!${bonusMessage}`
             )
                 .addFields({
                     name: t("New Cash Balance"),
-                    value: `$${userData.wallet.toLocaleString()}`,
+                    value: `${money(guildId, userData.wallet)}`,
                     inline: true,
                 })
                 .setFooter({
                     text: hasPremiumRole
-                        ? t`Next claim in 24 hours. (Premium Active)`
-                        : t`Next claim in 24 hours.`,
+                        ? t`Next claim in ${formatDuration(DAILY_COOLDOWN)}. (Premium Active)`
+                        : t`Next claim in ${formatDuration(DAILY_COOLDOWN)}.`,
                 });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

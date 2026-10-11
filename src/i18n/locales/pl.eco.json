@@ -1,0 +1,22 @@
+{
+  "You successfully committed {0} and earned **{1}**!": "Udało ci się: {0}. Zarabiasz **{1}**!",
+  "You were fined {0} and will be in jail for {1}.": "Płacisz {0} grzywny i siedzisz w areszcie przez {1}.",
+  "Next claim in {0}. (Premium Active)": "Następna nagroda za {0}. (Premium aktywne)",
+  "Next claim in {0}.": "Następna nagroda za {0}.",
+  "Next fishing trip available in {0}.": "Następne łowienie możliwe za {0}.",
+  "The highest bet on this server is {0}.": "Najwyższy zakład na tym serwerze to {0}.",
+  "Next gamble available in {0}. Base win chance: {1}%.": "Następny hazard możliwy za {0}. Podstawowa szansa na wygraną: {1}%.",
+  "Next mine available in {0}.": "Następne kopanie możliwe za {0}.",
+  "Successfully added {0} to {1}'s {2}.\n**New Balance:** {3}": "Dodano {0} dla {1} ({2}).\n**Nowe saldo:** {3}",
+  "Successfully removed {0} from {1}'s {2}.\n**New Balance:** {3}": "Odjęto {0} u {1} ({2}).\n**Nowe saldo:** {3}",
+  "The currency symbol can be a short text or one emoji, without @ and without line breaks.": "Symbol waluty to krótki tekst albo jedna emoji, bez @ i bez nowych linii.",
+  "Currency symbol changed to {0}": "Symbol waluty zmieniony na {0}",
+  "Transfer tax ({0}%)": "Podatek od przelewu ({0}%)",
+  "{0} - {1} gets {2}": "{0} - {1} dostaje {2}",
+  "{0} is too poor. They need at least {1} cash to be worth robbing.": "{0} jest za biedny(-a). Żeby opłacało się kraść, musi mieć co najmniej {1} gotówki.",
+  "Next robbery available in {0}.": "Następny napad możliwy za {0}.",
+  "Economy commands work only in: {0}": "Komendy ekonomii działają tylko na: {0}",
+  "Economy commands are switched off in this channel.": "Na tym kanale komendy ekonomii są wyłączone.",
+  "Your roles do not allow you to use economy commands.": "Twoje role nie pozwalają używać komend ekonomii.",
+  "A role you can buy.": "Rola do kupienia."
+}

@@ -5,8 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-
-const SLUT_COOLDOWN = 45 * 60 * 1000;
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
 const SLUT_ACTIVITIES = [
     { name: t("Cam Stream"), min: 120, max: 450, risk: 0.2 },
@@ -117,6 +116,9 @@ export default {
 
             logger.debug(`[ECONOMY] Slut command started for ${userId}`, { userId, guildId });
 
+            const settings = (await getEconomySettings(guildId)).commands.slut;
+            const SLUT_COOLDOWN = cooldownMs(settings.cooldownMinutes);
+
             const userData = await getEconomyData(client, guildId, userId);
 
             if (!userData) {
@@ -140,7 +142,9 @@ export default {
                 );
             }
 
-            const activity = randomChoice(SLUT_ACTIVITIES);
+            const baseActivity = randomChoice(SLUT_ACTIVITIES);
+            const scale = settings.payoutPercent / 100;
+            const activity = { ...baseActivity, min: Math.floor(baseActivity.min * scale), max: Math.floor(baseActivity.max * scale) };
 
             const outcome = resolveOutcome(activity, userData.wallet || 0);
 
@@ -167,14 +171,14 @@ export default {
                 timestamp: new Date().toISOString()
             });
 
-            const amountLabel = `${outcome.delta >= 0 ? '+' : '-'}$${Math.abs(outcome.delta).toLocaleString()}`;
+            const amountLabel = `${outcome.delta >= 0 ? '+' : '-'}${money(guildId, Math.abs(outcome.delta))}`;
             const summaryLines = [
                 `${outcome.message}`,
                 t`💸 **Net Result:** ${amountLabel}`,
-                t`💳 **Current Balance:** $${userData.wallet.toLocaleString()}`,
+                t`💳 **Current Balance:** ${money(guildId, userData.wallet)}`,
                 t`📊 **Total Sessions:** ${userData.totalSluts}`,
-                t`💵 **Total Earned:** $${(userData.totalSlutEarnings || 0).toLocaleString()}`,
-                t`🧾 **Total Lost:** $${(userData.totalSlutLosses || 0).toLocaleString()}`
+                t`💵 **Total Earned:** ${money(guildId, (userData.totalSlutEarnings || 0))}`,
+                t`🧾 **Total Lost:** ${money(guildId, (userData.totalSlutLosses || 0))}`
             ];
 
             const embed = createEmbed({

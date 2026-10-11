@@ -4,12 +4,9 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { botConfig } from '../../config/bot.js';
 import { t } from '../../i18n/index.js';
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
-const WORK_COOLDOWN = botConfig.economy?.cooldowns?.work ?? 30 * 60 * 1000;
-const MIN_WORK_AMOUNT = botConfig.economy?.workMin ?? 10;
-const MAX_WORK_AMOUNT = botConfig.economy?.workMax ?? 100;
 const LAPTOP_MULTIPLIER = 1.5;
 const WORK_JOBS = [
     t("Software Developer"),
@@ -36,6 +33,9 @@ export default {
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
+
+            const { work } = (await getEconomySettings(guildId)).commands;
+            const WORK_COOLDOWN = cooldownMs(work.cooldownMinutes);
 
             const userData = await getEconomyData(client, guildId, userId);
 
@@ -73,7 +73,7 @@ export default {
                 }
             }
 
-            let earned = Math.floor(Math.random() * (MAX_WORK_AMOUNT - MIN_WORK_AMOUNT + 1)) + MIN_WORK_AMOUNT;
+            let earned = Math.floor(Math.random() * (work.max - work.min + 1)) + work.min;
             const job = WORK_JOBS[Math.floor(Math.random() * WORK_JOBS.length)];
 
             let multiplierMessage = "";
@@ -100,12 +100,12 @@ export default {
 
             const embed = successEmbed(
                 t("💼 Work Complete!"),
-                t`You worked as a **${job}** and earned **$${earned.toLocaleString()}**!${multiplierMessage}`
+                t`You worked as a **${job}** and earned **${money(guildId, earned)}**!${multiplierMessage}`
             )
                 .addFields(
                     {
                         name: t("New Balance"),
-                        value: `$${userData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, userData.wallet)}`,
                         inline: true,
                     },
                     {

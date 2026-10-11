@@ -33,8 +33,9 @@ export const commandAliases = {
     'untimeout': 'untimeout',
     'unmute': 'untimeout',
 
-    'rank': 'rank',
-    'lvl': 'rank',
+    'poziom': 'poziom',
+    'rank': 'poziom',
+    'lvl': 'poziom',
     'leaderboard': 'leaderboard',
     'lb': 'leaderboard',
     'top': 'leaderboard',
@@ -67,17 +68,6 @@ export const commandAliases = {
     't': 'ticket',
     'new': 'ticket',
 
-    'ver': 'verify',
-    'vadmin': 'verification',
-    'av': 'autoverify',
-
-    'welcome': 'welcome',
-    'greet': 'greet',
-    'goodbye': 'goodbye',
-    'autorole': 'autorole',
-
-    'calc': 'calculate',
-    'math': 'calculate',
     'weather': 'weather',
     'report': 'report',
     'userinfo': 'userinfo',

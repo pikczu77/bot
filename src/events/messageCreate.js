@@ -1,6 +1,6 @@
 import { Events } from 'discord.js';
 import { logger } from '../utils/logger.js';
-import { getLevelingConfig, getUserLevelData } from '../services/leveling/leveling.js';
+import { applyXpMultipliers, canEarnXp, getLevelingConfig, getMessageXpRange, getUserLevelData } from '../services/leveling/leveling.js';
 import { addXp } from '../services/leveling/xpSystem.js';
 import { checkRateLimit } from '../utils/rateLimiter.js';
 import { parsePrefixCommand } from '../utils/prefixParser.js';
@@ -12,6 +12,8 @@ import { getCommandPrefix, getBotMessage, isBotOwner, isCommandCategoryEnabled, 
 import { enforceAbuseProtection, formatCooldownDuration } from '../utils/abuseProtection.js';
 import { createEmbed } from '../utils/embeds.js';
 import { isCommandEnabled } from '../services/commandAccessService.js';
+import { getEconomyAccessDenial } from '../services/economySettings.js';
+import { payActivityReward } from '../utils/economy.js';
 import {
   getCountingGameConfig,
   saveCountingGameConfig,
@@ -39,6 +41,10 @@ export default {
       await handlePrefixCommand(message, client);
 
       await handleLeveling(message, client);
+
+      await payActivityReward(client, message.guild.id, message.author.id).catch((error) => {
+        logger.error('Error paying activity money:', error);
+      });
     } catch (error) {
       logger.error('Error in messageCreate event:', error);
     }
@@ -70,7 +76,7 @@ async function handlePrefixCommand(message, client) {
     let command = client.commands.get(resolvedCommandName);
 
     // Commands that were merged into a group still answer to their old prefix name:
-    // `!calculate 2+2` runs `/tools calculate`.
+    // `!deposit 50` runs `/bank deposit`.
     if (!command) {
       const grouped = client.groupedCommands?.get(resolvedCommandName.toLowerCase());
       if (grouped) {
@@ -124,6 +130,20 @@ async function handlePrefixCommand(message, client) {
       const embed = createEmbed({
         title: t('Command Disabled'),
         description: t('This command has been disabled for this server.'),
+        color: 'error',
+      });
+      await message.channel.send({ embeds: [embed] }).catch(() => {});
+      return;
+    }
+
+    const economyDenial = await getEconomyAccessDenial(
+      { guild: message.guild, member: message.member, channel: message.channel },
+      command,
+    );
+    if (economyDenial) {
+      const embed = createEmbed({
+        title: t('Command Disabled'),
+        description: economyDenial,
         color: 'error',
       });
       await message.channel.send({ embeds: [embed] }).catch(() => {});
@@ -208,30 +228,19 @@ async function handleLeveling(message, client) {
       return;
     }
 
-    if (levelingConfig.ignoredChannels?.includes(message.channel.id)) {
+    const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
+    if (!canEarnXp(levelingConfig, member, message.channel)) {
       return;
     }
 
-    if (levelingConfig.ignoredRoles?.length > 0) {
-      const member = await message.guild.members.fetch(message.author.id).catch(() => {
-        return null;
-      });
-      if (member && member.roles.cache.some(role => levelingConfig.ignoredRoles.includes(role.id))) {
-        return;
-      }
-    }
-
-    if (levelingConfig.blacklistedUsers?.includes(message.author.id)) {
-      return;
-    }
-
-    if (!message.content || message.content.trim().length === 0) {
+    const hasText = Boolean(message.content && message.content.trim().length > 0);
+    if (!hasText && !(message.attachments?.size > 0)) {
       return;
     }
 
     const userData = await getUserLevelData(client, message.guild.id, message.author.id);
 
-    const cooldownTime = levelingConfig.xpCooldown || 60;
+    const cooldownTime = levelingConfig.xpCooldown ?? 60;
     const now = Date.now();
     const timeSinceLastMessage = now - (userData.lastMessage || 0);
 
@@ -239,20 +248,11 @@ async function handleLeveling(message, client) {
       return;
     }
 
-    const minXP = levelingConfig.xpRange?.min || levelingConfig.xpPerMessage?.min || 15;
-    const maxXP = levelingConfig.xpRange?.max || levelingConfig.xpPerMessage?.max || 25;
+    const { min, max } = getMessageXpRange(levelingConfig);
+    const xpToGive = Math.floor(Math.random() * (max - min + 1)) + min;
+    const finalXP = applyXpMultipliers(levelingConfig, xpToGive, { member, channel: message.channel, message });
 
-    const safeMinXP = Math.max(1, minXP);
-    const safeMaxXP = Math.max(safeMinXP, maxXP);
-
-    const xpToGive = Math.floor(Math.random() * (safeMaxXP - safeMinXP + 1)) + safeMinXP;
-
-    let finalXP = xpToGive;
-    if (levelingConfig.xpMultiplier && levelingConfig.xpMultiplier > 1) {
-      finalXP = Math.floor(finalXP * levelingConfig.xpMultiplier);
-    }
-
-    const result = await addXp(client, message.guild, message.member, finalXP);
+    const result = await addXp(client, message.guild, member, finalXP, { channel: message.channel });
 
     if (result?.leveledUp) {
       logger.info(

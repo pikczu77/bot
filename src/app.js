@@ -21,6 +21,7 @@ import { installDiscordSink } from './i18n/discordSink.js';
 import { withGuildLocale } from './services/languageService.js';
 import { startFeatureJobs } from './services/features.js';
 import { createPanelRouter } from './api/panelApi.js';
+import { moveStaleSourceFiles } from './utils/staleFiles.js';
 
 installDiscordSink();
 
@@ -61,14 +62,19 @@ class TitanBot extends Client {
     try {
       startupLog('Starting Klubik Pikcza...');
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      // Before anything scans src/ for commands, events and interactions.
+      moveStaleSourceFiles();
+
       startupLog('Initializing database...');
       const dbInstance = await initializeDatabase();
       this.db = dbInstance.db;
 
       // Check database status and report
       const dbStatus = this.db.getStatus();
-      if (dbStatus.isDegraded) {
+      if (dbStatus.isDegraded && dbStatus.connectionType === 'file') {
+        logger.warn('⚠️ PostgreSQL unavailable - data is kept in the storage file (survives restarts, not in PostgreSQL)');
+      } else if (dbStatus.isDegraded) {
         logger.warn('');
         logger.warn('╔═══════════════════════════════════════════════════════╗');
         logger.warn('║ ⚠️  DATABASE RUNNING IN DEGRADED MODE                 ║');
@@ -103,9 +109,9 @@ class TitanBot extends Client {
       await this.registerCommands();
       startupLog('Slash commands registration complete');
       
-      const databaseMode = dbStatus.isDegraded
+      const databaseMode = dbStatus.connectionType === 'memory'
         ? 'Optional in-memory mode (data resets after restart)'
-        : 'Connected (persistent data enabled)';
+        : `${dbStatus.connectionType}${dbStatus.isDegraded ? ' (PostgreSQL unavailable)' : ''}, persistent data enabled`;
       const handlerSummary = `${this.buttons.size} buttons, ${this.selectMenus.size} menus, ${this.modals.size} modals`;
       startupLog(
         `ONLINE ✅ | ${this.commands.size} commands loaded | ${handlerSummary} | Database: ${databaseMode}`
@@ -174,8 +180,11 @@ class TitanBot extends Client {
         database: {
           connected: dbStatus.connectionType !== 'none',
           degraded: dbStatus.isDegraded,
-          type: dbStatus.connectionType
-        }
+          type: dbStatus.connectionType,
+          storage: dbStatus.storage ?? null
+        },
+        commands: this.commands?.size ?? 0,
+        version: pkg.version
       };
       res.status(200).json(status);
     });

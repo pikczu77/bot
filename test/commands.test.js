@@ -7,10 +7,8 @@ import { mockChannel, mockGuild, mockInteraction, mockMember, mockRole, mockUser
 import { runWithLocale } from '../src/i18n/index.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
-import { getGuildLocale } from '../src/services/languageService.js';
 import { selectWinners, createGiveawayEmbed, createGiveawayButtons } from '../src/services/giveawayService.js';
 import { checkGiveawayEntry } from '../src/services/giveawayRules.js';
-import { handleTagMessage } from '../src/services/tagService.js';
 import { addBonusInvites } from '../src/services/inviteService.js';
 
 const client = { guilds: { cache: new Collection() }, users: { fetch: async () => null } };
@@ -37,17 +35,18 @@ async function run(commandName, { locale = 'en', member = admin, ...rest } = {})
   return interaction;
 }
 
-test('/language switches the server language and answers in it', async () => {
-  const shown = await run('language', { locale: 'en' });
-  assert.match(replyText(shown), /Server language/);
+test('commands removed on 2026-10-11 stay removed; /poziom shows the level', async () => {
+  // Their settings live in the web panel (or the feature was dropped). See the project notes.
+  const removed = [
+    'welcome', 'goodbye', 'greet', 'autorole', 'level', 'automod', 'notify', 'language',
+    'tools', 'poll', 'embedbuilder', 'tag', 'apply', 'app-admin', 'verification', 'verify', 'autoverify', 'rank',
+  ];
+  assert.deepEqual(removed.filter((name) => client.commands.has(name)), []);
+  assert.equal(client.commands.size, 63);
 
-  const changed = await run('language', { locale: 'en', options: { language: 'pl' } });
-  assert.match(replyText(changed), /Zmieniono język/);
-  assert.equal(await getGuildLocale(client, guild.id), 'pl');
-
-  await assert.rejects(run('language', { member: regular, options: { language: 'en' } }), /permission/i);
-  await run('language', { options: { language: 'en' } });
-  assert.equal(await getGuildLocale(client, guild.id), 'en');
+  const text = replyText(await run('poziom', { member: regular }));
+  assert.match(text, /Zwykly/);
+  assert.match(text, /0\/50/);
 });
 
 test('/ship is stable for a pair and refuses self-ships', async () => {
@@ -80,31 +79,6 @@ test('/invites shows stats, leaderboard and admin tools', async () => {
   await assert.rejects(run('invites', { member: regular, subcommand: 'reset' }), /permission/i);
 });
 
-test('/automod configures rules', async () => {
-  await run('automod', { subcommand: 'toggle', options: { enabled: true } });
-  await run('automod', { subcommand: 'rule', options: { rule: 'invites', enabled: true, action: 'timeout' } });
-  await run('automod', { subcommand: 'words', options: { add: 'brzydkie, spam*' } });
-  const status = await run('automod', { locale: 'pl', subcommand: 'status' });
-  const text = replyText(status);
-  assert.match(text, /Automod jest włączony/);
-  assert.match(text, /🟢 \*\*Zaproszenia na inne serwery\*\* — usuń \+ wyciszenie/);
-  assert.match(text, /słów: 2/);
-});
-
-test('/tag stores a tag that answers to the prefix', async () => {
-  await run('tag', { subcommand: 'set', options: { name: 'Regulamin', text: 'Czytaj {channel}, {user}!' } });
-  const shown = await run('tag', { subcommand: 'show', options: { name: 'regulamin' } });
-  assert.match(replyText(shown), new RegExp(`Czytaj <#${channel.id}>, <@${admin.id}>!`));
-
-  const message = { guild, channel, channelId: channel.id, content: '!regulamin', author: regular.user, client };
-  assert.equal(await handleTagMessage(message, '!'), true);
-  assert.match(channel.sent.at(-1).content, /Czytaj/);
-  assert.equal(await handleTagMessage({ ...message, content: '!nieistnieje' }, '!'), false);
-  // A tag never shadows a real command.
-  await run('tag', { subcommand: 'set', options: { name: 'ban', text: 'x' } });
-  assert.equal(await handleTagMessage({ ...message, content: '!ban' }, '!'), false);
-});
-
 test('/channel slowmode goes through the command group', async () => {
   const done = await run('channel', { subcommand: 'slowmode', options: { time: '30s' } });
   assert.equal(channel.rateLimitPerUser, 30);
@@ -120,7 +94,6 @@ test('/channel slowmode goes through the command group', async () => {
 });
 
 test('empty lists explain what to do next', async () => {
-  assert.match(replyText(await run('notify', { group: 'youtube', subcommand: 'list' })), /notify youtube add/);
   assert.match(replyText(await run('minecraft', { subcommand: 'list' })), /minecraft track/);
   assert.match(replyText(await run('modmail', { subcommand: 'status' })), /Modmail/);
   assert.match(replyText(await run('giveaway', { subcommand: 'list' })), /giveaway create/);
@@ -161,4 +134,102 @@ test('giveaway winners respect extra entries and requirements', async () => {
   assert.match(embed.description, /Dodatkowe losy/);
   const button = runWithLocale('en', () => createGiveawayButtons(false, 2)).toJSON().components[0];
   assert.equal(button.label, '🎉 Join · 2');
+});
+
+test('economy commands follow the server settings: payouts, currency, tax, shop, channels', async () => {
+  const { getEconomyAccessDenial, updateEconomySettings } = await import('../src/services/economySettings.js');
+  const { getEconomyData, setEconomyData } = await import('../src/utils/economy.js');
+  const vip = mockRole(guild, 'VIP');
+  const casino = mockChannel(guild, 'kasyno');
+
+  await updateEconomySettings(guild.id, (settings) => {
+    settings.currency = { symbol: 'zł', position: 'right', separator: ' ' };
+    settings.startingWallet = 1000;
+    settings.payTaxPercent = 10;
+    settings.commands.work = { min: 7777, max: 7777, cooldownMinutes: 60 };
+    settings.shop.items.laptop = { enabled: false };
+    settings.shop.roles = [{ roleId: vip.id, price: 500, description: 'Kolor' }];
+    settings.channels = { mode: 'allow', list: [casino.id] };
+  });
+
+  const worked = await run('work', { member: regular });
+  assert.match(replyText(worked), /\*\*7 777 zł\*\*/);
+  assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 8777);
+  await assert.rejects(run('work', { member: regular }), /cooldown/i);
+
+  await run('pay', { member: regular, options: { user: admin.user, amount: 1000 } });
+  assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7777);
+  assert.equal((await getEconomyData(client, guild.id, admin.id)).wallet, 1900);
+
+  await assert.rejects(run('shop', { member: regular, subcommand: 'buy', options: { item_id: 'laptop' } }), /not found/);
+  const bought = await run('shop', { member: regular, subcommand: 'buy', options: { item_id: `role_${vip.id}` } });
+  assert.match(replyText(bought), /500 zł/);
+  assert.ok(regular.roles.cache.has(vip.id));
+  assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7277);
+
+  const work = client.commands.get('work');
+  assert.match(await getEconomyAccessDenial({ guild, member: regular, channel }, work), /only in/);
+  assert.equal(await getEconomyAccessDenial({ guild, member: regular, channel: casino }, work), null);
+  assert.equal(await getEconomyAccessDenial({ guild, member: admin, channel }, work), null);
+  assert.equal(await getEconomyAccessDenial({ guild, member: regular, channel }, client.commands.get('ship')), null);
+
+  await setEconomyData(client, guild.id, regular.id, { ...(await getEconomyData(client, guild.id, regular.id)), wallet: 0 });
+});
+
+test('leveling follows the server settings: multipliers, exceptions, rewards, voice', async () => {
+  const { applyXpMultipliers, canEarnXp, getLevelingConfig, getUserLevelData, getXpForLevel, saveLevelingConfig } = await import('../src/services/leveling/leveling.js');
+  const { addXp } = await import('../src/services/leveling/xpSystem.js');
+  const { findVoiceEarners } = await import('../src/services/leveling/voiceXp.js');
+  const { getEconomyData } = await import('../src/utils/economy.js');
+  const booster = mockRole(guild, 'Booster XP');
+  const first = mockRole(guild, 'Poziom 1');
+  const second = mockRole(guild, 'Poziom 2');
+  const talk = mockChannel(guild, 'pogaduchy');
+  const player = mockMember(guild, mockUser('Gracz'), { roles: [booster] });
+  const bot = mockMember(guild, mockUser('Robot', { bot: true }));
+
+  const settings = {
+    enabled: true, xpMultiplier: 2, roleMultipliers: [{ id: booster.id, percent: 150 }, { id: first.id, percent: 300 }], channelMultipliers: [{ id: talk.id, percent: 200 }],
+    longMessageBonusPercent: 50, attachmentBonusPercent: 100, channelMode: 'block', roleMode: 'block', ignoredChannels: [], ignoredRoles: [], blacklistedUsers: [],
+  };
+  assert.equal(applyXpMultipliers(settings, 10, { member: player, channel }), 30);
+  assert.equal(applyXpMultipliers(settings, 10, { member: player, channel: talk }), 60);
+  assert.equal(applyXpMultipliers(settings, 10, { member: player, channel, message: { content: 'a'.repeat(151), attachments: { size: 1 } } }), 90);
+  assert.equal(applyXpMultipliers({ ...settings, xpMultiplier: 0.5, roleMultipliers: [] }, 1, { member: player, channel }), 1);
+
+  assert.equal(canEarnXp(settings, player, channel), true);
+  assert.equal(canEarnXp(settings, bot, channel), false);
+  assert.equal(canEarnXp({ ...settings, enabled: false }, player, channel), false);
+  assert.equal(canEarnXp({ ...settings, ignoredChannels: [channel.id] }, player, channel), false);
+  assert.equal(canEarnXp({ ...settings, channelMode: 'allow', ignoredChannels: [talk.id] }, player, channel), false);
+  assert.equal(canEarnXp({ ...settings, channelMode: 'allow', ignoredChannels: [talk.id] }, player, talk), true);
+  assert.equal(canEarnXp({ ...settings, ignoredRoles: [booster.id] }, player, channel), false);
+  assert.equal(canEarnXp({ ...settings, roleMode: 'allow', ignoredRoles: [first.id] }, player, channel), false);
+  assert.equal(canEarnXp({ ...settings, blacklistedUsers: [player.id] }, player, channel), false);
+
+  const state = (member, voiceChannel, extra = {}) => ({ member, channelId: voiceChannel.id, channel: voiceChannel, ...extra });
+  const quiet = mockMember(guild, mockUser('Cichy'));
+  const loner = mockMember(guild, mockUser('Samotnik'));
+  const voiceGuild = (states) => ({ afkChannelId: 'afk', voiceStates: { cache: new Collection(states.map((entry, index) => [String(index), entry])) } });
+  const room = { id: 'room' };
+  const names = (earners) => earners.map((earner) => earner.member.user.username).sort().join();
+  const states = [state(player, room), state(quiet, room, { selfMute: true }), state(bot, room), state(loner, { id: 'solo' }), state(admin, { id: 'afk' })];
+  assert.equal(names(findVoiceEarners(voiceGuild(states), settings)), 'Gracz');
+  assert.equal(names(findVoiceEarners(voiceGuild(states), { ...settings, voiceCountMuted: true, voiceCountAlone: true })), 'Cichy,Gracz,Samotnik');
+
+  // Kept from the time guild config was read only from PostgreSQL; any storage is read now (see storage.test.js).
+  const live = { ...client, db: Object.assign(Object.create(client.db), { isAvailable: () => true }) };
+  await saveLevelingConfig(live, guild.id, {
+    ...(await getLevelingConfig(live, guild.id)),
+    enabled: true, announceLevelUp: true, levelUpSameChannel: true, levelUpMessage: 'GG {user} poziom {level} {money} {role}',
+    roleRewards: { 1: first.id, 2: second.id }, removePreviousRoles: true, moneyPerLevel: 200,
+  });
+  const walletBefore = (await getEconomyData(client, guild.id, player.id)).wallet;
+  const result = await runWithLocale('en', () => addXp(live, guild, player, getXpForLevel(0) + getXpForLevel(1), { channel: talk, touchCooldown: false }));
+  assert.equal(result.level, 2);
+  assert.ok(player.roles.cache.has(second.id));
+  assert.equal(player.roles.cache.has(first.id), false);
+  assert.equal((await getEconomyData(client, guild.id, player.id)).wallet, walletBefore + 400);
+  assert.equal(talk.sent.at(-1).content, `GG <@${player.id}> poziom 2 400 zł **Poziom 2**`);
+  assert.equal((await getUserLevelData(client, guild.id, player.id)).lastMessage, 0);
 });

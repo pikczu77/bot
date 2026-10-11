@@ -7,9 +7,7 @@ import { t } from '../../i18n/index.js';
 export const SLASH_ONLY_COMMANDS = new Set([
   'configwizard',
   'help',
-  'embedbuilder',
   'wipedata',
-  'apply',
 ]);
 
 /** Subcommands blocked for every command when invoked via prefix. */

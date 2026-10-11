@@ -5,6 +5,7 @@ import { getEconomyData, setEconomyData, getMaxBankCapacity } from '../utils/eco
 import { createError, ErrorTypes } from '../utils/errorHandler.js';
 import { wrapServiceClassMethods } from '../utils/serviceErrorBoundary.js';
 import { t } from '../i18n/index.js';
+import { money } from './economySettings.js';
 
 class EconomyService {
 
@@ -100,7 +101,8 @@ class EconomyService {
     }
   }
 
-  static async transferMoney(client, guildId, senderId, receiverId, amount) {
+  // `tax` is taken out of the amount on the way: the receiver gets amount - tax.
+  static async transferMoney(client, guildId, senderId, receiverId, amount, tax = 0) {
     logger.debug(`[ECONOMY_SERVICE] transferMoney requested`, {
       senderId,
       receiverId,
@@ -155,14 +157,15 @@ class EconomyService {
       throw createError(
         "Insufficient funds",
         ErrorTypes.VALIDATION,
-        t`You only have **$${senderData.wallet.toLocaleString()}** in cash.`,
+        t`You only have **${money(guildId, senderData.wallet)}** in cash.`,
         { required: amount, available: senderData.wallet, senderId }
       );
     }
 
     const walletBefore = senderData.wallet;
     const senderNext = (senderData.wallet || 0) - amount;
-    const receiverNext = (receiverData.wallet || 0) + amount;
+    const taxPaid = Math.min(Math.max(0, Math.floor(Number(tax) || 0)), amount);
+    const receiverNext = (receiverData.wallet || 0) + amount - taxPaid;
 
     this.assertSafeBalance(senderNext, { operation: 'transfer.sender', senderId, amount });
     this.assertSafeBalance(receiverNext, { operation: 'transfer.receiver', receiverId, amount });
@@ -280,7 +283,7 @@ class EconomyService {
       throw createError(
         "Insufficient funds",
         ErrorTypes.VALIDATION,
-        t`You only have **$${balanceBefore.toLocaleString()}**.`,
+        t`You only have **${money(guildId, balanceBefore)}**.`,
         { required: amount, available: balanceBefore, reason }
       );
     }
@@ -313,7 +316,7 @@ class EconomyService {
       throw createError(
         "Insufficient cash",
         ErrorTypes.VALIDATION,
-        t`You only have **$${userData.wallet.toLocaleString()}** in cash.`,
+        t`You only have **${money(guildId, userData.wallet)}** in cash.`,
         { required: amount, available: userData.wallet }
       );
     }
@@ -323,7 +326,7 @@ class EconomyService {
       throw createError(
         "Bank capacity exceeded",
         ErrorTypes.VALIDATION,
-        t`Your bank can only hold **$${maxBank.toLocaleString()}**. You would exceed capacity by **$${(currentBank + amount - maxBank).toLocaleString()}**.`,
+        t`Your bank can only hold **${money(guildId, maxBank)}**. You would exceed capacity by **${money(guildId, (currentBank + amount - maxBank))}**.`,
         { capacity: maxBank, current: currentBank, requested: amount }
       );
     }
@@ -361,7 +364,7 @@ class EconomyService {
       throw createError(
         "Insufficient bank balance",
         ErrorTypes.VALIDATION,
-        t`You only have **$${bank.toLocaleString()}** in your bank.`,
+        t`You only have **${money(guildId, bank)}** in your bank.`,
         { required: amount, available: bank }
       );
     }

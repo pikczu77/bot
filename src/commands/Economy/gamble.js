@@ -1,15 +1,13 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
+import { createEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
-const BASE_WIN_CHANCE = 0.4;
 const CLOVER_WIN_BONUS = 0.1;
 const CHARM_WIN_BONUS = 0.08;
-const PAYOUT_MULTIPLIER = 2.0;
-const GAMBLE_COOLDOWN = 5 * 60 * 1000;
 
 export default {
     data: new SlashCommandBuilder()
@@ -31,6 +29,19 @@ export default {
             const guildId = interaction.guildId;
             const betAmount = interaction.options.getInteger("amount");
             const now = Date.now();
+
+            const { gamble } = (await getEconomySettings(guildId)).commands;
+            const GAMBLE_COOLDOWN = cooldownMs(gamble.cooldownMinutes);
+            const BASE_WIN_CHANCE = gamble.winPercent / 100;
+
+            if (gamble.maxBet > 0 && betAmount > gamble.maxBet) {
+                throw createError(
+                    "Bet above the limit",
+                    ErrorTypes.VALIDATION,
+                    t`The highest bet on this server is ${money(guildId, gamble.maxBet)}.`,
+                    { betAmount, maxBet: gamble.maxBet }
+                );
+            }
 
             const userData = await getEconomyData(client, guildId, userId);
             const lastGamble = userData.lastGamble || 0;
@@ -54,7 +65,7 @@ export default {
                 throw createError(
                     "Insufficient cash for gamble",
                     ErrorTypes.VALIDATION,
-                    t`You only have $${userData.wallet.toLocaleString()} cash, but you are trying to bet $${betAmount.toLocaleString()}.`,
+                    t`You only have ${money(guildId, userData.wallet)} cash, but you are trying to bet ${money(guildId, betAmount)}.`,
                     { required: betAmount, current: userData.wallet }
                 );
             }
@@ -83,20 +94,20 @@ export default {
             let resultEmbed;
 
             if (win) {
-                const amountWon = Math.floor(betAmount * PAYOUT_MULTIPLIER);
+                const amountWon = Math.floor(betAmount * gamble.payoutPercent / 100);
                 // Net change: the bet is replaced by the payout (bet was at stake, not pre-deducted)
                 cashChange = amountWon - betAmount;
 
                 resultEmbed = successEmbed(
                     t("🎉 You Won!"),
-                    t`You successfully gambled and turned your **$${betAmount.toLocaleString()}** bet into **$${amountWon.toLocaleString()}**!${cloverMessage}`,
+                    t`You successfully gambled and turned your **${money(guildId, betAmount)}** bet into **${money(guildId, amountWon)}**!${cloverMessage}`,
                 );
             } else {
 cashChange = -betAmount;
 
                 resultEmbed = warningEmbed(
                     t("💔 You Lost..."),
-                    t`The dice rolled against you. You lost your **$${betAmount.toLocaleString()}** bet.`,
+                    t`The dice rolled against you. You lost your **${money(guildId, betAmount)}** bet.`,
                 );
             }
 
@@ -109,7 +120,7 @@ userData.lastGamble = now;
 
             resultEmbed.addFields({
                 name: t("New Cash Balance"),
-                value: `$${newCash.toLocaleString()}`,
+                value: `${money(guildId, newCash)}`,
                 inline: true,
             });
 
@@ -123,7 +134,7 @@ userData.lastGamble = now;
                 });
             } else {
                 resultEmbed.setFooter({
-                    text: t`Next gamble available in 5 minutes. Base win chance: ${Math.round(BASE_WIN_CHANCE * 100)}%.`,
+                    text: t`Next gamble available in ${formatDuration(GAMBLE_COOLDOWN)}. Base win chance: ${Math.round(BASE_WIN_CHANCE * 100)}%.`,
                 });
             }
 

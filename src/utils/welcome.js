@@ -1,7 +1,12 @@
 // welcome.js
 
+import { EmbedBuilder } from 'discord.js';
+import { botConfig, getColor } from '../config/bot.js';
 import { logger } from './logger.js';
 import { t, trAny } from '../i18n/index.js';
+
+// Layouts of the welcome / goodbye message: the text alone, or the text inside an embed.
+export const GREETING_STYLES = ['text', 'embed'];
 
 const DEFAULT_TEMPLATES = {
     welcome: t('Welcome {user} to {server}!'),
@@ -70,6 +75,95 @@ export function formatWelcomeMessage(message, data) {
     }
 
     return result;
+}
+
+/**
+ * How the welcome ('welcome') or goodbye ('goodbye') message of a server is laid out, with
+ * the defaults filled in. `extras` are the embed's avatar, the user / member count / inviter
+ * fields and the footer with the date; an empty title means an embed without a title.
+ */
+export function getGreetingLayout(kind, config) {
+    const welcome = kind === 'welcome';
+    const embed = (welcome ? config?.welcomeEmbed : config?.leaveEmbed) ?? {};
+    const color = ['number', 'string'].includes(typeof embed.color) ? getColor(embed.color) : null;
+
+    return {
+        style: (welcome ? config?.welcomeStyle : config?.goodbyeStyle) === 'text' ? 'text' : 'embed',
+        title: typeof embed.title === 'string' ? embed.title : (welcome ? t('🎉 Welcome!') : t('👋 Goodbye')),
+        color: Number.isInteger(color) ? color : getColor(welcome ? 'success' : 'error'),
+        extras: (welcome ? config?.welcomeExtras : config?.goodbyeExtras) !== false
+    };
+}
+
+/**
+ * The channel.send() payload of a welcome or goodbye message, in the layout the server
+ * picked. Without the Embed Links permission the embed layout falls back to plain text.
+ */
+export function buildGreetingMessage(kind, config, { user, guild, member, invite = null, canEmbed = true }) {
+    const welcome = kind === 'welcome';
+    const data = { user, guild, member, invite };
+    const embedConfig = (welcome ? config.welcomeEmbed : config.leaveEmbed) ?? {};
+    const layout = getGreetingLayout(kind, config);
+
+    const text = formatWelcomeMessage(
+        (welcome ? config.welcomeMessage : config.leaveMessage)
+            || embedConfig.description
+            || (welcome ? botConfig.welcome?.defaultWelcomeMessage : botConfig.welcome?.defaultGoodbyeMessage)
+            || (welcome ? t('Welcome {user} to {server}!') : t('{user} has left the server.')),
+        data
+    );
+    const ping = Boolean(welcome ? config.welcomePing : config.goodbyePing);
+    // Only the person the message is about can be notified; roles and @everyone in the text never ping.
+    const allowedMentions = { parse: [], users: ping ? [user.id] : [] };
+    const image = welcome
+        ? config.welcomeImage || embedConfig.image?.url
+        : (typeof embedConfig.image === 'string' ? embedConfig.image : embedConfig.image?.url);
+
+    if (layout.style === 'text' || !canEmbed) {
+        const payload = { content: text.slice(0, 2000), allowedMentions };
+        if (image && canEmbed) {
+            payload.embeds = [new EmbedBuilder().setImage(image)];
+        }
+        return payload;
+    }
+
+    const embed = new EmbedBuilder()
+        .setColor(layout.color)
+        .setDescription(text.slice(0, 4096));
+
+    const title = formatWelcomeMessage(layout.title, data);
+    if (title) {
+        embed.setTitle(title.slice(0, 256));
+    }
+
+    if (layout.extras) {
+        const footer = embedConfig.footer
+            ? formatWelcomeMessage(embedConfig.footer, data)
+            : (welcome ? t`Welcome to ${guild.name}!` : t`Goodbye from ${guild.name}!`);
+
+        embed
+            .setThumbnail(user.displayAvatarURL())
+            .addFields(
+                { name: t('User'), value: `${user.tag} (${user.id})`, inline: true },
+                { name: t('Member Count'), value: guild.memberCount.toString(), inline: true }
+            )
+            .setTimestamp()
+            .setFooter({ text: footer });
+
+        if (welcome && invite?.inviter) {
+            embed.addFields({
+                name: t('Invited by'),
+                value: t`${invite.inviter} · **${invite.stats?.total ?? 0}** {1|invite|invites}`,
+                inline: true,
+            });
+        }
+    }
+
+    if (image) {
+        embed.setImage(image);
+    }
+
+    return { content: ping ? user.toString() : undefined, embeds: [embed], allowedMentions };
 }
 
 export function getDefaultWelcomeMessage() {

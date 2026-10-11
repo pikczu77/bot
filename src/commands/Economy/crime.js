@@ -1,13 +1,10 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
+import { createEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 import { t } from '../../i18n/index.js';
-
-const CRIME_COOLDOWN = 60 * 60 * 1000;
-const JAIL_TIME = 2 * 60 * 60 * 1000;
-const FINE_RATE = 0.2;
 
 const CRIME_TYPES = [
     { name: t("Pickpocketing"), min: 100, max: 500, risk: 0.3 },
@@ -41,6 +38,10 @@ export default {
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
+
+            const settings = (await getEconomySettings(guildId)).commands.crime;
+            const CRIME_COOLDOWN = cooldownMs(settings.cooldownMinutes);
+            const JAIL_TIME = cooldownMs(settings.jailMinutes);
 
             const userData = await getEconomyData(client, guildId, userId);
             const lastCrime = userData.cooldowns?.crime || 0;
@@ -81,9 +82,8 @@ export default {
             }
 
             const isSuccess = Math.random() > crime.risk;
-            const amountEarned = isSuccess
-                ? Math.floor(Math.random() * (crime.max - crime.min + 1)) + crime.min
-                : 0;
+            const haul = Math.floor(Math.random() * (crime.max - crime.min + 1)) + crime.min;
+            const amountEarned = isSuccess ? Math.floor(haul * settings.payoutPercent / 100) : 0;
 
             userData.cooldowns = userData.cooldowns || {};
             userData.cooldowns.crime = now;
@@ -95,23 +95,23 @@ export default {
                 
                 const embed = successEmbed(
                     t("🕵️ Crime Successful!"),
-                    t`You successfully committed ${crime.name} and earned **${amountEarned}** coins!`
+                    t`You successfully committed ${crime.name} and earned **${money(guildId, amountEarned)}**!`
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
             } else {
                 // Fine is based on the potential haul of the attempted crime
-                const potentialHaul = Math.floor((crime.min + crime.max) / 2);
-                const fine = Math.min(Math.floor(potentialHaul * FINE_RATE), userData.wallet || 0);
+                const potentialHaul = Math.floor((crime.min + crime.max) / 2 * settings.payoutPercent / 100);
+                const fine = Math.min(Math.floor(potentialHaul * settings.finePercent / 100), userData.wallet || 0);
                 userData.wallet = Math.max(0, (userData.wallet || 0) - fine);
-                userData.jailedUntil = now + JAIL_TIME;
+                userData.jailedUntil = JAIL_TIME > 0 ? now + JAIL_TIME : 0;
                 
                 await setEconomyData(client, guildId, userId, userData);
                 
                 const embed = warningEmbed(
                     t("🚔 Crime Failed!"),
                     t`You were caught while attempting ${crime.name} and have been sent to jail! ` +
-                    t`You were fined ${fine.toLocaleString()} coins and will be in jail for 2 hours.`
+                    t`You were fined ${money(guildId, fine)} and will be in jail for ${formatDuration(JAIL_TIME)}.`
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

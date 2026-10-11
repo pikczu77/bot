@@ -4,6 +4,7 @@ import { getEconomyData, setEconomyData, getMaxBankCapacity } from '../../../uti
 import { withErrorHandling, createError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { t } from '../../../i18n/index.js';
+import { money } from '../../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -68,7 +69,7 @@ export default {
                     embeds: [
                         buildUserErrorEmbed(
                             'validation',
-                            t`You tried to deposit more than you have. Depositing your remaining cash: **$${depositAmount.toLocaleString()}**`
+                            t`You tried to deposit more than you have. Depositing your remaining cash: **${money(guildId, depositAmount)}**`
                         )
                     ],
                     flags: MessageFlags.Ephemeral,
@@ -81,7 +82,7 @@ export default {
                 throw createError(
                     "Bank is full",
                     ErrorTypes.VALIDATION,
-                    t`Your bank is currently full (Max Capacity: $${maxBank.toLocaleString()}). Purchase a **Bank Upgrade** to increase your limit.`,
+                    t`Your bank is currently full (Max Capacity: ${money(guildId, maxBank)}). Purchase a **Bank Upgrade** to increase your limit.`,
                     { maxBank, currentBank: userData.bank, userId }
                 );
             }
@@ -95,7 +96,7 @@ export default {
                         embeds: [
                             buildUserErrorEmbed(
                                 'validation',
-                                t`You only had space for **$${depositAmount.toLocaleString()}** in your bank account (Max: $${maxBank.toLocaleString()}). The rest remains in your cash.`
+                                t`You only had space for **${money(guildId, depositAmount)}** in your bank account (Max: ${money(guildId, maxBank)}). The rest remains in your cash.`
                             )
                         ],
                         flags: MessageFlags.Ephemeral,
@@ -119,17 +120,17 @@ export default {
 
             const embed = successEmbed(
                 t('Deposit Successful'),
-                t`You successfully deposited **$${depositAmount.toLocaleString()}** into your bank.`
+                t`You successfully deposited **${money(guildId, depositAmount)}** into your bank.`
             )
                 .addFields(
                     {
                         name: t("New Cash Balance"),
-                        value: `$${userData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, userData.wallet)}`,
                         inline: true,
                     },
                     {
                         name: t("New Bank Balance"),
-                        value: `$${userData.bank.toLocaleString()} / $${maxBank.toLocaleString()}`,
+                        value: `${money(guildId, userData.bank)} / ${money(guildId, maxBank)}`,
                         inline: true,
                     },
                 );

@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, EmbedBuilder, MessageFlags } from 'discord.js';
-import { shopItems } from '../../../config/shop/items.js';
+import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
 import { getColor } from '../../../config/bot.js';
 import { logger } from '../../../utils/logger.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
@@ -8,6 +8,8 @@ import { t } from '../../../i18n/index.js';
 export default {
     async execute(interaction, config, client) {
         try {
+            const guildId = interaction.guildId;
+            const shopItems = getShopItems(await getEconomySettings(guildId), interaction.guild);
             const TARGET_MAX_PAGES = 3;
             const ITEMS_PER_PAGE = Math.max(1, Math.ceil(shopItems.length / TARGET_MAX_PAGES));
             const totalPages = Math.ceil(shopItems.length / ITEMS_PER_PAGE);
@@ -23,7 +25,7 @@ export default {
                 pageItems.forEach(item => {
                     embed.addFields({
                         name: `${item.name} (${item.id})`,
-                        value: t`**Type:** ${item.type}\n **Price:** $${item.price.toLocaleString()}\n${item.description}`,
+                        value: t`**Type:** ${item.type}\n **Price:** ${money(guildId, item.price)}\n${item.description}`,
                         inline: false,
                     });
                 });

@@ -9,6 +9,7 @@ import { findUsedInvite, totalInvites } from '../src/services/inviteService.js';
 import { matchResponder, normalizeTagName, renderTagText } from '../src/services/tagService.js';
 import { diffPlayers, normalizeAddress } from '../src/services/minecraftService.js';
 import { createCommandGroup } from '../src/utils/commandGroup.js';
+import { buildGreetingMessage } from '../src/utils/welcome.js';
 
 test('durations parse and print', () => {
   assert.equal(parseDuration('10m'), 600_000);
@@ -80,6 +81,52 @@ test('YouTube notification matches the requested layout', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('welcome and goodbye messages follow the layout the server picked', () => {
+  const guild = { id: '1', name: 'Klubik', memberCount: 321 };
+  const user = { id: '42', tag: 'dav', username: 'dav', displayAvatarURL: () => 'https://cdn.example/dav.png', toString: () => '<@42>' };
+  const context = { user, guild, member: { user }, invite: { inviter: { toString: () => '<@7>' }, stats: { total: 1 } } };
+  const config = { welcomeMessage: 'Cześć, {user}! Zajrzyj na <#5> @everyone', welcomePing: true, leaveMessage: '{username} wyszedł z {server}.' };
+
+  runWithLocale('pl', () => {
+    // Untouched settings keep the embed with every extra, as before the layout choice existed.
+    const classic = buildGreetingMessage('welcome', config, context);
+    const embed = classic.embeds[0].toJSON();
+    assert.equal(classic.content, '<@42>');
+    assert.deepEqual(classic.allowedMentions, { parse: [], users: ['42'] });
+    assert.equal(embed.title, '🎉 Witamy!');
+    assert.equal(embed.description, 'Cześć, <@42>! Zajrzyj na <#5> @everyone');
+    assert.equal(embed.color, 0x30d158);
+    assert.deepEqual(embed.fields.map((field) => field.name), ['Użytkownik', 'Liczba członków', 'Zaprosił(a)']);
+    assert.equal(embed.footer.text, 'Witaj na Klubik!');
+    assert.equal(embed.thumbnail.url, 'https://cdn.example/dav.png');
+    assert.ok(embed.timestamp);
+
+    // Plain text: the message itself is the content, and only the new member can be notified.
+    const text = buildGreetingMessage('welcome', { ...config, welcomeStyle: 'text' }, context);
+    assert.deepEqual(text, { content: 'Cześć, <@42>! Zajrzyj na <#5> @everyone', allowedMentions: { parse: [], users: ['42'] } });
+    assert.deepEqual(buildGreetingMessage('welcome', { ...config, welcomeStyle: 'text', welcomePing: false }, context).allowedMentions, { parse: [], users: [] });
+
+    const withImage = buildGreetingMessage('welcome', { ...config, welcomeStyle: 'text', welcomeImage: 'https://cdn.example/banner.png' }, context);
+    assert.deepEqual(withImage.embeds.map((entry) => entry.toJSON()), [{ image: { url: 'https://cdn.example/banner.png' } }]);
+
+    // A bare embed: own colour, no title, none of the extras.
+    const bare = buildGreetingMessage('welcome', { ...config, welcomeExtras: false, welcomePing: false, welcomeEmbed: { title: '', color: 0xff9f0a } }, context);
+    assert.deepEqual(bare.embeds[0].toJSON(), { color: 0xff9f0a, description: 'Cześć, <@42>! Zajrzyj na <#5> @everyone' });
+    assert.equal(bare.content, undefined);
+    assert.equal(buildGreetingMessage('welcome', { ...config, welcomeEmbed: { title: 'Hej {username}' } }, context).embeds[0].toJSON().title, 'Hej dav');
+
+    // Without the Embed Links permission the embed layout is sent as text instead of being lost.
+    const noEmbeds = buildGreetingMessage('welcome', { ...config, welcomeImage: 'https://cdn.example/banner.png' }, { ...context, canEmbed: false });
+    assert.deepEqual(noEmbeds, { content: 'Cześć, <@42>! Zajrzyj na <#5> @everyone', allowedMentions: { parse: [], users: ['42'] } });
+
+    const goodbye = buildGreetingMessage('goodbye', config, context);
+    assert.equal(goodbye.embeds[0].toJSON().title, '👋 Do zobaczenia');
+    assert.equal(goodbye.embeds[0].toJSON().footer.text, 'Żegnamy na Klubik!');
+    assert.equal(goodbye.embeds[0].toJSON().fields.length, 2);
+    assert.deepEqual(buildGreetingMessage('goodbye', { ...config, goodbyeStyle: 'text' }, context), { content: 'dav wyszedł z Klubik.', allowedMentions: { parse: [], users: [] } });
+  });
 });
 
 function automodConfig(overrides) {

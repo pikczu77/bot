@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import EconomyService from '../../services/economyService.js';
 import { t } from '../../i18n/index.js';
+import { getEconomySettings, money } from '../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -91,12 +92,17 @@ export default {
                 );
             }
 
+            const { payTaxPercent } = await getEconomySettings(guildId);
+            const tax = Math.floor(amount * payTaxPercent / 100);
+            const received = amount - tax;
+
             const result = await EconomyService.transferMoney(
                 client, 
                 guildId, 
                 senderId, 
                 receiver.id, 
-                amount
+                amount,
+                tax
             );
 
             const updatedSenderData = await getEconomyData(client, guildId, senderId);
@@ -104,19 +110,24 @@ export default {
 
             const embed = successEmbed(
                 t('Payment Successful'),
-                t`You successfully paid **${receiver.username}** the amount of **$${amount.toLocaleString()}**!`
+                t`You successfully paid **${receiver.username}** the amount of **${money(guildId, amount)}**!`
             )
                 .addFields(
                     {
                         name: t("Payment Amount"),
-                        value: `$${amount.toLocaleString()}`,
+                        value: `${money(guildId, amount)}`,
                         inline: true,
                     },
                     {
                         name: t("Your New Balance"),
-                        value: `$${updatedSenderData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, updatedSenderData.wallet)}`,
                         inline: true,
                     },
+                    ...(tax > 0 ? [{
+                        name: t`Transfer tax (${payTaxPercent}%)`,
+                        value: t`${money(guildId, tax)} - ${receiver.username} gets ${money(guildId, received)}`,
+                        inline: false,
+                    }] : []),
                 )
                 .setFooter({
                     text: t`Paid to ${receiver.tag}`,
@@ -136,10 +147,10 @@ export default {
             try {
                 const receiverEmbed = createEmbed({ 
                     title: t("Incoming Payment!"), 
-                    description: t`${interaction.user.username} paid you **$${amount.toLocaleString()}**.` 
+                    description: t`${interaction.user.username} paid you **${money(guildId, received)}**.` 
                 }).addFields({
                     name: t("Your New Cash"),
-                    value: `$${updatedReceiverData.wallet.toLocaleString()}`,
+                    value: `${money(guildId, updatedReceiverData.wallet)}`,
                     inline: true,
                 });
                 await receiver.send({ embeds: [receiverEmbed] });

@@ -20,6 +20,7 @@ import { logger } from '../../../utils/logger.js';
 import { TitanBotError, ErrorTypes, replyUserError } from '../../../utils/errorHandler.js';
 import { getEconomyPrefix } from '../../../utils/database.js';
 import { getEconomyData, addMoney, removeMoney, getMaxBankCapacity } from '../../../utils/economy.js';
+import { getEconomySettings, isValidCurrencySymbol, money, updateEconomySettings } from '../../../services/economySettings.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,7 +30,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function buildDashboardEmbed(guild, client) {
-    const currencySymbol = BotConfig.economy.currency.symbol;
+    const currencySymbol = (await getEconomySettings(guild.id)).currency.symbol;
     const currencyName = BotConfig.economy.currency.name;
 
     let totalInCirculation = 0;
@@ -63,10 +64,10 @@ async function buildDashboardEmbed(guild, client) {
         .setDescription(t`Manage the economy system for **${guild.name}**.\nSelect an option below to perform an action.`)
         .setColor(getColor('economy'))
         .addFields(
-            { name: t('💰 Total in Circulation'), value: `\`${currencySymbol}${totalInCirculation.toLocaleString()}\``, inline: true },
+            { name: t('💰 Total in Circulation'), value: money(guild.id, totalInCirculation), inline: true },
             { name: t('👥 Active Users'), value: `\`${userCount.toLocaleString()}\``, inline: true },
-            { name: t('📊 Average Balance'), value: `\`${currencySymbol}${avgBalance.toLocaleString()}\``, inline: true },
-            { name: t('💱 Currency Symbol'), value: `\`${currencySymbol}\``, inline: true },
+            { name: t('📊 Average Balance'), value: money(guild.id, avgBalance), inline: true },
+            { name: t('💱 Currency Symbol'), value: currencySymbol, inline: true },
             { name: t('📝 Currency Name'), value: `\`${currencyName}\``, inline: true },
         )
         .setFooter({ text: t('Dashboard closes after 10 minutes of inactivity') })
@@ -304,10 +305,8 @@ async function handleAddCurrency(selectInteraction, rootInteraction, guild, clie
 
     const { newBalance } = await addMoney(client, guild.id, userId, amount, type);
 
-    const currencySymbol = BotConfig.economy.currency.symbol;
-
     await submitted.reply({
-        embeds: [successEmbed(t('Currency Added'), t`Successfully added ${currencySymbol}${amount.toLocaleString()} to ${member.user.tag}'s ${type}.\n**New Balance:** ${currencySymbol}${newBalance.toLocaleString()}`)],
+        embeds: [successEmbed(t('Currency Added'), t`Successfully added ${money(guild.id, amount)} to ${member.user.tag}'s ${type}.\n**New Balance:** ${money(guild.id, newBalance)}`)],
         flags: MessageFlags.Ephemeral,
     });
 
@@ -401,10 +400,8 @@ async function handleRemoveCurrency(selectInteraction, rootInteraction, guild, c
 
     const { newBalance } = await removeMoney(client, guild.id, userId, amount, type);
 
-    const currencySymbol = BotConfig.economy.currency.symbol;
-
     await submitted.reply({
-        embeds: [successEmbed(t('Currency Removed'), t`Successfully removed ${currencySymbol}${amount.toLocaleString()} from ${member.user.tag}'s ${type}.\n**New Balance:** ${currencySymbol}${newBalance.toLocaleString()}`)],
+        embeds: [successEmbed(t('Currency Removed'), t`Successfully removed ${money(guild.id, amount)} from ${member.user.tag}'s ${type}.\n**New Balance:** ${money(guild.id, newBalance)}`)],
         flags: MessageFlags.Ephemeral,
     });
 
@@ -428,10 +425,10 @@ async function handleChangeCurrency(selectInteraction, rootInteraction, guild) {
         .setCustomId('currency_symbol')
         .setLabel(t('New Currency Symbol'))
         .setStyle(TextInputStyle.Short)
-        .setValue(BotConfig.economy.currency.symbol)
+        .setValue((await getEconomySettings(guild.id)).currency.symbol)
         .setPlaceholder('$')
         .setMinLength(1)
-        .setMaxLength(3)
+        .setMaxLength(64)
         .setRequired(true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(symbolInput));
@@ -449,28 +446,24 @@ async function handleChangeCurrency(selectInteraction, rootInteraction, guild) {
 
     const newSymbol = submitted.fields.getTextInputValue('currency_symbol').trim();
 
-    if (newSymbol.length === 0 || newSymbol.length > 3) {
-        await replyUserError(submitted, { type: ErrorTypes.VALIDATION, message: t('Currency symbol must be 1-3 characters long.') });
+    if (!isValidCurrencySymbol(newSymbol)) {
+        await replyUserError(submitted, { type: ErrorTypes.VALIDATION, message: t('The currency symbol can be a short text or one emoji, without @ and without line breaks.') });
         return;
     }
 
-    const success = await updateConfigFile(newSymbol, BotConfig.economy.currency.name);
-
-    if (!success) {
-        await replyUserError(submitted, { type: ErrorTypes.UNKNOWN, message: t('Could not update the config file. Please check the logs.') });
-        return;
-    }
+    await updateEconomySettings(guild.id, (settings) => { settings.currency.symbol = newSymbol; });
 
     await submitted.reply({
-        embeds: [successEmbed(t('Currency Symbol Updated'), t`Currency symbol changed to **${newSymbol}**.\n\n**Note:** The bot needs to be restarted for changes to take effect.`)],
+        embeds: [successEmbed(t('Currency Symbol Updated'), t`Currency symbol changed to ${newSymbol}`)],
         flags: MessageFlags.Ephemeral,
     });
 
     logger.info(`[ECONOMY_DASHBOARD] Currency symbol changed`, {
         adminId: submitted.user.id,
-        oldSymbol: BotConfig.economy.currency.symbol,
         newSymbol
     });
+
+    await refreshDashboard(rootInteraction, guild, submitted.client);
 }
 
 async function handleChangeName(selectInteraction, rootInteraction, guild) {

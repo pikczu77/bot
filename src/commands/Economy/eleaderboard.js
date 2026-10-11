@@ -4,6 +4,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { getEconomyPrefix } from '../../utils/database.js';
+import { getEconomySettings, money } from '../../services/economySettings.js';
 import { t } from '../../i18n/index.js';
 
 export default {
@@ -20,6 +21,7 @@ export default {
 
             logger.debug(`[ECONOMY] Leaderboard requested`, { guildId });
 
+            await getEconomySettings(guildId);
             const prefix = getEconomyPrefix(guildId);
 
             let allKeys = await client.db.list(prefix);
@@ -65,7 +67,7 @@ export default {
                 const emoji = rankEmoji[i] || `**#${rank}**`;
 
                 leaderboardEntries.push(
-                    `${emoji} <@${user.userId}> - 🏦 ${user.net_worth.toLocaleString()}`,
+                    `${emoji} <@${user.userId}> - 🏦 ${money(guildId, user.net_worth)}`,
                 );
             }
 

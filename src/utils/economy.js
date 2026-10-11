@@ -7,6 +7,7 @@ import { logger } from './logger.js';
 import { validateDiscordId, validateNumber } from './validation.js';
 import { DEFAULT_ECONOMY_DATA } from './constants.js';
 import { createError, ErrorTypes, wrapServiceBoundary } from './errorHandler.js';
+import { getEconomySettings } from '../services/economySettings.js';
 import { t } from '../i18n/index.js';
 
 const ECONOMY_CONFIG = BotConfig.economy || {};
@@ -65,9 +66,11 @@ export async function getEconomyData(client, guildId, userId) {
 
         const key = getEconomyKey(guildId, userId);
         const data = await client.db.get(key, {});
+        const settings = await getEconomySettings(guildId);
         const defaults = {
             ...DEFAULT_ECONOMY_DATA,
-            wallet: ECONOMY_CONFIG.startingBalance ?? DEFAULT_ECONOMY_DATA.wallet,
+            wallet: settings.startingWallet,
+            bank: settings.startingBank,
         };
         
         return normalizeEconomyData(data, defaults);
@@ -91,6 +94,26 @@ export async function setEconomyData(client, guildId, userId, data) {
         logger.error(`Error saving economy data for user ${userId}`, error);
         return false;
     }
+}
+
+const lastActivityReward = new Map(); // `${guildId}:${userId}` -> timestamp
+const ACTIVITY_MAP_LIMIT = 20000;
+
+/** Money for chatting (economy settings: activity). Returns the amount paid, 0 when none. */
+export async function payActivityReward(client, guildId, userId) {
+    const { activity } = await getEconomySettings(guildId);
+    if (!activity.enabled || activity.amount <= 0) return 0;
+
+    const key = `${guildId}:${userId}`;
+    const now = Date.now();
+    if (now - (lastActivityReward.get(key) ?? 0) < activity.cooldownSeconds * 1000) return 0;
+    if (lastActivityReward.size >= ACTIVITY_MAP_LIMIT) lastActivityReward.clear();
+    lastActivityReward.set(key, now);
+
+    const data = await getEconomyData(client, guildId, userId);
+    data.wallet = (data.wallet || 0) + activity.amount;
+    await setEconomyData(client, guildId, userId, data);
+    return activity.amount;
 }
 
 export async function updateBalance(client, guildId, userId, options = {}) {

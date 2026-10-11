@@ -1,15 +1,10 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, warningEmbed } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
-import { botConfig } from '../../config/bot.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-
-const COOLDOWN = 30 * 60 * 1000;
-const MIN_WIN = Number(botConfig?.economy?.begMin) || 50;
-const MAX_WIN = Number(botConfig?.economy?.begMax) || 200;
-const SUCCESS_CHANCE = 0.7;
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -22,6 +17,9 @@ export default {
             
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
+
+            const { beg } = (await getEconomySettings(guildId)).commands;
+            const COOLDOWN = cooldownMs(beg.cooldownMinutes);
 
             let userData = await getEconomyData(client, guildId, userId);
             
@@ -52,22 +50,22 @@ export default {
                 );
             }
 
-            const success = Math.random() < SUCCESS_CHANCE;
+            const success = Math.random() * 100 < beg.successPercent;
 
             let replyEmbed;
             let newCash = userData.wallet;
 
             if (success) {
                 const amountWon =
-                    Math.floor(Math.random() * (MAX_WIN - MIN_WIN + 1)) + MIN_WIN;
+                    Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min;
 
                 newCash += amountWon;
 
                 const successMessages = [
-                    t`A kind stranger drops **$${amountWon.toLocaleString()}** into your cup.`,
-                    t`You spotted an unattended wallet! You grab **$${amountWon.toLocaleString()}** and run.`,
-                    t`Someone took pity on you and gave you **$${amountWon.toLocaleString()}**!`,
-                    t`You found **$${amountWon.toLocaleString()}** under a park bench.`,
+                    t`A kind stranger drops **${money(guildId, amountWon)}** into your cup.`,
+                    t`You spotted an unattended wallet! You grab **${money(guildId, amountWon)}** and run.`,
+                    t`Someone took pity on you and gave you **${money(guildId, amountWon)}**!`,
+                    t`You found **${money(guildId, amountWon)}** under a park bench.`,
                 ];
 
                 replyEmbed = successEmbed(

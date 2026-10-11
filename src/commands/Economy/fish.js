@@ -1,13 +1,11 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
+import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
+import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 
-const FISH_COOLDOWN = 45 * 60 * 1000; 
-const BASE_MIN_REWARD = 300;
-const BASE_MAX_REWARD = 900;
 const FISHING_ROD_MULTIPLIER = 1.5;
 
 const FISH_TYPES = [
@@ -42,6 +40,9 @@ export default {
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
+
+            const { fish } = (await getEconomySettings(guildId)).commands;
+            const FISH_COOLDOWN = cooldownMs(fish.cooldownMinutes);
 
             const userData = await getEconomyData(client, guildId, userId);
             const lastFish = userData.lastFish || 0;
@@ -83,8 +84,8 @@ export default {
             }
 
             const baseEarned = Math.floor(
-                Math.random() * (BASE_MAX_REWARD - BASE_MIN_REWARD + 1)
-            ) + BASE_MIN_REWARD;
+                Math.random() * (fish.max - fish.min + 1)
+            ) + fish.min;
 
             let finalEarned = baseEarned;
             let multiplierMessage = "";
@@ -111,13 +112,13 @@ export default {
 
             const embed = createEmbed({
                 title: t('Fishing Success!'),
-                description: t`${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **$${finalEarned.toLocaleString()}**!${multiplierMessage}`,
+                description: t`${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **${money(guildId, finalEarned)}**!${multiplierMessage}`,
                 color: rarityColors[fishCaught.rarity]
             })
                 .addFields(
                     {
                         name: t("New Cash Balance"),
-                        value: `$${userData.wallet.toLocaleString()}`,
+                        value: `${money(guildId, userData.wallet)}`,
                         inline: true,
                     },
                     {
@@ -126,7 +127,7 @@ export default {
                         inline: true,
                     }
                 )
-                .setFooter({ text: t`Next fishing trip available in 45 minutes.` });
+                .setFooter({ text: t`Next fishing trip available in ${formatDuration(FISH_COOLDOWN)}.` });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
     }, { command: 'fish' })
