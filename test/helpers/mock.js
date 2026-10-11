@@ -56,7 +56,7 @@ export function mockMember(guild, user, { permissions = [], roles = [] } = {}) {
     roles: {
       cache: new Collection(roles.map((role) => [role.id, role])),
       highest: { position: 10, comparePositionTo: () => 1 },
-      add: async (role) => { member.roles.cache.set(role.id, role); },
+      add: async (roles) => { for (const role of [].concat(roles)) member.roles.cache.set(role.id, role); },
       remove: async (role) => { member.roles.cache.delete(role.id); },
     },
     displayAvatarURL: () => user.displayAvatarURL(),

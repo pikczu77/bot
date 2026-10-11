@@ -1181,16 +1181,20 @@ export function formatChannelName(template, variables) {
     const replacements = {
         '{username}': variables.username || t('User'),
         '{user_tag}': variables.userTag || 'User#0000',
+        '{displayName}': variables.displayName || t('User'),
         '{display_name}': variables.displayName || t('User'),
+        '{guildName}': variables.guildName || t('Server'),
         '{guild_name}': variables.guildName || t('Server'),
+        '{channelName}': variables.channelName || t('Voice Channel'),
         '{channel_name}': variables.channelName || t('Voice Channel')
     };
-    
+
     for (const [placeholder, value] of Object.entries(replacements)) {
         formatted = formatted.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), value);
     }
-    
-    formatted = formatted.replace(/[^\w\s-]/g, '').trim();
+
+    // Letters of any alphabet and emoji stay ("Pokój Zosi 🎮"); only characters Discord treats specially go.
+    formatted = formatted.replace(/[@#:`{}]/g, '').replace(/\s+/g, ' ').trim();
 formatted = formatted.substring(0, 100);
     
     return formatted || t('Voice Channel');

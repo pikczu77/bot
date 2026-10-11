@@ -7,6 +7,7 @@ import { getServerCounters, updateCounter } from '../services/serverstatsService
 import { setBirthday as dbSetBirthday } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 import { resolveMemberJoin } from '../services/inviteService.js';
+import { autoRoleDelayFor, autoRolesFor, getAutoRoleSettings } from '../services/autoRoleService.js';
 import { t } from '../i18n/index.js';
 
 export default {
@@ -43,25 +44,27 @@ export default {
             }
         }
         
-        if (welcomeConfig?.roleIds && welcomeConfig.roleIds.length > 0) {
-            const delay = welcomeConfig.autoRoleDelay || 0;
-            const singleRoleId = welcomeConfig.roleIds[0];
-            
-            if (delay > 0) {
-                const timeout = setTimeout(async () => {
-                    const role = guild.roles.cache.get(singleRoleId);
+        const autoRoles = getAutoRoleSettings(welcomeConfig ?? {});
+        const autoRoleIds = autoRolesFor(autoRoles, member);
+
+        if (autoRoleIds.length > 0) {
+            const delay = autoRoleDelayFor(autoRoles, member);
+            const assignAutoRoles = async () => {
+                for (const roleId of autoRoleIds) {
+                    const role = guild.roles.cache.get(roleId);
                     if (role) {
                         await assignRoleSafely(member, role);
                     }
-                }, delay * 1000);
+                }
+            };
+
+            if (delay > 0) {
+                const timeout = setTimeout(assignAutoRoles, delay * 1000);
                 if (typeof timeout.unref === 'function') {
                     timeout.unref();
                 }
             } else {
-                const role = guild.roles.cache.get(singleRoleId);
-                if (role) {
-                    await assignRoleSafely(member, role);
-                }
+                await assignAutoRoles();
             }
         }
         

@@ -4,7 +4,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { Collection } from 'discord.js';
-import { mockChannel, mockGuild, mockRole } from './helpers/mock.js';
+import { mockChannel, mockGuild, mockMember, mockRole, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { getAutomodConfig } from '../src/services/automodService.js';
 import { getGuildLocale } from '../src/services/languageService.js';
@@ -312,5 +312,185 @@ test('leveling settings and member levels are changed from the panel', async () 
     assert.equal((await getUserLevelData(client, guild.id, userId)).level, 0);
   } finally {
     client.db = memoryDb;
+  }
+});
+
+test('auto-roles for members and bots are saved, given on join and synced', async () => {
+  const { default: memberAdd } = await import('../src/events/guildMemberAdd.js');
+  const human = mockRole(guild, 'Człowiek');
+  const robot = mockRole(guild, 'Robot');
+  const booster = mockRole(guild, 'Booster', { managed: true });
+  const path = `/guilds/${guild.id}/autorole`;
+  const join = (name, extra = {}) => Object.assign(mockMember(guild, mockUser(name, extra.user), extra), { client });
+
+  const saved = await call('PATCH', path, {
+    body: { roleIds: [human.id], delaySeconds: 0, bots: { enabled: true, delay: false, different: true, roleIds: [robot.id] }, sync: { excludeRoleIds: [booster.id], daily: true } },
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  assert.deepEqual(saved.json, {
+    roleIds: [human.id],
+    delaySeconds: 0,
+    bots: { enabled: true, delay: false, different: true, roleIds: [robot.id] },
+    sync: { excludeRoleIds: [booster.id], daily: true, lastSyncAt: null },
+  });
+  const overview = (await call('GET', `/guilds/${guild.id}`)).json.modules;
+  assert.deepEqual(overview.autorole.roleIds, [human.id]);
+  assert.equal(overview.welcome.autoRoleId, human.id);
+
+  // On join: a person gets the join role, a bot gets the bot role.
+  const person = join('zosia');
+  const bot = join('dyno', { user: { bot: true } });
+  await memberAdd.execute(person);
+  await memberAdd.execute(bot);
+  assert.deepEqual([...person.roles.cache.keys()], [human.id]);
+  assert.deepEqual([...bot.roles.cache.keys()], [robot.id]);
+
+  await call('PATCH', path, { body: { bots: { enabled: false } } });
+  const quiet = join('mee6', { user: { bot: true } });
+  await memberAdd.execute(quiet);
+  assert.equal(quiet.roles.cache.size, 0);
+  await call('PATCH', path, { body: { bots: { enabled: true } } });
+
+  // Sync: everyone already on the server who misses a role, except members with an excluded role.
+  const late = join('kuba');
+  const skipped = join('wspierajacy', { roles: [booster] });
+  const before = (await call('GET', `${path}/sync`)).json;
+  assert.equal(before.running, false);
+  assert.ok(before.missing >= 2, JSON.stringify(before));
+
+  const started = await call('POST', `${path}/sync`);
+  assert.equal(started.status, 200, JSON.stringify(started.json));
+  assert.equal(started.json.total, before.missing);
+  let status = started.json;
+  for (let attempt = 0; status.running && attempt < 100; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    status = (await call('GET', `${path}/sync`)).json;
+  }
+  assert.deepEqual({ running: status.running, done: status.done, failed: status.failed, missing: status.missing }, { running: false, done: before.missing, failed: 0, missing: 0 });
+  assert.ok(status.lastSyncAt > 0);
+  assert.ok(late.roles.cache.has(human.id) && quiet.roles.cache.has(robot.id));
+  assert.ok(!skipped.roles.cache.has(human.id));
+  assert.ok(!guild.members.me.roles.cache.has(robot.id));
+
+  for (const body of [
+    { roleIds: [booster.id] },
+    { roleIds: ['123456789012345678'] },
+    { roleIds: [human.id, null] },
+    { roleIds: Array(6).fill(human.id) },
+    { delaySeconds: 601 },
+    { bots: { enabled: 'yes' } },
+    { sync: { excludeRoleIds: [guild.id] } },
+  ]) {
+    assert.equal((await call('PATCH', path, { body })).status, 400, JSON.stringify(body));
+  }
+  assert.equal((await call('PATCH', path, { body: { roleIds: [] } })).json.roleIds.length, 0);
+});
+
+test('ticket settings are saved and the panel message follows them', async () => {
+  const { getGuildConfig } = await import('../src/services/config/guildConfig.js');
+  const panel = mockChannel(guild, 'pomoc');
+  const category = mockChannel(guild, 'TICKETY', { type: 4 });
+  const staff = mockRole(guild, 'Obsługa');
+  const path = `/guilds/${guild.id}/tickets`;
+
+  const overview = (await call('GET', `/guilds/${guild.id}`)).json;
+  assert.equal(overview.modules.tickets.panelChannelId, null);
+  assert.equal(overview.modules.tickets.maxTicketsPerUser, 3);
+  assert.ok(overview.categories.some((entry) => entry.id === category.id));
+  assert.ok(!overview.channels.some((entry) => entry.id === category.id));
+
+  const saved = await call('PATCH', path, {
+    body: { panelChannelId: panel.id, panelMessage: ' Napisz do obsługi. ', buttonLabel: 'Otwórz zgłoszenie', categoryId: category.id, staffRoleId: staff.id, maxTicketsPerUser: 2, dmOnClose: false },
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  assert.equal(panel.sent.length, 1);
+  assert.equal(panel.sent[0].embeds[0].toJSON().description, 'Napisz do obsługi.');
+  const button = panel.sent[0].components[0].toJSON().components[0];
+  assert.deepEqual({ id: button.custom_id, label: button.label }, { id: 'create_ticket', label: 'Otwórz zgłoszenie' });
+  assert.deepEqual(
+    { posted: saved.json.panelPosted, max: saved.json.maxTicketsPerUser, dm: saved.json.dmOnClose, staff: saved.json.staffRoleId, category: saved.json.categoryId },
+    { posted: true, max: 2, dm: false, staff: staff.id, category: category.id },
+  );
+  const config = await getGuildConfig(client, guild.id);
+  assert.deepEqual(
+    { message: config.ticketPanelMessageId, category: config.ticketCategoryId, staff: config.ticketStaffRoleId, max: config.maxTicketsPerUser },
+    { message: panel.sent[0].id, category: category.id, staff: staff.id, max: 2 },
+  );
+
+  // Settings that are not part of the panel message leave it alone.
+  await call('PATCH', path, { body: { maxTicketsPerUser: 3, panelMessage: 'Napisz do obsługi.' } });
+  assert.equal(panel.sent.length, 1);
+
+  // A new text edits the message that is already posted.
+  let edited = null;
+  panel.messages.fetch = async (id) => panel.sent.find((message) => message.id === id) ?? null;
+  panel.sent[0].edit = async (payload) => { edited = payload; };
+  await call('PATCH', path, { body: { panelMessage: 'Nowa treść' } });
+  assert.equal(panel.sent.length, 1);
+  assert.equal(edited.embeds[0].toJSON().description, 'Nowa treść');
+
+  // Switching the panel off removes the message; the other settings stay.
+  let deleted = false;
+  panel.sent[0].delete = async () => { deleted = true; };
+  const off = await call('PATCH', path, { body: { panelChannelId: null } });
+  assert.deepEqual({ channel: off.json.panelChannelId, posted: off.json.panelPosted, staff: off.json.staffRoleId }, { channel: null, posted: false, staff: staff.id });
+  assert.ok(deleted);
+
+  for (const body of [
+    { panelChannelId: category.id },
+    { categoryId: panel.id },
+    { maxTicketsPerUser: 11 },
+    { buttonLabel: 'x'.repeat(81) },
+    { staffRoleId: '123456789012345678' },
+    { dmOnClose: 'no' },
+  ]) {
+    assert.equal((await call('PATCH', path, { body })).status, 400, JSON.stringify(body));
+  }
+});
+
+test('temporary voice channels are set up from the panel', async () => {
+  const { formatChannelName, getJoinToCreateConfig } = await import('../src/utils/database.js');
+  const voice = mockChannel(guild, 'Stwórz kanał', { type: 2 });
+  const path = `/guilds/${guild.id}/tempvoice`;
+  const pick = ({ enabled, triggerChannelId, nameTemplate, userLimit, bitrateKbps }) => ({ enabled, triggerChannelId, nameTemplate, userLimit, bitrateKbps });
+
+  const overview = (await call('GET', `/guilds/${guild.id}`)).json;
+  assert.deepEqual({ enabled: overview.modules.tempvoice.enabled, trigger: overview.modules.tempvoice.triggerChannelId }, { enabled: false, trigger: null });
+  assert.ok(overview.voiceChannels.some((entry) => entry.id === voice.id));
+  assert.equal((await call('PATCH', path, { body: { enabled: true } })).status, 400);
+
+  const saved = await call('PATCH', path, { body: { enabled: true, triggerChannelId: voice.id, nameTemplate: 'Pokój {displayName} 🎮', userLimit: 5, bitrateKbps: 96 } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  assert.deepEqual(pick(saved.json), { enabled: true, triggerChannelId: voice.id, nameTemplate: 'Pokój {displayName} 🎮', userLimit: 5, bitrateKbps: 96 });
+
+  const config = await getJoinToCreateConfig(client, guild.id);
+  assert.deepEqual(
+    { enabled: config.enabled, triggers: config.triggerChannels, options: config.channelOptions[voice.id] },
+    { enabled: true, triggers: [voice.id], options: { nameTemplate: 'Pokój {displayName} 🎮', userLimit: 5, bitrate: 96000 } },
+  );
+  // The room name keeps Polish letters and emoji.
+  assert.equal(formatChannelName(config.channelOptions[voice.id].nameTemplate, { displayName: 'Zośka' }), 'Pokój Zośka 🎮');
+
+  // "new": the bot creates the channel people join; the room settings carry over.
+  const created = await call('PATCH', path, { body: { triggerChannelId: 'new', newChannelName: '➕ Stwórz kanał' } });
+  assert.equal(created.status, 200, JSON.stringify(created.json));
+  const trigger = guild.channels.cache.get(created.json.triggerChannelId);
+  assert.notEqual(trigger.id, voice.id);
+  assert.deepEqual({ name: trigger.name, type: trigger.type }, { name: '➕ Stwórz kanał', type: 2 });
+  assert.deepEqual(pick(created.json), { enabled: true, triggerChannelId: trigger.id, nameTemplate: 'Pokój {displayName} 🎮', userLimit: 5, bitrateKbps: 96 });
+
+  assert.equal((await call('PATCH', path, { body: { enabled: false } })).json.enabled, false);
+  const removed = await call('PATCH', path, { body: { triggerChannelId: null } });
+  assert.deepEqual({ enabled: removed.json.enabled, trigger: removed.json.triggerChannelId }, { enabled: false, trigger: null });
+
+  for (const body of [
+    { triggerChannelId: channel.id },
+    { userLimit: 100 },
+    { bitrateKbps: 500 },
+    { nameTemplate: '#{username}' },
+    { nameTemplate: '{nick}' },
+    { nameTemplate: '' },
+  ]) {
+    assert.equal((await call('PATCH', path, { body })).status, 400, JSON.stringify(body));
   }
 });

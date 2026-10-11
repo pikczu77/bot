@@ -6,6 +6,7 @@ import { reconcileTicketPanels, reconcileVerificationPanels, reconcileReactionRo
 import { reconcileLevelRoles } from "../services/leveling/levelRoleSyncService.js";
 import { initRiffyAfterReady } from "../services/music/riffySetup.js";
 import { initFeatures } from "../services/features.js";
+import { startAutoRoleSchedule } from "../services/autoRoleService.js";
 
 export default {
   name: Events.ClientReady,
@@ -20,6 +21,7 @@ export default {
       startupLog(`Loaded ${client.commands.size} commands`);
 
       await initFeatures(client);
+      startAutoRoleSchedule(client);
 
       if (client.config?.features?.music) {
         initRiffyAfterReady(client);

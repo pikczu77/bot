@@ -1,6 +1,7 @@
 // panelApi.js — HTTP API for a web panel (pikczu.pl/bot) to read and change
-// module settings: language, welcome, auto-role, automod, invites, YouTube,
-// economy (settings, shop, balances), leveling (settings, rewards, member levels).
+// module settings: language, welcome, auto-roles, automod, invites, YouTube,
+// economy (settings, shop, balances), leveling (settings, rewards, member levels),
+// tickets (panel, staff, categories) and temporary voice channels (join to create).
 //
 // Disabled unless PANEL_API_KEY is set. Every request must send
 //   Authorization: Bearer <PANEL_API_KEY>
@@ -9,13 +10,17 @@
 
 import crypto from 'node:crypto';
 import express from 'express';
-import { ChannelType } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { TitanBotError } from '../utils/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { LOCALE_INFO, SUPPORTED_LOCALES, normalizeLocale, runWithLocale, tr, trAny } from '../i18n/index.js';
 import { getGuildLocale, setGuildLocale } from '../services/languageService.js';
 import { getGuildConfig, updateGuildConfig } from '../services/config/guildConfig.js';
-import { getEconomyPrefix, getWelcomeConfig, updateWelcomeConfig } from '../utils/database.js';
+import { getEconomyPrefix, getJoinToCreateConfig, getWelcomeConfig, saveJoinToCreateConfig, updateWelcomeConfig } from '../utils/database.js';
+import { getGuildTicketStats } from '../utils/database/tickets.js';
+import { buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_dashboard.js';
+import { validateChannelNameTemplate } from '../services/joinToCreateService.js';
+import { getAutoRoleSettings, getAutoRoleSyncStatus, startAutoRoleSync } from '../services/autoRoleService.js';
 import { GREETING_STYLES, getGreetingLayout } from '../utils/welcome.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import {
@@ -50,6 +55,9 @@ const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const TEXT_CHANNEL_TYPES = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement]);
+const MAX_AUTO_ROLES = 5;
+const DEFAULT_MAX_TICKETS = 3;
+const DEFAULT_VOICE_BITRATE = 64000;
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -68,6 +76,14 @@ function requireTextChannel(guild, channelId, field) {
   if (channelId === null) return null;
   const channel = SNOWFLAKE_RE.test(String(channelId)) ? guild.channels.cache.get(String(channelId)) : null;
   if (!channel || !TEXT_CHANNEL_TYPES.has(channel.type)) throw new ApiError(400, `${field}: not a text channel of this server`);
+  return channel.id;
+}
+
+// A channel of one exact type: a category or a voice channel (`label` names it in the error).
+function requireChannelOfType(guild, channelId, field, type, label) {
+  if (channelId === null) return null;
+  const channel = SNOWFLAKE_RE.test(String(channelId)) ? guild.channels.cache.get(String(channelId)) : null;
+  if (!channel || channel.type !== type) throw new ApiError(400, `${field}: not a ${label} of this server`);
   return channel.id;
 }
 
@@ -362,6 +378,178 @@ async function applyEconomy(client, guild, body) {
   return economyView(settings, guild, premiumRoleId);
 }
 
+// List of role IDs, each at most once. `assignable` also refuses roles the bot can never give (managed ones).
+function roleList(guild, value, field, max, { assignable = true } = {}) {
+  if (!Array.isArray(value) || value.length > max) throw new ApiError(400, `${field}: list of up to ${max} roles expected`);
+  return [...new Set(value.map((roleId, index) => {
+    if (assignable) return requireRole(guild, roleId ?? '', `${field}.${index}`);
+    const id = String(roleId ?? '');
+    if (!SNOWFLAKE_RE.test(id) || id === guild.id || !guild.roles.cache.has(id)) throw new ApiError(400, `${field}.${index}: not a role of this server`);
+    return id;
+  }))];
+}
+
+// Auto-roles live inside the welcome config; the panel edits them as a module of their own.
+async function applyAutoRole(client, guild, body) {
+  const updates = {};
+  if ('roleIds' in body) updates.roleIds = roleList(guild, body.roleIds, 'roleIds', MAX_AUTO_ROLES);
+  if ('delaySeconds' in body) updates.autoRoleDelay = integer(body.delaySeconds, 'delaySeconds', 0, 600);
+
+  if ('bots' in body) {
+    const bots = plainObject(body.bots, 'bots');
+    if ('enabled' in bots) updates.autoRoleBots = boolean(bots.enabled, 'bots.enabled');
+    if ('delay' in bots) updates.autoRoleBotDelay = boolean(bots.delay, 'bots.delay');
+    if ('different' in bots) updates.autoRoleBotsDifferent = boolean(bots.different, 'bots.different');
+    if ('roleIds' in bots) updates.autoRoleBotRoleIds = roleList(guild, bots.roleIds, 'bots.roleIds', MAX_AUTO_ROLES);
+  }
+
+  if ('sync' in body) {
+    const sync = plainObject(body.sync, 'sync');
+    if ('excludeRoleIds' in sync) updates.autoRoleSyncExclude = roleList(guild, sync.excludeRoleIds, 'sync.excludeRoleIds', 25, { assignable: false });
+    if ('daily' in sync) updates.autoRoleSyncDaily = boolean(sync.daily, 'sync.daily');
+  }
+
+  return getAutoRoleSettings(await updateWelcomeConfig(client, guild.id, updates));
+}
+
+async function ticketsView(client, guild) {
+  const config = await getGuildConfig(client, guild.id);
+  const stats = await getGuildTicketStats(guild.id);
+  return {
+    panelChannelId: config.ticketPanelChannelId ?? null,
+    panelPosted: Boolean(config.ticketPanelChannelId && config.ticketPanelMessageId),
+    panelTitle: tr('Support Tickets'),
+    panelMessage: config.ticketPanelMessage || tr('Click the button below to create a support ticket.'),
+    buttonLabel: config.ticketButtonLabel || tr('Create Ticket'),
+    categoryId: config.ticketCategoryId ?? null,
+    closedCategoryId: config.ticketClosedCategoryId ?? null,
+    staffRoleId: config.ticketStaffRoleId ?? null,
+    logsChannelId: config.ticketLogsChannelId ?? null,
+    transcriptChannelId: config.ticketTranscriptChannelId ?? null,
+    maxTicketsPerUser: config.maxTicketsPerUser ?? DEFAULT_MAX_TICKETS,
+    dmOnClose: config.dmOnClose !== false,
+    open: stats.openCount,
+    closed: stats.closedCount,
+  };
+}
+
+// Posts the ticket panel, or edits the one already posted. Returns the ID of the panel
+// message, null when the panel is switched off (the old message is removed then).
+async function syncTicketPanel(guild, previous, next, repost) {
+  const oldChannel = previous.ticketPanelChannelId ? guild.channels.cache.get(previous.ticketPanelChannelId) : null;
+  const oldMessage = oldChannel && previous.ticketPanelMessageId
+    ? await oldChannel.messages.fetch(previous.ticketPanelMessageId).catch(() => null)
+    : null;
+  const channel = next.ticketPanelChannelId ? guild.channels.cache.get(next.ticketPanelChannelId) : null;
+
+  if (!channel) {
+    await oldMessage?.delete().catch(() => {});
+    return null;
+  }
+
+  const permissions = guild.members.me ? channel.permissionsFor(guild.members.me) : null;
+  if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+    throw new ApiError(400, 'panelChannelId: the bot cannot send messages with embeds on that channel');
+  }
+
+  const payload = { embeds: [buildPanelEmbed(next)], components: [buildPanelButtonRow(next)] };
+  if (oldMessage && oldChannel.id === channel.id && !repost) {
+    await oldMessage.edit(payload);
+    return oldMessage.id;
+  }
+  const sent = await channel.send(payload);
+  await oldMessage?.delete().catch(() => {});
+  return sent.id;
+}
+
+async function applyTickets(client, guild, body) {
+  const current = await getGuildConfig(client, guild.id);
+  const updates = {};
+  const category = (field) => requireChannelOfType(guild, body[field], field, ChannelType.GuildCategory, 'category');
+
+  if ('panelChannelId' in body) updates.ticketPanelChannelId = requireTextChannel(guild, body.panelChannelId, 'panelChannelId');
+  if ('panelMessage' in body) updates.ticketPanelMessage = (optionalString(body.panelMessage, 'panelMessage', 2000) ?? '').trim() || null;
+  if ('buttonLabel' in body) updates.ticketButtonLabel = (optionalString(body.buttonLabel, 'buttonLabel', 80) ?? '').trim() || null;
+  if ('categoryId' in body) updates.ticketCategoryId = category('categoryId');
+  if ('closedCategoryId' in body) updates.ticketClosedCategoryId = category('closedCategoryId');
+  if ('staffRoleId' in body) updates.ticketStaffRoleId = requireRole(guild, body.staffRoleId, 'staffRoleId');
+  if ('logsChannelId' in body) updates.ticketLogsChannelId = requireTextChannel(guild, body.logsChannelId, 'logsChannelId');
+  if ('transcriptChannelId' in body) updates.ticketTranscriptChannelId = requireTextChannel(guild, body.transcriptChannelId, 'transcriptChannelId');
+  if ('maxTicketsPerUser' in body) updates.maxTicketsPerUser = integer(body.maxTicketsPerUser, 'maxTicketsPerUser', 1, 10);
+  if ('dmOnClose' in body) updates.dmOnClose = boolean(body.dmOnClose, 'dmOnClose');
+
+  // The panel message follows its settings: a new channel, text or button label is posted right away.
+  const next = { ...current, ...updates };
+  const repost = body.repost === true;
+  const panelChanged = ['ticketPanelChannelId', 'ticketPanelMessage', 'ticketButtonLabel']
+    .some((key) => key in updates && updates[key] !== (current[key] ?? null));
+  if (panelChanged || repost || (next.ticketPanelChannelId && !next.ticketPanelMessageId)) {
+    updates.ticketPanelMessageId = await syncTicketPanel(guild, current, next, repost);
+  }
+
+  await updateGuildConfig(client, guild.id, updates);
+  return ticketsView(client, guild);
+}
+
+const maxBitrateKbps = (guild) => Math.floor((guild.maximumBitrate ?? 96000) / 1000);
+
+// The bot supports one "join to create" channel per server; settings of that channel are shown flat.
+function tempVoiceView(config, guild) {
+  const triggerChannelId = config.triggerChannels.find((id) => guild.channels.cache.has(id)) ?? null;
+  const options = (triggerChannelId && config.channelOptions?.[triggerChannelId]) || {};
+  return {
+    enabled: Boolean(config.enabled && triggerChannelId),
+    triggerChannelId,
+    nameTemplate: trAny(options.nameTemplate || config.channelNameTemplate),
+    userLimit: options.userLimit ?? config.userLimit ?? 0,
+    bitrateKbps: Math.round((options.bitrate ?? config.bitrate ?? DEFAULT_VOICE_BITRATE) / 1000),
+    maxBitrateKbps: maxBitrateKbps(guild),
+    active: Object.keys(config.temporaryChannels ?? {}).filter((id) => guild.channels.cache.has(id)).length,
+  };
+}
+
+async function applyTempVoice(client, guild, body) {
+  const config = await getJoinToCreateConfig(client, guild.id);
+  let triggerChannelId = config.triggerChannels.find((id) => guild.channels.cache.has(id)) ?? null;
+  const options = { ...(triggerChannelId ? config.channelOptions?.[triggerChannelId] : null) };
+
+  if ('nameTemplate' in body) {
+    const template = (optionalString(body.nameTemplate, 'nameTemplate', 100) ?? '').trim();
+    try {
+      validateChannelNameTemplate(template);
+    } catch (error) {
+      throw new ApiError(400, `nameTemplate: ${error.userMessage || error.message}`);
+    }
+    options.nameTemplate = template;
+  }
+  if ('userLimit' in body) options.userLimit = integer(body.userLimit, 'userLimit', 0, 99);
+  if ('bitrateKbps' in body) options.bitrate = integer(body.bitrateKbps, 'bitrateKbps', 8, maxBitrateKbps(guild)) * 1000;
+
+  // "new" makes the bot create the channel people join; an ID picks an existing voice channel.
+  if (body.triggerChannelId === 'new') {
+    const parent = 'categoryId' in body ? requireChannelOfType(guild, body.categoryId, 'categoryId', ChannelType.GuildCategory, 'category') : null;
+    const name = (optionalString(body.newChannelName ?? null, 'newChannelName', 100) ?? '').trim() || tr('Join to Create');
+    const created = await guild.channels.create({ name, type: ChannelType.GuildVoice, parent: parent ?? undefined, reason: 'Panel: join to create channel' });
+    triggerChannelId = created.id;
+  } else if ('triggerChannelId' in body) {
+    triggerChannelId = requireChannelOfType(guild, body.triggerChannelId, 'triggerChannelId', ChannelType.GuildVoice, 'voice channel');
+  }
+
+  const enabled = 'enabled' in body ? boolean(body.enabled, 'enabled') : (config.enabled || 'triggerChannelId' in body);
+  if (enabled && !triggerChannelId && 'enabled' in body) throw new ApiError(400, 'triggerChannelId: choose a voice channel before enabling temporary channels');
+
+  config.triggerChannels = triggerChannelId ? [triggerChannelId] : [];
+  config.channelOptions = triggerChannelId ? { [triggerChannelId]: options } : {};
+  config.enabled = Boolean(enabled && triggerChannelId);
+  // Kept at the top level too: rooms created under an earlier trigger channel fall back to these.
+  if (options.nameTemplate) config.channelNameTemplate = options.nameTemplate;
+  if (options.userLimit !== undefined) config.userLimit = options.userLimit;
+  if (options.bitrate) config.bitrate = options.bitrate;
+
+  if (!(await saveJoinToCreateConfig(client, guild.id, config))) throw new Error('Could not save the temporary channel settings');
+  return tempVoiceView(config, guild);
+}
+
 function requireUserId(value) {
   if (!SNOWFLAKE_RE.test(String(value))) throw new ApiError(400, 'userId: Discord user ID expected');
   return String(value);
@@ -563,6 +751,14 @@ export function createPanelRouter(client) {
       .filter((channel) => TEXT_CHANNEL_TYPES.has(channel.type))
       .sort((a, b) => a.rawPosition - b.rawPosition)
       .map((channel) => ({ id: channel.id, name: channel.name, parent: channel.parent?.name ?? null })),
+    voiceChannels: [...guild.channels.cache.values()]
+      .filter((channel) => channel.type === ChannelType.GuildVoice)
+      .sort((a, b) => a.rawPosition - b.rawPosition)
+      .map((channel) => ({ id: channel.id, name: channel.name, parent: channel.parent?.name ?? null })),
+    categories: [...guild.channels.cache.values()]
+      .filter((channel) => channel.type === ChannelType.GuildCategory)
+      .sort((a, b) => a.rawPosition - b.rawPosition)
+      .map((channel) => ({ id: channel.id, name: channel.name })),
     roles: [...guild.roles.cache.values()]
       .filter((role) => role.id !== guild.id)
       .sort((a, b) => b.position - a.position)
@@ -574,6 +770,9 @@ export function createPanelRouter(client) {
       youtube: (await getFeeds(guild.id)).map(feedView),
       economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId),
       leveling: levelingView(await getLevelingConfig(client, guild.id)),
+      autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
+      tickets: await ticketsView(client, guild),
+      tempvoice: tempVoiceView(await getJoinToCreateConfig(client, guild.id), guild),
     },
   })));
 
@@ -584,6 +783,21 @@ export function createPanelRouter(client) {
   }));
 
   router.patch('/guilds/:guildId/welcome', route(({ guild, body }) => applyWelcome(client, guild, body)));
+
+  router.patch('/guilds/:guildId/autorole', route(({ guild, body }) => applyAutoRole(client, guild, body)));
+
+  // How many members miss a join role, and the progress of a running sync.
+  router.get('/guilds/:guildId/autorole/sync', route(({ guild }) => getAutoRoleSyncStatus(client, guild)));
+
+  // Gives the join roles to every member who misses them; the work continues after the answer.
+  router.post('/guilds/:guildId/autorole/sync', route(async ({ guild }) => {
+    if (await startAutoRoleSync(client, guild)) logger.info(`Panel: auto-role sync started in guild ${guild.id}`);
+    return getAutoRoleSyncStatus(client, guild);
+  }));
+
+  router.patch('/guilds/:guildId/tickets', route(({ guild, body }) => applyTickets(client, guild, body)));
+
+  router.patch('/guilds/:guildId/tempvoice', route(({ guild, body }) => applyTempVoice(client, guild, body)));
 
   router.patch('/guilds/:guildId/automod', route(({ guild, body }) => applyAutomod(guild, body)));
 

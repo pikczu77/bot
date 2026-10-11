@@ -80,14 +80,14 @@ async function persistPanelMessageId(client, guildId, guildConfig, messageId) {
     }
 }
 
-function buildPanelEmbed(config) {
+export function buildPanelEmbed(config) {
     return new EmbedBuilder()
         .setTitle(t('Support Tickets'))
         .setDescription(config.ticketPanelMessage || t('Click the button below to create a support ticket.'))
         .setColor(getColor('info'));
 }
 
-function buildPanelButtonRow(config) {
+export function buildPanelButtonRow(config) {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('create_ticket')
