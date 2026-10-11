@@ -98,43 +98,14 @@ TitanBot offers a complete suite of tools for Discord server management and comm
 For a detailed step-by-step setup guide, watch our comprehensive video tutorial:
 [**TitanBot Setup Tutorial**](https://www.youtube.com/@TouchDisc)
 
-## Docker Deployment (Recommended)
-
-TitanBot is fully containerized for easy deployment.
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/codebymitch/TitanBot.git
-   cd TitanBot
-   ```
-
-2. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   ```
-   Set at minimum `DISCORD_TOKEN`, `CLIENT_ID`, and `GUILD_ID`. Docker Compose also reads `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` from `.env` (defaults: `titanbot` / `password` / `titanbot`).
-
-3. **Build and start the containers:**
-   ```bash
-   docker compose up -d --build
-   ```
-
-4. **Check status:**
-   ```bash
-   docker compose ps
-   curl http://localhost:3000/health
-   ```
-
-This starts the bot and PostgreSQL. The compose file sets `POSTGRES_SSL=false` and `AUTO_MIGRATE=true` for the bundled database. Music uses public Lavalink v4 nodes from `lavalink/nodes.json` by default.
-
-### Music
+## Music
 
 Music uses [Lavalink v4](https://github.com/lavalink-devs/Lavalink) via [Riffy](https://github.com/riffy-rb/riffy), similar to [Musicify](https://github.com/codebymitch/Musicify).
 
 1. By default, the bot loads multiple public v4 SSL nodes from [`lavalink/nodes.json`](lavalink/nodes.json) (sourced from [lavalink.darrennathanael.com](https://lavalink.darrennathanael.com/SSL/Lavalink-SSL/)). Edit that file to add or remove nodes.
-2. To self-host Lavalink instead, run `docker compose --profile local-lavalink up -d` and set single-node env vars in `.env`:
+2. To self-host Lavalink instead, start your own Lavalink v4 server (sample configuration: [`lavalink/application.yml`](lavalink/application.yml)) and set single-node env vars in `.env`:
    ```env
-   LAVALINK_HOST=lavalink
+   LAVALINK_HOST=localhost
    LAVALINK_PORT=2333
    LAVALINK_PASSWORD=youshallnotpass
    LAVALINK_SECURE=false
@@ -142,14 +113,6 @@ Music uses [Lavalink v4](https://github.com/lavalink-devs/Lavalink) via [Riffy](
    Remove or rename `lavalink/nodes.json` so the bot falls back to those env vars.
 3. Override nodes inline with `LAVALINK_NODES` (JSON array) or point at another file with `LAVALINK_NODES_FILE`.
 4. Use `/play <song>` from a voice channel, or `/join` to connect without playing. Prefix shortcuts: `join`, `np`, `leave`, `pause`, `resume`, `skip`, `stop`, `volume <0-100>`, or `music <subcommand>`. Use `/nowplaying` and `/queue` for status; `/music` for loop, shuffle, seek, and other controls.
-
-### Using GitHub Container Registry
-
-The bot is automatically published to GitHub Container Registry on every push to main.
-
-```bash
-docker pull ghcr.io/codebymitch/titanbot:main
-```
 
 <a name="manual-installation-steps"></a>
 ## Manual Installation Steps

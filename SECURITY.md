@@ -31,7 +31,7 @@ If you found a problem in your self-hosted instance that appears to be due to mi
 ## What to include in your report
 - Component affected (e.g., database migration, command parser, OAuth).
 - Clear, minimal steps to reproduce.
-- Environment: commit SHA, release tag, Docker image tag, or version.
+- Environment: commit SHA, release tag, or version.
 - Whether the issue was observed on a self-hosted deployment (and the deployment configuration).
 - PoC (script, HTTP request, logs, screenshots) — sanitize secrets before sharing.
 - Impact (data exposure, privilege escalation, RCE, etc.).
@@ -46,7 +46,7 @@ If you operate a self-hosted TitanBot instance and suffer a security incident:
 - The maintainers can only fix vulnerabilities in upstream code; we cannot rotate tokens, restore data, or remediate other hosts' deployments.
 
 ## Scope
-- In-scope: this repository's code, authentication flows, webhooks provided by this project, and the intended deployment artifacts (Dockerfiles, scripts).
+- In-scope: this repository's code, authentication flows, webhooks provided by this project, and the intended deployment artifacts (scripts).
 - Out-of-scope: third-party services (Discord itself, hosted DB providers), and instances you do not own without owner consent.
 
 ## Maintenance & Hardening advice for self-hosters (recommended defaults)

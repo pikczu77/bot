@@ -14,7 +14,7 @@ Before starting large features, open an issue or discuss in the [support server]
 
 ### Prerequisites
 
-- **Node.js 20+** (Docker and CI use Node 20)
+- **Node.js 20+**
 - **PostgreSQL** (recommended for development; the bot can fall back to in-memory storage if PostgreSQL is unavailable)
 - A **Discord bot application** with the intents listed in [README.md](README.md#required-bot-intents)
 
@@ -38,8 +38,6 @@ Before starting large features, open an issue or discuss in the [support server]
    ```bash
    npm start
    ```
-
-For Docker-based setup, see [README.md](README.md#docker-deployment-recommended).
 
 ## Development Workflow
 
