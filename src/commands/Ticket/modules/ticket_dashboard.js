@@ -80,11 +80,24 @@ async function persistPanelMessageId(client, guildId, guildConfig, messageId) {
     }
 }
 
+const PANEL_BUTTON_STYLES = {
+    primary: ButtonStyle.Primary,
+    secondary: ButtonStyle.Secondary,
+    success: ButtonStyle.Success,
+    danger: ButtonStyle.Danger,
+};
+export const TICKET_BUTTON_STYLES = Object.keys(PANEL_BUTTON_STYLES);
+// Colour names the dashboard form accepts: English ones and those of the server's language.
+const BUTTON_STYLE_NAMES = { primary: 'blue', secondary: 'gray', success: 'green', danger: 'red' };
+const localButtonStyleNames = () => ({ primary: t('blue'), secondary: t('gray'), success: t('green'), danger: t('red') });
+export const TICKET_PANEL_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+// Title, colour of the side bar and colour of the button come from the settings; unset ones keep the defaults.
 export function buildPanelEmbed(config) {
     return new EmbedBuilder()
-        .setTitle(t('Support Tickets'))
+        .setTitle(config.ticketPanelTitle || t('Support Tickets'))
         .setDescription(config.ticketPanelMessage || t('Click the button below to create a support ticket.'))
-        .setColor(getColor('info'));
+        .setColor(getColor(TICKET_PANEL_COLOR_RE.test(config.ticketPanelColor ?? '') ? config.ticketPanelColor : 'info'));
 }
 
 export function buildPanelButtonRow(config) {
@@ -92,7 +105,7 @@ export function buildPanelButtonRow(config) {
         new ButtonBuilder()
             .setCustomId('create_ticket')
             .setLabel(config.ticketButtonLabel || t('Create Ticket'))
-            .setStyle(ButtonStyle.Primary)
+            .setStyle(PANEL_BUTTON_STYLES[config.ticketButtonStyle] ?? ButtonStyle.Primary)
             .setEmoji('📩'),
     );
 }
@@ -190,6 +203,11 @@ function buildSelectMenu(guildId) {
                 .setDescription(t('Change the label on the Create Ticket button'))
                 .setValue('button_label')
                 .setEmoji('🏷️'),
+            new StringSelectMenuOptionBuilder()
+                .setLabel(t('Edit Panel Title and Colors'))
+                .setDescription(t('Change the title, the color of the panel and the color of the button'))
+                .setValue('panel_look')
+                .setEmoji('🎨'),
             new StringSelectMenuOptionBuilder()
                 .setLabel(t('Change Open Tickets Category'))
                 .setDescription(t('Category where new tickets are created'))
@@ -299,6 +317,9 @@ export default {
                             break;
                         case 'button_label':
                             await handleButtonLabel(selectInteraction, interaction, guildConfig, guildId, client);
+                            break;
+                        case 'panel_look':
+                            await handlePanelLook(selectInteraction, interaction, guildConfig, guildId, client);
                             break;
                         case 'staff_role':
                             await handleStaffRole(selectInteraction, interaction, guildConfig, guildId, client);
@@ -445,6 +466,88 @@ async function handleButtonLabel(selectInteraction, rootInteraction, guildConfig
                         ? t('\nThe live ticket panel button has also been updated.')
                         : t('\n> **Note:** The live panel could not be located. Use **Repost Panel** on the dashboard to restore it.')
                 }`,
+            ),
+        ],
+        flags: MessageFlags.Ephemeral,
+    });
+
+    await refreshDashboard(rootInteraction, guildConfig, guildId, client);
+}
+
+async function handlePanelLook(selectInteraction, rootInteraction, guildConfig, guildId, client) {
+    const styleNames = localButtonStyleNames();
+    const modal = new ModalBuilder()
+        .setCustomId('ticket_cfg_panel_look')
+        .setTitle(t('🎨 Edit Panel Title and Colors'))
+        .addComponents(
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId('panel_title_input')
+                    .setLabel(t('Panel Title'))
+                    .setStyle(TextInputStyle.Short)
+                    .setValue(guildConfig.ticketPanelTitle || t('Support Tickets'))
+                    .setMaxLength(256)
+                    .setRequired(false),
+            ),
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId('panel_color_input')
+                    .setLabel(t('Panel Color (hex, for example #0A84FF)'))
+                    .setStyle(TextInputStyle.Short)
+                    .setValue(guildConfig.ticketPanelColor || '#0A84FF')
+                    .setMaxLength(7)
+                    .setRequired(false),
+            ),
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId('button_style_input')
+                    .setLabel(t('Button Color: blue, gray, green or red'))
+                    .setStyle(TextInputStyle.Short)
+                    .setValue(styleNames[guildConfig.ticketButtonStyle] || styleNames.primary)
+                    .setMaxLength(12)
+                    .setRequired(false),
+            ),
+        );
+
+    await selectInteraction.showModal(modal);
+
+    const submitted = await selectInteraction
+        .awaitModalSubmit({
+            filter: i =>
+                i.customId === 'ticket_cfg_panel_look' && i.user.id === selectInteraction.user.id,
+            time: 120_000,
+        })
+        .catch(() => null);
+
+    if (!submitted) return;
+
+    const newTitle = submitted.fields.getTextInputValue('panel_title_input').trim();
+    const newColor = submitted.fields.getTextInputValue('panel_color_input').trim();
+    const styleInput = submitted.fields.getTextInputValue('button_style_input').trim().toLowerCase();
+    const newStyle = styleInput ? TICKET_BUTTON_STYLES.find(style => [style, BUTTON_STYLE_NAMES[style], styleNames[style]].includes(styleInput)) : 'primary';
+
+    if ((newColor && !TICKET_PANEL_COLOR_RE.test(newColor)) || !newStyle) {
+        await replyUserError(submitted, {
+            type: ErrorTypes.VALIDATION,
+            message: t('Enter the panel color as hex (for example `#0A84FF`) and the button color as blue, gray, green or red.'),
+        });
+        return;
+    }
+
+    guildConfig.ticketPanelTitle = newTitle || null;
+    guildConfig.ticketPanelColor = newColor ? newColor.toLowerCase() : null;
+    guildConfig.ticketButtonStyle = newStyle;
+    await setGuildConfig(client, guildId, guildConfig);
+
+    const panelUpdated = await updateLivePanel(client, rootInteraction.guild, guildConfig, guildId);
+
+    await submitted.reply({
+        embeds: [
+            successEmbed(
+                t('✅ Panel Look Updated'),
+                panelUpdated
+                    ? t('The live ticket panel has also been refreshed.')
+                    : t('> **Note:** The live panel could not be located. Use **Repost Panel** on the dashboard to restore it.'),
             ),
         ],
         flags: MessageFlags.Ephemeral,
@@ -954,6 +1057,9 @@ async function handleDeleteSystem(btnInteraction, rootInteraction, guildConfig, 
         'ticketClosedCategoryId',
         'ticketPanelMessage',
         'ticketButtonLabel',
+        'ticketPanelTitle',
+        'ticketPanelColor',
+        'ticketButtonStyle',
         'maxTicketsPerUser',
         'dmOnClose',
     ];

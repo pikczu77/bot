@@ -1,7 +1,8 @@
 // panelApi.js — HTTP API for a web panel (pikczu.pl/bot) to read and change
 // module settings: language, welcome, auto-roles, automod, invites, YouTube,
 // economy (settings, shop, balances), leveling (settings, rewards, member levels),
-// tickets (panel, staff, categories) and temporary voice channels (join to create).
+// tickets (panel and its look, staff, categories) and temporary voice channels (join to create,
+// message with the control buttons).
 //
 // Disabled unless PANEL_API_KEY is set. Every request must send
 //   Authorization: Bearer <PANEL_API_KEY>
@@ -18,8 +19,10 @@ import { getGuildLocale, setGuildLocale } from '../services/languageService.js';
 import { getGuildConfig, updateGuildConfig } from '../services/config/guildConfig.js';
 import { getEconomyPrefix, getJoinToCreateConfig, getWelcomeConfig, saveJoinToCreateConfig, updateWelcomeConfig } from '../utils/database.js';
 import { getGuildTicketStats } from '../utils/database/tickets.js';
-import { buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_dashboard.js';
+import { TICKET_BUTTON_STYLES, buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_dashboard.js';
 import { validateChannelNameTemplate } from '../services/joinToCreateService.js';
+import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
+import { getColor } from '../config/bot.js';
 import { getAutoRoleSettings, getAutoRoleSyncStatus, startAutoRoleSync } from '../services/autoRoleService.js';
 import { GREETING_STYLES, getGreetingLayout } from '../utils/welcome.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
@@ -92,6 +95,19 @@ function requireRole(guild, roleId, field) {
   const role = SNOWFLAKE_RE.test(String(roleId)) ? guild.roles.cache.get(String(roleId)) : null;
   if (!role || role.id === guild.id || role.managed) throw new ApiError(400, `${field}: not an assignable role of this server`);
   return role.id;
+}
+
+// The bot must be able to post a message with an embed on a channel that holds one of its panels.
+function requireEmbedAccess(guild, channel, field) {
+  const permissions = guild.members.me ? channel.permissionsFor(guild.members.me) : null;
+  if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+    throw new ApiError(400, `${field}: the bot cannot send messages with embeds on that channel`);
+  }
+}
+
+function hexColorString(value, field) {
+  if (typeof value !== 'string' || !HEX_COLOR_RE.test(value)) throw new ApiError(400, `${field}: colour like #30d158 expected`);
+  return value.toLowerCase();
 }
 
 function optionalString(value, field, max) {
@@ -418,7 +434,9 @@ async function ticketsView(client, guild) {
   return {
     panelChannelId: config.ticketPanelChannelId ?? null,
     panelPosted: Boolean(config.ticketPanelChannelId && config.ticketPanelMessageId),
-    panelTitle: tr('Support Tickets'),
+    panelTitle: config.ticketPanelTitle || tr('Support Tickets'),
+    panelColor: HEX_COLOR_RE.test(config.ticketPanelColor ?? '') ? config.ticketPanelColor : hexColor(getColor('info')),
+    buttonStyle: TICKET_BUTTON_STYLES.includes(config.ticketButtonStyle) ? config.ticketButtonStyle : TICKET_BUTTON_STYLES[0],
     panelMessage: config.ticketPanelMessage || tr('Click the button below to create a support ticket.'),
     buttonLabel: config.ticketButtonLabel || tr('Create Ticket'),
     categoryId: config.ticketCategoryId ?? null,
@@ -447,10 +465,7 @@ async function syncTicketPanel(guild, previous, next, repost) {
     return null;
   }
 
-  const permissions = guild.members.me ? channel.permissionsFor(guild.members.me) : null;
-  if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-    throw new ApiError(400, 'panelChannelId: the bot cannot send messages with embeds on that channel');
-  }
+  requireEmbedAccess(guild, channel, 'panelChannelId');
 
   const payload = { embeds: [buildPanelEmbed(next)], components: [buildPanelButtonRow(next)] };
   if (oldMessage && oldChannel.id === channel.id && !repost) {
@@ -470,6 +485,9 @@ async function applyTickets(client, guild, body) {
   if ('panelChannelId' in body) updates.ticketPanelChannelId = requireTextChannel(guild, body.panelChannelId, 'panelChannelId');
   if ('panelMessage' in body) updates.ticketPanelMessage = (optionalString(body.panelMessage, 'panelMessage', 2000) ?? '').trim() || null;
   if ('buttonLabel' in body) updates.ticketButtonLabel = (optionalString(body.buttonLabel, 'buttonLabel', 80) ?? '').trim() || null;
+  if ('panelTitle' in body) updates.ticketPanelTitle = (optionalString(body.panelTitle, 'panelTitle', 256) ?? '').trim() || null;
+  if ('panelColor' in body) updates.ticketPanelColor = body.panelColor === null ? null : hexColorString(body.panelColor, 'panelColor');
+  if ('buttonStyle' in body) updates.ticketButtonStyle = oneOf(body.buttonStyle, 'buttonStyle', TICKET_BUTTON_STYLES);
   if ('categoryId' in body) updates.ticketCategoryId = category('categoryId');
   if ('closedCategoryId' in body) updates.ticketClosedCategoryId = category('closedCategoryId');
   if ('staffRoleId' in body) updates.ticketStaffRoleId = requireRole(guild, body.staffRoleId, 'staffRoleId');
@@ -478,10 +496,10 @@ async function applyTickets(client, guild, body) {
   if ('maxTicketsPerUser' in body) updates.maxTicketsPerUser = integer(body.maxTicketsPerUser, 'maxTicketsPerUser', 1, 10);
   if ('dmOnClose' in body) updates.dmOnClose = boolean(body.dmOnClose, 'dmOnClose');
 
-  // The panel message follows its settings: a new channel, text or button label is posted right away.
+  // The panel message follows its settings: a new channel, text, title, colour or button is posted right away.
   const next = { ...current, ...updates };
   const repost = body.repost === true;
-  const panelChanged = ['ticketPanelChannelId', 'ticketPanelMessage', 'ticketButtonLabel']
+  const panelChanged = ['ticketPanelChannelId', 'ticketPanelMessage', 'ticketButtonLabel', 'ticketPanelTitle', 'ticketPanelColor', 'ticketButtonStyle']
     .some((key) => key in updates && updates[key] !== (current[key] ?? null));
   if (panelChanged || repost || (next.ticketPanelChannelId && !next.ticketPanelMessageId)) {
     updates.ticketPanelMessageId = await syncTicketPanel(guild, current, next, repost);
@@ -497,6 +515,7 @@ const maxBitrateKbps = (guild) => Math.floor((guild.maximumBitrate ?? 96000) / 1
 function tempVoiceView(config, guild) {
   const triggerChannelId = config.triggerChannels.find((id) => guild.channels.cache.has(id)) ?? null;
   const options = (triggerChannelId && config.channelOptions?.[triggerChannelId]) || {};
+  const interfaceChannelId = config.interfaceChannelId && guild.channels.cache.has(config.interfaceChannelId) ? config.interfaceChannelId : null;
   return {
     enabled: Boolean(config.enabled && triggerChannelId),
     triggerChannelId,
@@ -504,6 +523,8 @@ function tempVoiceView(config, guild) {
     userLimit: options.userLimit ?? config.userLimit ?? 0,
     bitrateKbps: Math.round((options.bitrate ?? config.bitrate ?? DEFAULT_VOICE_BITRATE) / 1000),
     maxBitrateKbps: maxBitrateKbps(guild),
+    interfaceChannelId,
+    interfacePosted: Boolean(interfaceChannelId && config.interfaceMessageId),
     active: Object.keys(config.temporaryChannels ?? {}).filter((id) => guild.channels.cache.has(id)).length,
   };
 }
@@ -525,6 +546,14 @@ async function applyTempVoice(client, guild, body) {
   if ('userLimit' in body) options.userLimit = integer(body.userLimit, 'userLimit', 0, 99);
   if ('bitrateKbps' in body) options.bitrate = integer(body.bitrateKbps, 'bitrateKbps', 8, maxBitrateKbps(guild)) * 1000;
 
+  // Channel of the message with the control buttons; checked before anything is created or sent.
+  const repostInterface = body.repostInterface === true;
+  const interfaceChannelId = 'interfaceChannelId' in body ? requireTextChannel(guild, body.interfaceChannelId, 'interfaceChannelId') : (config.interfaceChannelId ?? null);
+  const interfaceChannel = interfaceChannelId ? guild.channels.cache.get(interfaceChannelId) ?? null : null;
+  if (repostInterface && !interfaceChannel) throw new ApiError(400, 'interfaceChannelId: choose a channel for the control buttons first');
+  const interfaceMoved = interfaceChannelId !== (config.interfaceChannelId ?? null);
+  if (interfaceChannel && (interfaceMoved || repostInterface)) requireEmbedAccess(guild, interfaceChannel, 'interfaceChannelId');
+
   // "new" makes the bot create the channel people join; an ID picks an existing voice channel.
   if (body.triggerChannelId === 'new') {
     const parent = 'categoryId' in body ? requireChannelOfType(guild, body.categoryId, 'categoryId', ChannelType.GuildCategory, 'category') : null;
@@ -538,9 +567,17 @@ async function applyTempVoice(client, guild, body) {
   const enabled = 'enabled' in body ? boolean(body.enabled, 'enabled') : (config.enabled || 'triggerChannelId' in body);
   if (enabled && !triggerChannelId && 'enabled' in body) throw new ApiError(400, 'triggerChannelId: choose a voice channel before enabling temporary channels');
 
+  const triggerChanged = triggerChannelId !== (config.triggerChannels[0] ?? null);
   config.triggerChannels = triggerChannelId ? [triggerChannelId] : [];
   config.channelOptions = triggerChannelId ? { [triggerChannelId]: options } : {};
   config.enabled = Boolean(enabled && triggerChannelId);
+
+  // The message with the control buttons follows its channel; it names the channel people join, so a new one edits it.
+  if (interfaceMoved || repostInterface || (interfaceChannel && (triggerChanged || !config.interfaceMessageId))) {
+    if (interfaceChannel) requireEmbedAccess(guild, interfaceChannel, 'interfaceChannelId');
+    config.interfaceMessageId = await syncInterfaceMessage(guild, config, interfaceChannel, { repost: repostInterface });
+    config.interfaceChannelId = interfaceChannel?.id ?? null;
+  }
   // Kept at the top level too: rooms created under an earlier trigger channel fall back to these.
   if (options.nameTemplate) config.channelNameTemplate = options.nameTemplate;
   if (options.userLimit !== undefined) config.userLimit = options.userLimit;

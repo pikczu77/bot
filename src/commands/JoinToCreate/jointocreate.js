@@ -13,6 +13,7 @@ import {
     logConfigurationChange,
     getConfiguration
 } from '../../services/joinToCreateService.js';
+import { postInterface } from '../../services/tempVoiceInterface.js';
 import { t } from '../../i18n/index.js';
 
 export default {
@@ -70,6 +71,17 @@ export default {
                         .setRequired(true)
                         .addChannelTypes(ChannelType.GuildVoice)
                 )
+        )
+        .addSubcommand((subcommand) =>
+            subcommand
+                .setName("interface")
+                .setDescription("Post the message with buttons that control temporary voice channels.")
+                .addChannelOption((option) =>
+                    option
+                        .setName("channel")
+                        .setDescription("Text channel for the message (default: this channel).")
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
         ),
     category: "utility",
 
@@ -94,6 +106,9 @@ export default {
                 return;
             } else if (subcommand === "dashboard") {
                 await handleConfigSubcommand(interaction, client);
+                return;
+            } else if (subcommand === "interface") {
+                await handleInterfaceSubcommand(interaction, client);
                 return;
             }
 
@@ -223,6 +238,28 @@ async function handleSetupSubcommand(interaction, client) {
             t('Failed to set up Join to Create system. Please check bot permissions.')
         );
     }
+}
+
+async function handleInterfaceSubcommand(interaction, client) {
+    const channel = interaction.options.getChannel('channel') || interaction.channel;
+    const permissions = channel.permissionsFor?.(interaction.guild.members.me);
+
+    if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+        throw new TitanBotError(
+            'Bot cannot post the interface in the chosen channel',
+            ErrorTypes.PERMISSION,
+            t`I cannot send messages with embeds in ${channel}.`
+        );
+    }
+
+    await postInterface(client, interaction.guild, channel);
+    await logConfigurationChange(client, interaction.guild.id, interaction.user.id, t('Posted the voice room controls'), {
+        channelId: channel.id
+    });
+
+    return await InteractionHelper.safeEditReply(interaction, {
+        embeds: [successEmbed(t('Interface Sent'), t`The voice room controls are now in ${channel}.`)]
+    });
 }
 
 async function handleConfigSubcommand(interaction, client) {

@@ -233,3 +233,18 @@ test('leveling follows the server settings: multipliers, exceptions, rewards, vo
   assert.equal(talk.sent.at(-1).content, `GG <@${player.id}> poziom 2 400 zł **Poziom 2**`);
   assert.equal((await getUserLevelData(client, guild.id, player.id)).lastMessage, 0);
 });
+
+test('/jointocreate interface posts the message with the control buttons', async () => {
+  const target = mockChannel(guild, 'kanaly-glosowe');
+  const interaction = await run('jointocreate', { subcommand: 'interface', options: { channel: target } });
+
+  assert.equal(target.sent.length, 1);
+  assert.deepEqual(target.sent[0].components.map((row) => row.toJSON().components.length), [5, 5, 5]);
+  assert.match(replyText(interaction), new RegExp(`controls are now in <#${target.id}>`));
+
+  // Without a channel the message goes where the command was used.
+  await run('jointocreate', { subcommand: 'interface' });
+  assert.equal(channel.sent.at(-1).components.length, 3);
+  assert.equal((await run('jointocreate', { subcommand: 'interface', member: regular })).replies.length > 0, true);
+  assert.equal(channel.sent.filter((message) => message.components?.length === 3).length, 1);
+});

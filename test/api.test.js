@@ -494,3 +494,86 @@ test('temporary voice channels are set up from the panel', async () => {
     assert.equal((await call('PATCH', path, { body })).status, 400, JSON.stringify(body));
   }
 });
+
+test('the ticket panel takes its title, colour and button colour from the settings', async () => {
+  const panel = mockChannel(guild, 'zgloszenia');
+  const path = `/guilds/${guild.id}/tickets`;
+  const look = ({ panelTitle, panelColor, buttonStyle }) => ({ panelTitle, panelColor, buttonStyle });
+
+  const before = (await call('GET', `/guilds/${guild.id}`)).json.modules.tickets;
+  assert.deepEqual({ color: before.panelColor, style: before.buttonStyle }, { color: '#0a84ff', style: 'primary' });
+
+  const saved = await call('PATCH', path, { body: { panelChannelId: panel.id, panelTitle: ' Pomoc Klubiku ', panelColor: '#FF9F0A', buttonStyle: 'success' } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  assert.deepEqual(look(saved.json), { panelTitle: 'Pomoc Klubiku', panelColor: '#ff9f0a', buttonStyle: 'success' });
+  const embed = panel.sent[0].embeds[0].toJSON();
+  assert.deepEqual({ title: embed.title, color: embed.color }, { title: 'Pomoc Klubiku', color: 0xff9f0a });
+  assert.equal(panel.sent[0].components[0].toJSON().components[0].style, 3);
+
+  // The same look leaves the posted panel alone; a new button colour edits it.
+  let edited = null;
+  panel.messages.fetch = async (id) => panel.sent.find((message) => message.id === id) ?? null;
+  panel.sent[0].edit = async (payload) => { edited = payload; };
+  await call('PATCH', path, { body: { panelColor: '#ff9f0a', buttonStyle: 'success' } });
+  assert.equal(edited, null);
+  await call('PATCH', path, { body: { buttonStyle: 'danger' } });
+  assert.equal(edited.components[0].toJSON().components[0].style, 4);
+  assert.equal(panel.sent.length, 1);
+
+  // An empty title and a null colour bring the defaults back.
+  const reset = await call('PATCH', path, { body: { panelTitle: '', panelColor: null } });
+  assert.equal(reset.json.panelColor, '#0a84ff');
+  assert.equal(reset.json.panelTitle, before.panelTitle);
+  assert.equal(edited.embeds[0].toJSON().color, 0x0a84ff);
+
+  for (const body of [{ panelColor: 'red' }, { panelColor: '#12345' }, { buttonStyle: 'pink' }, { panelTitle: 'x'.repeat(257) }]) {
+    assert.equal((await call('PATCH', path, { body })).status, 400, JSON.stringify(body));
+  }
+  await call('PATCH', path, { body: { panelChannelId: null } });
+});
+
+test('the message with the temporary channel buttons is posted from the panel', async () => {
+  const voice = mockChannel(guild, 'Wejdź tutaj', { type: 2 });
+  const lobby = mockChannel(guild, 'kanaly-glosowe');
+  const other = mockChannel(guild, 'inny');
+  const path = `/guilds/${guild.id}/tempvoice`;
+  const posted = ({ interfaceChannelId, interfacePosted }) => ({ interfaceChannelId, interfacePosted });
+  const track = (target) => {
+    target.messages.fetch = async (id) => target.sent.find((message) => message.id === id) ?? null;
+    const removed = [];
+    for (const message of target.sent) message.delete = async () => { removed.push(message.id); };
+    return removed;
+  };
+
+  assert.equal((await call('PATCH', path, { body: { repostInterface: true } })).status, 400);
+
+  const saved = await call('PATCH', path, { body: { enabled: true, triggerChannelId: voice.id, interfaceChannelId: lobby.id } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  assert.deepEqual(posted(saved.json), { interfaceChannelId: lobby.id, interfacePosted: true });
+  assert.equal(lobby.sent.length, 1);
+  assert.equal(lobby.sent[0].components.flatMap((row) => row.toJSON().components).length, 15);
+  assert.match(lobby.sent[0].embeds[0].toJSON().description, new RegExp(`<#${voice.id}>`));
+
+  // Saving the same channel again posts nothing; "send again" posts a fresh message and removes the old one.
+  await call('PATCH', path, { body: { interfaceChannelId: lobby.id, userLimit: 3 } });
+  assert.equal(lobby.sent.length, 1);
+  let removed = track(lobby);
+  await call('PATCH', path, { body: { repostInterface: true } });
+  assert.equal(lobby.sent.length, 2);
+  assert.deepEqual(removed, [lobby.sent[0].id]);
+
+  // Another channel moves the message; null removes it.
+  removed = track(lobby);
+  const moved = await call('PATCH', path, { body: { interfaceChannelId: other.id } });
+  assert.deepEqual(posted(moved.json), { interfaceChannelId: other.id, interfacePosted: true });
+  assert.equal(other.sent.length, 1);
+  assert.deepEqual(removed, [lobby.sent[1].id]);
+
+  removed = track(other);
+  const off = await call('PATCH', path, { body: { interfaceChannelId: null } });
+  assert.deepEqual(posted(off.json), { interfaceChannelId: null, interfacePosted: false });
+  assert.deepEqual(removed, [other.sent[0].id]);
+
+  assert.equal((await call('PATCH', path, { body: { interfaceChannelId: voice.id } })).status, 400);
+  await call('PATCH', path, { body: { triggerChannelId: null } });
+});

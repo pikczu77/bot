@@ -2,13 +2,13 @@ import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import {
     getJoinToCreateConfig, 
     registerTemporaryChannel, 
-    unregisterTemporaryChannel,
     getTemporaryChannelInfo,
     formatChannelName
 } from '../utils/database.js';
 import { sanitizeInput } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 import { handleMusicVoiceState } from '../services/music/musicVoiceState.js';
+import { announceWaitingMember, deleteRoom } from '../services/tempVoiceInterface.js';
 import { t } from '../i18n/index.js';
 
 const channelCreationCooldown = new Map();
@@ -57,6 +57,7 @@ export default {
             const { channel, member } = state;
 
             if (!config.triggerChannels.includes(channel.id)) {
+                await announceWaitingMember(state.guild, config, channel.id, member);
                 return;
             }
 
@@ -99,7 +100,7 @@ if (now - lastCreation < VOICE_CREATE_COOLDOWN_MS) {
         }
 
         async function handleVoiceLeave(client, state, config) {
-            const { channel, member } = state;
+            const { channel } = state;
 
             const tempChannelInfo = await getTemporaryChannelInfo(client, state.guild.id, channel.id);
             
@@ -107,13 +108,9 @@ if (now - lastCreation < VOICE_CREATE_COOLDOWN_MS) {
                 return;
             }
 
+            // The owner keeps the channel after leaving; someone inside takes it over with "Claim" on the interface.
             if (channel.members.size === 0) {
                 await deleteTemporaryChannel(client, channel, state.guild.id);
-            } else if (tempChannelInfo.ownerId === member.id) {
-                const nextMember = channel.members.first();
-                if (nextMember) {
-                    await transferChannelOwnership(client, channel, state.guild.id, nextMember.id);
-                }
             }
         }
 
@@ -124,17 +121,11 @@ if (now - lastCreation < VOICE_CREATE_COOLDOWN_MS) {
                 if (tempChannelInfo) {
                     if (oldState.channel.members.size === 0) {
                         await deleteTemporaryChannel(client, oldState.channel, oldState.guild.id);
-                    } else if (tempChannelInfo.ownerId === oldState.member.id) {
-                        const nextMember = oldState.channel.members.first();
-                        if (nextMember) {
-                            await transferChannelOwnership(client, oldState.channel, oldState.guild.id, nextMember.id);
-                        }
                     }
                 }
             }
 
-            if (config.triggerChannels.includes(newState.channel.id) && 
-                !config.triggerChannels.includes(oldState.channel?.id)) {
+            if (!config.triggerChannels.includes(oldState.channel?.id)) {
                 await handleVoiceJoin(client, newState, config);
             }
         }
@@ -242,47 +233,12 @@ userLimit: userLimit === 0 ? undefined : userLimit,
 
         async function deleteTemporaryChannel(client, channel, guildId) {
             try {
-                await unregisterTemporaryChannel(client, guildId, channel.id);
-
-                await channel.delete('Temporary voice channel - empty');
+                await deleteRoom(client, channel, 'Temporary voice channel - empty');
 
                 logger.info(`Deleted temporary voice channel ${channel.name} (${channel.id}) in guild ${channel.guild.name}`);
 
             } catch (error) {
                 logger.error(`Failed to delete temporary channel ${channel.id}:`, error);
-            }
-        }
-
-        async function transferChannelOwnership(client, channel, guildId, newOwnerId) {
-            try {
-                const config = await getJoinToCreateConfig(client, guildId);
-                const tempChannelInfo = config.temporaryChannels[channel.id];
-                
-                if (!tempChannelInfo) return;
-
-                config.temporaryChannels[channel.id].ownerId = newOwnerId;
-                await client.db.set(`guild:${guildId}:jointocreate`, config);
-
-                const newOwner = await channel.guild.members.fetch(newOwnerId);
-                if (newOwner) {
-                    const channelOptions = config.channelOptions?.[tempChannelInfo.triggerChannelId] || {};
-                    const nameTemplate = channelOptions.nameTemplate || config.channelNameTemplate;
-                    
-                    const newChannelName = sanitizeVoiceChannelName(formatChannelName(nameTemplate, {
-                        username: newOwner.user.username,
-                        userTag: newOwner.user.tag,
-                        displayName: newOwner.displayName,
-                        guildName: channel.guild.name,
-                        channelName: channel.guild.channels.cache.get(tempChannelInfo.triggerChannelId)?.name || t('Voice Channel')
-                    }));
-
-                    await channel.setName(newChannelName);
-                }
-
-                logger.info(`Transferred ownership of temporary channel ${channel.id} to user ${newOwnerId}`);
-
-            } catch (error) {
-                logger.error(`Failed to transfer ownership of channel ${channel.id}:`, error);
             }
         }
 
