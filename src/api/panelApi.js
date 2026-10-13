@@ -1,5 +1,5 @@
 // panelApi.js — HTTP API for a web panel (pikczu.pl/bot) to read and change
-// module settings: language, welcome, auto-roles, automod, invites, YouTube,
+// module settings: language, welcome, auto-roles, automod, server logs, invites, YouTube,
 // economy (settings, shop, balances), leveling (settings, rewards, member levels),
 // tickets (panel and its look, staff, categories) and temporary voice channels (join to create,
 // message with the control buttons).
@@ -24,6 +24,22 @@ import { validateChannelNameTemplate } from '../services/joinToCreateService.js'
 import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
 import { getColor } from '../config/bot.js';
 import { getAutoRoleSettings, getAutoRoleSyncStatus, startAutoRoleSync } from '../services/autoRoleService.js';
+import {
+  MAX_SELF_ROLE_BUTTONS,
+  MAX_SELF_ROLE_PANELS,
+  SELF_ROLE_BUTTON_STYLES,
+  SELF_ROLE_DEFAULT_COLOR,
+  SELF_ROLE_LABEL_MAX,
+  SELF_ROLE_TEXT_MAX,
+  SELF_ROLE_TITLE_MAX,
+  getSelfRolePanels,
+  isSelfRoleEmoji,
+  newSelfRolePanelId,
+  removeSelfRoleMessage,
+  saveSelfRolePanels,
+  syncSelfRoleMessage,
+} from '../services/selfRoleService.js';
+import { hasDangerousPermissions } from '../services/reactionRoleService.js';
 import { GREETING_STYLES, getGreetingLayout } from '../utils/welcome.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import {
@@ -51,6 +67,8 @@ import {
 } from '../services/leveling/leveling.js';
 import { getUserLevelPrefix } from '../utils/database/keys.js';
 import { ACTIONS, RULES, getAutomodConfig, updateAutomodConfig } from '../services/automodService.js';
+import { PRESET_LINKS, PRESET_WORDS } from '../config/automodPresets.js';
+import { EVENT_TYPES, getIgnoreList } from '../services/loggingService.js';
 import { cacheGuildInvites, getInviteConfig, updateInviteConfig } from '../services/inviteService.js';
 import { addFeed, fetchVideos, getFeeds, removeFeed, resolveChannel, sendTestNotification, updateFeed } from '../services/notifications/youtube.js';
 
@@ -192,6 +210,8 @@ function automodView(config) {
     rules: config.rules,
     strikes: config.strikes,
     raid: config.raid,
+    // Ready-made lists for the panel's "insert list" buttons; not part of the settings.
+    presets: { words: PRESET_WORDS, links: PRESET_LINKS },
   };
 }
 
@@ -258,6 +278,9 @@ async function applyAutomod(guild, body) {
       if ('seconds' in patch && name === 'spam') rule.seconds = integer(patch.seconds, 'rules.spam.seconds', 2, 60);
       if ('percent' in patch && name === 'caps') rule.percent = integer(patch.percent, 'rules.caps.percent', 30, 100);
       if ('list' in patch && name === 'words') rule.list = stringList(patch.list, 'rules.words.list', { max: 300, itemMax: 40 });
+      if ('freeHours' in patch && name === 'words') rule.freeHours = boolean(patch.freeHours, 'rules.words.freeHours');
+      if ('freeFrom' in patch && name === 'words') rule.freeFrom = integer(patch.freeFrom, 'rules.words.freeFrom', 0, 23);
+      if ('freeTo' in patch && name === 'words') rule.freeTo = integer(patch.freeTo, 'rules.words.freeTo', 0, 23);
       if ('allow' in patch && name === 'links') rule.allow = stringList(patch.allow, 'rules.links.allow', { max: 100, itemMax: 100, pattern: /^[a-z0-9.-]+\.[a-z]{2,}$/i });
     }
 
@@ -274,6 +297,51 @@ async function applyAutomod(guild, body) {
     }
   });
   return automodView(config);
+}
+
+// Server logs (the panel's "Logi" module): one channel (the audit destination of loggingService),
+// event categories on/off and channels whose events are skipped. Applications and reports
+// keep their own destinations and are not shown here.
+export const LOG_CATEGORIES = ['moderation', 'message', 'member', 'role', 'leveling', 'giveaway', 'reactionrole', 'counter'];
+
+function loggingView(config) {
+  const logging = config.logging ?? {};
+  const events = logging.enabledEvents ?? {};
+  return {
+    enabled: logging.enabled === true,
+    channelId: logging.channels?.audit ?? null,
+    categories: Object.fromEntries(LOG_CATEGORIES.map((category) => [category, events[`${category}.*`] !== false])),
+    ignoreChannels: getIgnoreList(config).channels ?? [],
+  };
+}
+
+async function applyLogging(client, guild, body) {
+  const config = await getGuildConfig(client, guild.id);
+  const logging = {
+    ...config.logging,
+    channels: { ...(config.logging?.channels ?? {}) },
+    enabledEvents: { ...(config.logging?.enabledEvents ?? {}) },
+    ignore: { ...getIgnoreList(config) },
+  };
+  if ('enabled' in body) logging.enabled = boolean(body.enabled, 'enabled');
+  if ('channelId' in body) logging.channels.audit = requireTextChannel(guild, body.channelId, 'channelId');
+  if ('categories' in body) {
+    for (const [category, value] of Object.entries(plainObject(body.categories, 'categories'))) {
+      if (!LOG_CATEGORIES.includes(category)) throw new ApiError(400, `categories.${category}: unknown category`);
+      const enabled = boolean(value, `categories.${category}`);
+      // Same shape as /logging toggle: the category switch plus every event in it.
+      logging.enabledEvents[`${category}.*`] = enabled;
+      for (const type of Object.values(EVENT_TYPES)) if (type.startsWith(`${category}.`)) logging.enabledEvents[type] = enabled;
+    }
+  }
+  if ('ignoreChannels' in body) {
+    const list = stringList(body.ignoreChannels, 'ignoreChannels', { max: 100, itemMax: 20, pattern: SNOWFLAKE_RE });
+    if (list.some((id) => !guild.channels.cache.has(id))) throw new ApiError(400, 'ignoreChannels: not from this server');
+    logging.ignore.channels = list;
+  }
+  if (logging.enabled && !logging.channels.audit) throw new ApiError(400, 'channelId: choose a channel before enabling logs');
+  await updateGuildConfig(client, guild.id, { logging });
+  return loggingView(await getGuildConfig(client, guild.id));
 }
 
 function oneOf(value, field, allowed) {
@@ -724,6 +792,96 @@ async function applyLeveling(client, guild, body) {
   return levelingView(config);
 }
 
+// Role buttons ("self roles"): messages with buttons that give a role on click and take it back on a
+// second click — like the ProBot role message. The panel sends the whole list of messages every time;
+// a panel without an ID is new, a missing one is removed (its message too).
+function selfRolesView(panels, guild) {
+  return {
+    panels: panels.map((panel) => {
+      const channelId = panel.channelId && guild.channels.cache.has(panel.channelId) ? panel.channelId : null;
+      return {
+        id: panel.id,
+        channelId,
+        posted: Boolean(channelId && panel.messageId),
+        title: panel.title ?? '',
+        description: panel.description ?? '',
+        color: HEX_COLOR_RE.test(panel.color ?? '') ? panel.color : SELF_ROLE_DEFAULT_COLOR,
+        exclusive: panel.exclusive === true,
+        buttons: panel.buttons.map((entry) => ({ roleId: entry.roleId, label: entry.label ?? '', emoji: entry.emoji ?? '', style: entry.style })),
+      };
+    }),
+    limits: { panels: MAX_SELF_ROLE_PANELS, buttons: MAX_SELF_ROLE_BUTTONS, title: SELF_ROLE_TITLE_MAX, text: SELF_ROLE_TEXT_MAX, label: SELF_ROLE_LABEL_MAX },
+    styles: SELF_ROLE_BUTTON_STYLES,
+  };
+}
+
+function selfRoleButton(guild, value, field) {
+  const entry = plainObject(value, field);
+  const role = SNOWFLAKE_RE.test(String(entry.roleId)) ? guild.roles.cache.get(String(entry.roleId)) : null;
+  if (!role || role.id === guild.id || role.managed) throw new ApiError(400, `${field}.roleId: not an assignable role of this server`);
+  if (!role.editable) throw new ApiError(400, `${field}.roleId: the bot's role must be above the role ${role.name}`);
+  if (hasDangerousPermissions(role)) throw new ApiError(400, `${field}.roleId: the role ${role.name} has moderator permissions and cannot be given by a button`);
+  const label = (optionalString(entry.label ?? null, `${field}.label`, SELF_ROLE_LABEL_MAX) ?? '').trim();
+  const emoji = (optionalString(entry.emoji ?? null, `${field}.emoji`, 64) ?? '').trim();
+  if (emoji && !isSelfRoleEmoji(emoji)) throw new ApiError(400, `${field}.emoji: one emoji expected (like 🎬 or <:name:id>)`);
+  if (!label && !emoji) throw new ApiError(400, `${field}: a button needs a label or an emoji`);
+  const style = entry.style === undefined ? 'primary' : oneOf(entry.style, `${field}.style`, SELF_ROLE_BUTTON_STYLES);
+  return { roleId: role.id, label, emoji, style };
+}
+
+function selfRolePanel(guild, value, field, previous) {
+  const panel = plainObject(value, field);
+  const id = panel.id === undefined || panel.id === null ? null : String(panel.id);
+  if (id !== null && !previous.some((entry) => entry.id === id)) throw new ApiError(400, `${field}.id: unknown role message`);
+  const channelId = 'channelId' in panel ? requireTextChannel(guild, panel.channelId, `${field}.channelId`) : null;
+  if (channelId) requireEmbedAccess(guild, guild.channels.cache.get(channelId), `${field}.channelId`);
+  const title = (optionalString(panel.title ?? null, `${field}.title`, SELF_ROLE_TITLE_MAX) ?? '').trim();
+  const description = (optionalString(panel.description ?? null, `${field}.description`, SELF_ROLE_TEXT_MAX) ?? '').trim();
+  if (!title && !description) throw new ApiError(400, `${field}: a title or a text is needed`);
+  const color = panel.color === undefined || panel.color === null ? SELF_ROLE_DEFAULT_COLOR : hexColorString(panel.color, `${field}.color`);
+  const exclusive = panel.exclusive === undefined ? false : boolean(panel.exclusive, `${field}.exclusive`);
+  if (!Array.isArray(panel.buttons) || panel.buttons.length < 1 || panel.buttons.length > MAX_SELF_ROLE_BUTTONS) {
+    throw new ApiError(400, `${field}.buttons: 1-${MAX_SELF_ROLE_BUTTONS} buttons expected`);
+  }
+  const buttons = panel.buttons.map((entry, index) => selfRoleButton(guild, entry, `${field}.buttons[${index}]`));
+  if (new Set(buttons.map((entry) => entry.roleId)).size !== buttons.length) throw new ApiError(400, `${field}.buttons: every role only once per message`);
+  return { id, channelId, title, description, color, exclusive, buttons, repost: panel.repost === true };
+}
+
+async function applySelfRoles(guild, body) {
+  if (!Array.isArray(body.panels) || body.panels.length > MAX_SELF_ROLE_PANELS) {
+    throw new ApiError(400, `panels: up to ${MAX_SELF_ROLE_PANELS} role messages expected`);
+  }
+  const previous = await getSelfRolePanels(guild.id);
+  const wanted = body.panels.map((panel, index) => selfRolePanel(guild, panel, `panels[${index}]`, previous));
+  if (new Set(wanted.filter((panel) => panel.id).map((panel) => panel.id)).size !== wanted.filter((panel) => panel.id).length) {
+    throw new ApiError(400, 'panels: the same role message twice');
+  }
+
+  // Everything is checked; now the messages follow the settings (posted, edited, moved or removed).
+  const look = (panel) => JSON.stringify([panel.title, panel.description, panel.color, panel.buttons]);
+  const next = [];
+  const stale = [];
+  for (const want of wanted) {
+    const before = want.id ? previous.find((entry) => entry.id === want.id) : null;
+    const { repost, ...panel } = { ...want, id: want.id ?? newSelfRolePanelId(), messageId: before?.messageId ?? null };
+    if (!panel.channelId) {
+      if (before?.messageId) stale.push(before);
+      panel.messageId = null;
+    } else if (repost || !before || !panel.messageId || before.channelId !== panel.channelId || look(before) !== look(panel)) {
+      const result = await syncSelfRoleMessage(guild, before ?? {}, panel, { repost });
+      panel.messageId = result.messageId;
+      if (result.stale) stale.push({ channelId: result.stale.channelId, messageId: result.stale.id });
+    }
+    next.push(panel);
+  }
+  for (const gone of previous) if (!next.some((panel) => panel.id === gone.id) && gone.messageId) stale.push(gone);
+
+  await saveSelfRolePanels(guild.id, next);
+  for (const old of stale) await removeSelfRoleMessage(guild, old);
+  return selfRolesView(next, guild);
+}
+
 async function listLevelAccounts(client, guild) {
   const prefix = getUserLevelPrefix(guild.id);
   const keys = await client.db.list(prefix);
@@ -810,6 +968,8 @@ export function createPanelRouter(client) {
       autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
       tickets: await ticketsView(client, guild),
       tempvoice: tempVoiceView(await getJoinToCreateConfig(client, guild.id), guild),
+      selfroles: selfRolesView(await getSelfRolePanels(guild.id), guild),
+      logging: loggingView(await getGuildConfig(client, guild.id)),
     },
   })));
 
@@ -836,7 +996,12 @@ export function createPanelRouter(client) {
 
   router.patch('/guilds/:guildId/tempvoice', route(({ guild, body }) => applyTempVoice(client, guild, body)));
 
+  // Role buttons (like the ProBot role message): the whole list of messages, posted right away.
+  router.patch('/guilds/:guildId/selfroles', route(({ guild, body }) => applySelfRoles(guild, body)));
+
   router.patch('/guilds/:guildId/automod', route(({ guild, body }) => applyAutomod(guild, body)));
+
+  router.patch('/guilds/:guildId/logging', route(({ guild, body }) => applyLogging(client, guild, body)));
 
   router.patch('/guilds/:guildId/invites', route(async ({ guild, body }) => {
     const config = await updateInviteConfig(guild.id, (data) => {

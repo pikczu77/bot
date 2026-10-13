@@ -88,8 +88,20 @@ test('language and automod changes are validated and saved', async () => {
   assert.equal(saved.enabled, true);
   assert.equal(saved.rules.spam.limit, 5);
   assert.equal(saved.logChannelId, channel.id);
+  assert.equal(saved.rules.words.freeHours, false);
+  assert.ok(automod.json.presets.words.includes('*kurw*'));
+  assert.ok(automod.json.presets.links.includes('tenor.com'));
+
+  const night = await call('PATCH', `/guilds/${guild.id}/automod`, { body: { rules: { words: { freeHours: true, freeFrom: 22, freeTo: 6 } } } });
+  assert.equal(night.status, 200);
+  assert.deepEqual(
+    [night.json.rules.words.freeHours, night.json.rules.words.freeFrom, night.json.rules.words.freeTo, night.json.rules.words.list],
+    [true, 22, 6, ['brzydkie', 'spam*']],
+  );
 
   for (const body of [
+    { rules: { words: { freeFrom: 24 } } },
+    { rules: { words: { freeHours: 'yes' } } },
     { rules: { nope: { enabled: true } } },
     { rules: { spam: { action: 'ban' } } },
     { rules: { spam: { limit: 1000 } } },
@@ -98,6 +110,45 @@ test('language and automod changes are validated and saved', async () => {
   ]) {
     assert.equal((await call('PATCH', `/guilds/${guild.id}/automod`, { body })).status, 400, JSON.stringify(body));
   }
+});
+
+test('server logs: channel, categories and skipped channels are saved where /logging reads them', async () => {
+  const { getGuildConfig } = await import('../src/services/config/guildConfig.js');
+  const { isEventEnabled, resolveLogChannel, getIgnoreList } = await import('../src/services/loggingService.js');
+  const overview = await call('GET', `/guilds/${guild.id}`);
+  assert.deepEqual(overview.json.modules.logging, {
+    enabled: false,
+    channelId: null,
+    categories: { moderation: true, message: true, member: true, role: true, leveling: true, giveaway: true, reactionrole: true, counter: true },
+    ignoreChannels: [],
+  });
+
+  assert.equal((await call('PATCH', `/guilds/${guild.id}/logging`, { body: { enabled: true } })).status, 400);
+  const saved = await call('PATCH', `/guilds/${guild.id}/logging`, {
+    body: { enabled: true, channelId: channel.id, categories: { leveling: false, message: true }, ignoreChannels: [channel.id] },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.enabled, true);
+  assert.equal(saved.json.channelId, channel.id);
+  assert.equal(saved.json.categories.leveling, false);
+  assert.deepEqual(saved.json.ignoreChannels, [channel.id]);
+
+  const config = await getGuildConfig(client, guild.id);
+  assert.equal(resolveLogChannel(config, 'audit'), channel.id);
+  assert.equal(isEventEnabled(config, 'leveling.levelup'), false);
+  assert.equal(isEventEnabled(config, 'message.delete'), true);
+  assert.deepEqual(getIgnoreList(config).channels, [channel.id]);
+
+  for (const body of [
+    { channelId: '123456789012345678' },
+    { categories: { nope: true } },
+    { categories: { message: 'yes' } },
+    { ignoreChannels: ['123456789012345678'] },
+  ]) {
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/logging`, { body })).status, 400, JSON.stringify(body));
+  }
+  const off = await call('PATCH', `/guilds/${guild.id}/logging`, { body: { enabled: false, channelId: null, ignoreChannels: [] } });
+  assert.deepEqual([off.json.enabled, off.json.channelId, off.json.ignoreChannels, off.json.categories.leveling], [false, null, [], false]);
 });
 
 test('welcome settings need a real channel before they can be enabled', async () => {

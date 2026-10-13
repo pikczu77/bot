@@ -22,7 +22,8 @@ const DEFAULT_CONFIG = {
   rules: {
     invites: { enabled: false, action: 'delete' },
     links: { enabled: false, action: 'delete', allow: [] },
-    words: { enabled: false, action: 'delete', list: [] },
+    // freeHours: words are allowed from freeFrom:00 until freeTo:00 (Polish time), e.g. 22 → 6.
+    words: { enabled: false, action: 'delete', list: [], freeHours: false, freeFrom: 22, freeTo: 6 },
     spam: { enabled: false, action: 'timeout', limit: 6, seconds: 6 },
     mentions: { enabled: false, action: 'timeout', limit: 6 },
     caps: { enabled: false, action: 'delete', percent: 75, minLength: 12 },
@@ -90,6 +91,30 @@ export function findBannedWord(text, words) {
   return null;
 }
 
+const TIME_ZONE = 'Europe/Warsaw';
+let hourFormat = null;
+
+/** Hour (0-23) in Polish time; the host's clock runs in another zone. */
+export function localHour(now = Date.now()) {
+  try {
+    hourFormat ??= new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: 'numeric', hourCycle: 'h23' });
+    return Number(hourFormat.format(new Date(now))) % 24;
+  } catch {
+    return new Date(now).getHours();
+  }
+}
+
+/** Is `hour` inside from..to? The range may wrap past midnight (22 → 6). from === to means never. */
+export function inHourRange(hour, from, to) {
+  if (from === to) return false;
+  return from < to ? hour >= from && hour < to : hour >= from || hour < to;
+}
+
+/** Are banned words allowed right now (the words rule's free hours)? */
+export function wordsAllowedNow(wordsRule, now = Date.now()) {
+  return Boolean(wordsRule?.freeHours) && inHourRange(localHour(now), wordsRule.freeFrom, wordsRule.freeTo);
+}
+
 function hostAllowed(host, allow) {
   const value = host.toLowerCase().replace(/^www\./, '');
   return allow.some((domain) => {
@@ -120,7 +145,7 @@ export function checkMessage(config, message, history, now = Date.now()) {
     }
   }
 
-  if (rules.words.enabled && rules.words.list.length > 0) {
+  if (rules.words.enabled && rules.words.list.length > 0 && !wordsAllowedNow(rules.words, now)) {
     const word = findBannedWord(content, rules.words.list);
     if (word) return { rule: 'words', detail: word };
   }
@@ -212,15 +237,48 @@ async function sendLog(guild, config, embed) {
   }
 }
 
+const freeHoursState = new Map(); // guildId -> were banned words allowed at the previous message
+
+const hourLabel = (hour) => `${String(hour).padStart(2, '0')}:00`;
+
+// One line in the log channel when the words rule's free hours start or end. Messages drive
+// it (no timer), so the line comes with the first message after the change; nothing is
+// posted for the first message after a restart, when the previous state is unknown.
+async function noteFreeHours(guild, config, now) {
+  const words = config.rules.words;
+  if (!words.enabled || !words.freeHours) {
+    freeHoursState.delete(guild.id);
+    return;
+  }
+  const allowed = wordsAllowedNow(words, now);
+  const before = freeHoursState.get(guild.id);
+  freeHoursState.set(guild.id, allowed);
+  if (before === undefined || before === allowed) return;
+
+  logger.info(`Automod: banned words ${allowed ? 'allowed' : 'blocked again'} in guild ${guild.id}`);
+  await sendLog(guild, config, createEmbed({
+    title: allowed ? t('🌙 Automod — banned words allowed') : t('☀️ Automod — banned words blocked again'),
+    description: allowed
+      ? t`Until ${hourLabel(words.freeTo)} the bot does not delete messages with banned words.`
+      : t`Messages with banned words are deleted again, until ${hourLabel(words.freeFrom)}.`,
+    color: allowed ? 'info' : 'success',
+    footer: false,
+    timestamp: true,
+  }));
+}
+
 /**
  * Run automod on a guild message. Returns true when the message was removed
  * (callers should stop processing it).
  */
 export async function runAutomod(message) {
   const config = await getAutomodConfig(message.guild.id);
-  if (!config.enabled || isExempt(message, config)) return false;
+  if (!config.enabled) return false;
 
   const now = Date.now();
+  await noteFreeHours(message.guild, config, now);
+  if (isExempt(message, config)) return false;
+
   sweep(now);
   const key = `${message.guild.id}:${message.author.id}`;
   if (!histories.has(key)) histories.set(key, { timestamps: [], recent: [] });
@@ -273,6 +331,9 @@ export async function runAutomod(message) {
     embeds: [createEmbed({
       description: [
         t`🛡️ ${message.author}, your message was removed: **${label}**.`,
+        violation.rule === 'words' && rule.freeHours && rule.freeFrom !== rule.freeTo
+          ? t`Swearing is allowed from ${hourLabel(rule.freeFrom)} to ${hourLabel(rule.freeTo)}.`
+          : null,
         timedOut ? t`You are timed out for ${timeoutMinutes} {1|minute|minutes}.` : null,
       ].filter(Boolean).join('\n'),
       color: 'warning',
@@ -297,7 +358,7 @@ export async function runAutomod(message) {
     timestamp: true,
   }));
 
-  logger.info(`Automod removed a message (${violation.rule}) from ${message.author.id} in guild ${message.guild.id}`);
+  logger.info(`Automod removed a message (${violation.rule}: ${truncate(violation.detail, 60)}) from ${message.author.id} in #${message.channel?.name ?? message.channelId}, guild ${message.guild.id}${timedOut ? `, timeout ${timeoutMinutes} min` : ''}`);
   return true;
 }
 

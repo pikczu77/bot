@@ -2,6 +2,7 @@ import { Events } from 'discord.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { logger } from '../utils/logger.js';
 import { getReactionRoleMessage, deleteReactionRoleMessage } from '../services/reactionRoleService.js';
+import { forgetSelfRoleMessage } from '../services/selfRoleService.js';
 import { formatLogLine } from '../utils/logging/logEmbeds.js';
 import { t } from '../i18n/index.js';
 
@@ -43,6 +44,9 @@ export default {
       } catch (reactionRoleCleanupError) {
         logger.warn(`Failed to clean up reaction role data for deleted message ${message.id}:`, reactionRoleCleanupError);
       }
+
+      await forgetSelfRoleMessage(message.guild.id, message.id)
+        .catch((error) => logger.warn(`Failed to mark the role button panel of deleted message ${message.id}:`, error));
 
       if (message.author?.bot) return;
 

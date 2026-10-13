@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { runWithLocale } from '../src/i18n/index.js';
 import { parseDuration, humanDuration } from '../src/utils/featureKit.js';
 import { buildNotification, parseChannelPage, parseFeed, parseSubscriberText } from '../src/services/notifications/youtube.js';
-import { checkMessage, findBannedWord } from '../src/services/automodService.js';
+import { checkMessage, findBannedWord, inHourRange, localHour } from '../src/services/automodService.js';
+import { PRESET_LINKS, PRESET_WORDS } from '../src/config/automodPresets.js';
 import { findUsedInvite, totalInvites } from '../src/services/inviteService.js';
 import { matchResponder, normalizeTagName, renderTagText } from '../src/services/tagService.js';
 import { diffPlayers, normalizeAddress } from '../src/services/minecraftService.js';
@@ -164,6 +165,34 @@ test('automod rules catch what they should and nothing else', () => {
   assert.equal(checkMessage(words, say('to jest spamerskie'), null)?.detail, 'spam*');
   assert.equal(checkMessage(words, say('okurdebalans'), null), null);
   assert.equal(findBannedWord('zażółć gęślą', ['zazolc']), 'zazolc');
+
+  // Free hours 22 → 6, Polish time. 2026-10-13 is summer time (UTC+2).
+  const night = automodConfig({ words: { list: ['kurde'], freeHours: true, freeFrom: 22, freeTo: 6 } });
+  const at = (iso) => Date.parse(iso);
+  assert.equal(localHour(at('2026-10-13T20:30:00Z')), 22);
+  assert.equal(localHour(at('2026-12-01T21:30:00Z')), 22); // winter time (UTC+1)
+  assert.equal(checkMessage(night, say('kurde'), null, at('2026-10-13T20:00:00Z')), null); // 22:00
+  assert.equal(checkMessage(night, say('kurde'), null, at('2026-10-14T01:00:00Z')), null); // 3:00
+  assert.equal(checkMessage(night, say('kurde'), null, at('2026-10-14T03:59:00Z')), null); // 5:59
+  assert.equal(checkMessage(night, say('kurde'), null, at('2026-10-14T04:00:00Z'))?.rule, 'words'); // 6:00
+  assert.equal(checkMessage(night, say('kurde'), null, at('2026-10-13T19:59:00Z'))?.rule, 'words'); // 21:59
+  assert.equal(inHourRange(10, 8, 16), true);
+  assert.equal(inHourRange(16, 8, 16), false);
+  assert.equal(inHourRange(5, 22, 22), false);
+
+  // The ready-made lists: what they catch and the innocent words they leave alone.
+  const swears = automodConfig({ words: { list: PRESET_WORDS } });
+  for (const text of ['kurwa', 'SKURWYSYN', 'zajebiście', 'spierdalaj', 'wypierdalaj', 'chujowy', 'piździec', 'ty debilu', 'cipka', 'gówno', 'ruchać', 'k*rwa? nie, kurwaaa']) {
+    assert.equal(checkMessage(swears, say(text), null)?.rule, 'words', text);
+  }
+  for (const text of ['principle', 'duplikat', 'szybkimi ruchami', 'szmatka do kurzu', 'Dzień dobry wszystkim', 'gown english']) {
+    assert.equal(checkMessage(swears, say(text), null), null, text);
+  }
+  const gifs = automodConfig({ links: { allow: PRESET_LINKS } });
+  for (const url of ['https://tenor.com/view/cat-123', 'https://media.tenor.com/x.gif', 'https://media1.giphy.com/media/a/giphy.gif', 'https://youtu.be/abc', 'https://www.youtube.com/watch?v=1', 'https://cdn.discordapp.com/attachments/1/2/a.gif']) {
+    assert.equal(checkMessage(gifs, say(url), null), null, url);
+  }
+  assert.equal(checkMessage(gifs, say('https://example.com/a.gif'), null)?.rule, 'links');
 
   const mentions = automodConfig({ mentions: {} });
   assert.equal(checkMessage(mentions, say('hey', 5), null)?.rule, 'mentions');

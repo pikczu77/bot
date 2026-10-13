@@ -1,0 +1,7 @@
+{
+  "🌙 Automod — banned words allowed": "🌙 Automod — przekleństwa dozwolone",
+  "☀️ Automod — banned words blocked again": "☀️ Automod — przekleństwa znowu blokowane",
+  "Until {0} the bot does not delete messages with banned words.": "Do {0} bot nie usuwa wiadomości z zakazanymi słowami.",
+  "Messages with banned words are deleted again, until {0}.": "Wiadomości z zakazanymi słowami znowu są usuwane, do {0}.",
+  "Swearing is allowed from {0} to {1}.": "Przeklinać można od {0} do {1}."
+}
