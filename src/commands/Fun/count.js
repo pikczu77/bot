@@ -58,7 +58,7 @@ export default {
         ),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName('leaderboard').setDescription('Show the counting game leaderboard'),
+      subcommand.setName('top').setDescription('Show the counting game leaderboard'),
     ),
   category: 'Fun',
 
@@ -154,7 +154,7 @@ export default {
         });
       }
 
-      if (subcommand === 'leaderboard') {
+      if (subcommand === 'top') {
         const leaderboard = buildCountingLeaderboard(config, interaction.guild);
 
         return await InteractionHelper.safeEditReply(interaction, {

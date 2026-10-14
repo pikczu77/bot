@@ -68,7 +68,7 @@ test('/invites shows stats, leaderboard and admin tools', async () => {
   const polish = await run('invites', { locale: 'pl', subcommand: 'show', options: { user: regular.user } });
   assert.match(replyText(polish), /\*\*4\*\* zaproszenia/);
 
-  const board = await run('invites', { subcommand: 'leaderboard' });
+  const board = await run('invites', { subcommand: 'top' });
   assert.match(replyText(board), new RegExp(`<@${regular.id}>`));
 
   const role = mockRole(guild, 'Inviter');

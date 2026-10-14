@@ -31,7 +31,7 @@ export default {
                 .setDescription("Show your or someone else's invites")
                 .addUserOption((option) => option.setName('user').setDescription('Member to check')),
         )
-        .addSubcommand((sub) => sub.setName('leaderboard').setDescription('Top inviters on this server'))
+        .addSubcommand((sub) => sub.setName('top').setDescription('Top inviters on this server'))
         .addSubcommand((sub) => sub.setName('rewards').setDescription('Roles you can earn by inviting people'))
         .addSubcommand((sub) =>
             sub
@@ -105,7 +105,7 @@ export default {
             }));
         }
 
-        if (subcommand === 'leaderboard') {
+        if (subcommand === 'top') {
             const board = await getInviteLeaderboard(guild.id);
             if (board.length === 0) {
                 return respond(interaction, infoEmbed(t('Nobody has invited anyone yet.')));
