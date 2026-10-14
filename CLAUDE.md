@@ -33,9 +33,13 @@ change you make, so the next session knows what was done and why.
 - Jail: `src/services/economyJail.js` (`assertNotJailed`).
 - Jobs of `/work`: `src/services/economyJobs.js`, `src/commands/Economy/modules/work_shift.js`.
 - Shop items and tiers: `src/config/shop/items.js`.
-- Guide for the info channel: `src/commands/Economy/modules/economy_guide.js` (`/economy poradnik`).
-  It is built from the server's settings, so it stays correct after a balance change. When you add
-  or change an economy command, update this guide and its Polish text in `pl.eco-guide.json`.
+- Guide for the info channel: `src/commands/Economy/modules/economy_guide.js` (`/economy poradnik`),
+  menu handler `src/interactions/selectMenus/economy/guide.js` (custom ids `poradnik:pokaz`,
+  `poradnik:zmien`). The channel gets one short message with a topic menu; each topic opens as a
+  private reply built from the server's settings at that moment, so it never goes stale. When you
+  add or change an economy command, update `GUIDE_TOPICS` and the Polish text in `pl.eco-guide.json`.
+  Visual check without Discord: dump the views to JSON and render a Discord-like HTML page, then
+  screenshot it with headless Edge (`msedge --headless=new --screenshot=...`).
 - Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`.
 
 ## Economy rules the owner set (keep them)
@@ -69,3 +73,12 @@ change you make, so the next session knows what was done and why.
     `guild:{id}:economy-guide`. The owner wants it in `#ekonomia-info`.
   - Note for balance: with the live server's `/gamble` at 50% and x2, +25 luck gives 75% and a
     profit on every bet. A max bet or a lower win chance would limit that; the owner has not chosen.
+- **2026-10-14 ~19:15** (owner: the first guide "wygląda jak sraka", wants to pick a tutorial):
+  - `/economy poradnik` now posts ONE message with a topic menu (10 topics: first steps, earning,
+    bank and robberies, casino, luck, upgrades, shop, jail and breaks, dates and marriage, all
+    commands). A pick opens the tutorial privately (ephemeral) with its own menu to switch topics.
+    The channel menu is reset by answering with `update`, the tutorial comes as a `followUp`.
+  - Re-running the command replaces the old 2-message guide (stored ids) with the new message.
+  - Breaks read "1 h 30 min" / "24 h" instead of "1d".
+  - Upgrade effects name their command ("+30% /work pay" instead of "+30% earnings"), also in
+    `/ulepszenia` and the earning messages.

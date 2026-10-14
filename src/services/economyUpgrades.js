@@ -98,6 +98,11 @@ export function describeUpgradeEffect(upgrade, level, guildId) {
     case 'luck': return t`+${level * LUCK_PER_LEVEL}% win chance`;
     case 'stamina': return t`-${level * STAMINA_PER_LEVEL}% break time`;
     case 'fortune': return t`+${level * FORTUNE_PERCENT_PER_LEVEL}% all earnings`;
+    case 'work': return t`+${level * upgrade.step}% /work pay`;
+    case 'mine': return t`+${level * upgrade.step}% from /mine`;
+    case 'fish': return t`+${level * upgrade.step}% from /fish`;
+    case 'crime': return t`+${level * upgrade.step}% from /crime and /slut`;
+    case 'daily': return t`+${level * upgrade.step}% /daily reward`;
     case 'overtime': return t`${level + 1} {0|shift|shifts} in a row`;
     case 'discount': return t`-${level * DISCOUNT_PER_LEVEL}% prices`;
     default: return t`+${level * (upgrade.step ?? 10)}% earnings`;
