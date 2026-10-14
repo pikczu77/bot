@@ -377,12 +377,12 @@ test('/jointocreate interface posts the message with the control buttons', async
   const interaction = await run('jointocreate', { subcommand: 'interface', options: { channel: target } });
 
   assert.equal(target.sent.length, 1);
-  assert.deepEqual(target.sent[0].components.map((row) => row.toJSON().components.length), [5, 5, 5]);
+  assert.deepEqual(target.sent[0].components.map((row) => row.toJSON().components.length), [5, 4]);
   assert.match(replyText(interaction), new RegExp(`controls are now in <#${target.id}>`));
 
   // Without a channel the message goes where the command was used.
   await run('jointocreate', { subcommand: 'interface' });
-  assert.equal(channel.sent.at(-1).components.length, 3);
+  assert.equal(channel.sent.at(-1).components.length, 2);
   assert.equal((await run('jointocreate', { subcommand: 'interface', member: regular })).replies.length > 0, true);
-  assert.equal(channel.sent.filter((message) => message.components?.length === 3).length, 1);
+  assert.equal(channel.sent.filter((message) => message.components?.length === 2).length, 1);
 });

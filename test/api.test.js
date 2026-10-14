@@ -602,7 +602,7 @@ test('the message with the temporary channel buttons is posted from the panel', 
   assert.equal(saved.status, 200, JSON.stringify(saved.json));
   assert.deepEqual(posted(saved.json), { interfaceChannelId: lobby.id, interfacePosted: true });
   assert.equal(lobby.sent.length, 1);
-  assert.equal(lobby.sent[0].components.flatMap((row) => row.toJSON().components).length, 15);
+  assert.equal(lobby.sent[0].components.flatMap((row) => row.toJSON().components).length, 9);
   assert.match(lobby.sent[0].embeds[0].toJSON().description, new RegExp(`<#${voice.id}>`));
 
   // Saving the same channel again posts nothing; "send again" posts a fresh message and removes the old one.

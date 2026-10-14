@@ -8,7 +8,7 @@ import {
 import { sanitizeInput } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 import { handleMusicVoiceState } from '../services/music/musicVoiceState.js';
-import { announceWaitingMember, deleteRoom } from '../services/tempVoiceInterface.js';
+import { deleteRoom } from '../services/tempVoiceInterface.js';
 import { t } from '../i18n/index.js';
 
 const channelCreationCooldown = new Map();
@@ -57,7 +57,6 @@ export default {
             const { channel, member } = state;
 
             if (!config.triggerChannels.includes(channel.id)) {
-                await announceWaitingMember(state.guild, config, channel.id, member);
                 return;
             }
 

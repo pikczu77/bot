@@ -1,15 +1,14 @@
 // tempVoiceInterface.js — the control message of temporary voice channels ("join to create").
 //
 // One message with buttons, posted on a text channel. A member who sits in a temporary
-// channel uses it to rename the channel, limit it, lock or hide it, trust, block, invite or
-// kick people, open a waiting room, change the region, hand the channel over or delete it.
+// channel uses it to rename the channel, limit it, lock or hide it, block, invite or
+// kick people, claim the channel of an absent owner or delete it.
 // Every custom ID starts with "tempvoice:", so the buttons keep working after a restart.
 
 import {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    ChannelType,
     EmbedBuilder,
     MessageFlags,
     ModalBuilder,
@@ -42,12 +41,6 @@ const MISSING_ACCESS_CODES = new Set([50001, 50013]);
 const MEMBER = { type: OverwriteType.Member };
 const ROLE = { type: OverwriteType.Role };
 const OWNER_ACCESS = { ViewChannel: true, Connect: true, Speak: true, PrioritySpeaker: true, MoveMembers: true };
-// Used when Discord does not return the list of voice regions.
-const FALLBACK_REGIONS = [
-    ['brazil', 'Brazil'], ['hongkong', 'Hong Kong'], ['india', 'India'], ['japan', 'Japan'], ['rotterdam', 'Rotterdam'],
-    ['singapore', 'Singapore'], ['southafrica', 'South Africa'], ['sydney', 'Sydney'],
-    ['us-central', 'US Central'], ['us-east', 'US East'], ['us-south', 'US South'], ['us-west', 'US West'],
-];
 
 const renameTimes = new Map();
 
@@ -59,17 +52,11 @@ function interfaceButtons() {
         ['name', '✏️', t('Name')],
         ['limit', '👥', t('Limit')],
         ['privacy', '🛡️', t('Privacy')],
-        ['waiting', '⏳', t('Waiting Room')],
-        ['chat', '💬', t('Chat')],
-        ['trust', '🤝', t('Trust')],
-        ['untrust', '🙅', t('Untrust')],
         ['invite', '📨', t('Invite')],
         ['kick', '👢', t('Kick')],
-        ['region', '🌍', t('Region')],
         ['block', '🚫', t('Block')],
         ['unblock', '🔓', t('Unblock')],
         ['claim', '👑', t('Claim')],
-        ['transfer', '🔁', t('Transfer')],
         ['delete', '🗑️', t('Delete')],
     ];
 }
@@ -216,30 +203,17 @@ function textModal(action, title, label, value, maxLength) {
 
 const memberEntries = (guild, ids) => ids.map((id) => [id, guild.members.cache.get(id)?.displayName ?? id]);
 
-async function regionEntries(guild) {
-    const live = await guild.fetchVoiceRegions?.().catch(() => null);
-    const regions = live?.size
-        ? [...live.values()].filter((region) => !region.deprecated && !region.custom).map((region) => [region.id, region.name])
-        : FALLBACK_REGIONS;
-    return [['auto', t('Automatic')], ...regions];
-}
-
 async function setOwner(client, channel, info, newOwnerId) {
     const previousOwnerId = info.ownerId;
     await channel.permissionOverwrites.edit(newOwnerId, OWNER_ACCESS, MEMBER);
     await channel.permissionOverwrites.edit(previousOwnerId, { PrioritySpeaker: null, MoveMembers: null }, MEMBER).catch(() => {});
 
-    const waitingRoom = info.waitingRoomId ? channel.guild.channels.cache.get(info.waitingRoomId) : null;
-    if (waitingRoom) {
-        await waitingRoom.permissionOverwrites.edit(newOwnerId, { MoveMembers: true }, MEMBER).catch(() => {});
-        await waitingRoom.permissionOverwrites.delete(previousOwnerId).catch(() => {});
-    }
-
     await updateRoom(client, channel.guild.id, channel.id, (record) => { record.ownerId = newOwnerId; });
     logger.info(`Temporary channel ${channel.id} now belongs to ${newOwnerId} (was ${previousOwnerId})`);
 }
 
-// Removes a temporary channel together with its waiting room and its stored record.
+// Removes a temporary channel together with its stored record, and its waiting room when one
+// is left from the time the interface had a "Waiting Room" button.
 export async function deleteRoom(client, channel, reason = 'Temporary voice channel removed') {
     const config = await getJoinToCreateConfig(client, channel.guild.id);
     const waitingRoomId = config.temporaryChannels?.[channel.id]?.waitingRoomId ?? null;
@@ -250,98 +224,6 @@ export async function deleteRoom(client, channel, reason = 'Temporary voice chan
         await channel.guild.channels.cache.get(waitingRoomId)?.delete(reason).catch(() => {});
     }
     await channel.delete(reason);
-}
-
-// A waiting room was deleted by hand: its temporary channel no longer points at it.
-export async function forgetWaitingRoom(client, guildId, waitingRoomId) {
-    const config = await getJoinToCreateConfig(client, guildId);
-    const roomId = Object.keys(config.temporaryChannels ?? {}).find((id) => config.temporaryChannels[id].waitingRoomId === waitingRoomId);
-    if (!roomId) return false;
-    delete config.temporaryChannels[roomId].waitingRoomId;
-    return saveJoinToCreateConfig(client, guildId, config);
-}
-
-// Someone joined a waiting room: the chat of the temporary channel gets a message with
-// "let in" and "turn away" buttons for the owner. Returns false when `channelId` is no waiting room.
-export async function announceWaitingMember(guild, config, channelId, member) {
-    const rooms = config.temporaryChannels ?? {};
-    const roomId = Object.keys(rooms).find((id) => rooms[id].waitingRoomId === channelId);
-    const room = roomId ? guild.channels.cache.get(roomId) : null;
-    if (!room || rooms[roomId].ownerId === member.id) return false;
-
-    const ownerId = rooms[roomId].ownerId;
-    try {
-        await room.send({
-            content: `<@${ownerId}>`,
-            embeds: [new EmbedBuilder().setDescription(t`⏳ ${member} is in the waiting room.`).setColor(getColor('warning'))],
-            components: [new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`tempvoice:admit:${member.id}`).setLabel(t('Let in')).setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId(`tempvoice:reject:${member.id}`).setLabel(t('Turn away')).setStyle(ButtonStyle.Danger),
-            )],
-            allowedMentions: { users: [ownerId] },
-        });
-    } catch (error) {
-        logger.warn(`Could not announce waiting member ${member.id} in temporary channel ${roomId}: ${error.message}`);
-    }
-    return true;
-}
-
-async function answerWaitingMember(interaction, client, admit, userId) {
-    const config = await getJoinToCreateConfig(client, interaction.guildId);
-    const info = config.temporaryChannels?.[interaction.channelId];
-    if (!info || info.ownerId !== interaction.user.id) {
-        return interaction.reply({ embeds: [warningEmbed(t('Only the owner of this channel decides who comes in.'))], flags: MessageFlags.Ephemeral });
-    }
-
-    const member = interaction.guild.members.cache.get(userId);
-    let text = t`<@${userId}> is no longer waiting.`;
-    if (member?.voice?.channelId && member.voice.channelId === info.waitingRoomId) {
-        if (admit) {
-            await member.voice.setChannel(interaction.channelId, 'Temporary channel: let in from the waiting room');
-            text = t`✅ <@${userId}> was let in.`;
-        } else {
-            await member.voice.disconnect('Temporary channel: turned away from the waiting room');
-            text = t`🚫 <@${userId}> was turned away.`;
-        }
-    }
-
-    return interaction.update({ content: '', embeds: [new EmbedBuilder().setDescription(text).setColor(getColor('info'))], components: [] });
-}
-
-async function toggleWaitingRoom(interaction, client, room) {
-    const { channel, info } = room;
-    const guild = channel.guild;
-    const existing = info.waitingRoomId ? guild.channels.cache.get(info.waitingRoomId) : null;
-
-    if (existing) {
-        await existing.delete('Temporary channel: waiting room switched off');
-        await updateRoom(client, guild.id, channel.id, (record) => { delete record.waitingRoomId; });
-        return done(interaction, t('The waiting room is removed. Your channel stays locked - use **Privacy** to unlock it.'));
-    }
-
-    await keepAccess(channel, info.ownerId);
-    const waitingRoom = await guild.channels.create({
-        name: `⏳ ${channel.name}`.slice(0, CHANNEL_NAME_MAX_LENGTH),
-        type: ChannelType.GuildVoice,
-        parent: channel.parentId ?? undefined,
-        reason: 'Temporary channel: waiting room',
-        permissionOverwrites: [
-            { id: guild.id, ...ROLE, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect], deny: [PermissionFlagsBits.Speak] },
-            { id: info.ownerId, ...MEMBER, allow: [PermissionFlagsBits.MoveMembers] },
-            { id: guild.members.me.id, ...MEMBER, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers] },
-        ],
-    });
-    await channel.permissionOverwrites.edit(guild.id, { Connect: false }, ROLE);
-    await updateRoom(client, guild.id, channel.id, (record) => { record.waitingRoomId = waitingRoom.id; });
-
-    return done(interaction, t`The waiting room ${waitingRoom} is open and your channel is locked. When someone joins the waiting room, you decide in the chat of your channel whether they come in.`);
-}
-
-async function toggleChat(interaction, room) {
-    const { channel } = room;
-    const closed = channel.permissionOverwrites.cache.get(channel.guild.id)?.deny.has(PermissionFlagsBits.SendMessages) ?? false;
-    await channel.permissionOverwrites.edit(channel.guild.id, { SendMessages: closed ? null : false }, ROLE);
-    return done(interaction, closed ? t('The chat of your channel is open again.') : t('The chat of your channel is closed. Press **Chat** again to open it.'));
 }
 
 async function claimRoom(interaction, client) {
@@ -356,8 +238,7 @@ async function claimRoom(interaction, client) {
     return done(interaction, t('The channel is yours now.'));
 }
 
-async function handleButton(interaction, client, action, targetId) {
-    if (action === 'admit' || action === 'reject') return answerWaitingMember(interaction, client, action === 'admit', targetId);
+async function handleButton(interaction, client, action) {
     if (action === 'claim') return claimRoom(interaction, client);
 
     const room = await resolveRoom(interaction, client);
@@ -373,27 +254,15 @@ async function handleButton(interaction, client, action, targetId) {
             return interaction.showModal(textModal('limit', t('User Limit'), t('Limit (0 = no limit, up to 99)'), channel.userLimit ?? 0, 2));
         case 'privacy':
             return answer(interaction, infoEmbed(t('Choose who can join or see your channel.')), [listMenu('privacy', t('Choose an option'), [
-                ['lock', t('🔒 Lock - only trusted people can join')],
+                ['lock', t('🔒 Lock - only invited people can join')],
                 ['unlock', t('🔓 Unlock - everyone can join')],
-                ['hide', t('🙈 Hide - only trusted people see the channel')],
+                ['hide', t('🙈 Hide - only invited people see the channel')],
                 ['show', t('👁️ Show - everyone sees the channel')],
             ])]);
-        case 'waiting':
-            return toggleWaitingRoom(interaction, client, room);
-        case 'chat':
-            return toggleChat(interaction, room);
-        case 'trust':
-            return answer(interaction, infoEmbed(t('Trusted people can join even when the channel is locked or hidden.')), [memberMenu('trust', t('Choose people to trust'), MAX_PICKED_MEMBERS)]);
         case 'block':
             return answer(interaction, infoEmbed(t('Blocked people cannot see or join your channel.')), [memberMenu('block', t('Choose people to block'), MAX_PICKED_MEMBERS)]);
         case 'invite':
             return answer(interaction, infoEmbed(t('The bot sends a private message with a link to your channel.')), [memberMenu('invite', t('Choose people to invite'), MAX_INVITED_MEMBERS)]);
-        case 'untrust': {
-            const trusted = memberOverwrites(channel, (overwrite) => overwrite.allow.has(PermissionFlagsBits.Connect)
-                && overwrite.id !== info.ownerId && overwrite.id !== guild.members.me.id);
-            if (!trusted.length) return refuse(interaction, t('Nobody is trusted in this channel.'));
-            return answer(interaction, infoEmbed(t('Choose who loses the trust.')), [listMenu('untrust', t('Choose people'), memberEntries(guild, trusted.map((overwrite) => overwrite.id)), MAX_MENU_OPTIONS)]);
-        }
         case 'unblock': {
             const blocked = memberOverwrites(channel, (overwrite) => overwrite.deny.has(PermissionFlagsBits.Connect));
             if (!blocked.length) return refuse(interaction, t('Nobody is blocked in this channel.'));
@@ -402,13 +271,6 @@ async function handleButton(interaction, client, action, targetId) {
         case 'kick':
             if (!others.length) return refuse(interaction, t('Nobody else is in your channel.'));
             return answer(interaction, infoEmbed(t('Choose who leaves the channel.')), [listMenu('kick', t('Choose people'), others.map((member) => [member.id, member.displayName]), MAX_MENU_OPTIONS)]);
-        case 'transfer': {
-            const people = others.filter((member) => !member.user.bot);
-            if (!people.length) return refuse(interaction, t('Nobody else is in your channel.'));
-            return answer(interaction, infoEmbed(t('Choose the new owner of the channel.')), [listMenu('transfer', t('Choose a person'), people.map((member) => [member.id, member.displayName]))]);
-        }
-        case 'region':
-            return answer(interaction, infoEmbed(t('Choose the voice region of your channel.')), [listMenu('region', t('Choose a region'), await regionEntries(guild))]);
         case 'delete':
             return answer(interaction, warningEmbed(t('Delete your channel? Everyone in it is disconnected.')), [new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('tempvoice:delete_confirm').setLabel(t('Yes, delete')).setStyle(ButtonStyle.Danger),
@@ -437,18 +299,12 @@ async function handleSelect(interaction, client, action) {
             if (mode === 'lock' || mode === 'hide') await keepAccess(channel, info.ownerId);
             await channel.permissionOverwrites.edit(everyone, changes[mode], ROLE);
             return done(interaction, {
-                lock: t('Your channel is locked. Only trusted people can join.'),
+                lock: t('Your channel is locked. Only invited people can join.'),
                 unlock: t('Your channel is unlocked. Everyone can join.'),
-                hide: t('Your channel is hidden. Only trusted people see it.'),
+                hide: t('Your channel is hidden. Only invited people see it.'),
                 show: t('Your channel is visible to everyone.'),
             }[mode]);
         }
-        case 'trust':
-            for (const id of picked) await channel.permissionOverwrites.edit(id, { ViewChannel: true, Connect: true }, MEMBER);
-            return picked.length ? done(interaction, t`Trusted: ${mentions(picked)}.`) : refuse(interaction, t('Nobody was chosen.'));
-        case 'untrust':
-            for (const id of picked) await channel.permissionOverwrites.delete(id, 'Temporary channel: trust removed');
-            return picked.length ? done(interaction, t`No longer trusted: ${mentions(picked)}.`) : refuse(interaction, t('Nobody was chosen.'));
         case 'block':
             for (const id of picked) {
                 await channel.permissionOverwrites.edit(id, { ViewChannel: false, Connect: false }, MEMBER);
@@ -485,19 +341,6 @@ async function handleSelect(interaction, client, action) {
                 delivered.length ? t`Invited: ${mentions(delivered)}.` : null,
                 undelivered.length ? t`${mentions(undelivered)} can join, but the private message did not arrive (closed messages).` : null,
             ].filter(Boolean).join('\n'));
-        }
-        case 'transfer': {
-            const [newOwnerId] = picked;
-            const newOwner = newOwnerId ? channel.members.get(newOwnerId) : null;
-            if (!newOwner || newOwner.user.bot) return refuse(interaction, t('That person is not in your channel.'));
-            await setOwner(client, channel, info, newOwnerId);
-            return done(interaction, t`The channel now belongs to <@${newOwnerId}>.`);
-        }
-        case 'region': {
-            const [region] = interaction.values;
-            if (!/^[a-z0-9-]{1,32}$/.test(region)) return refuse(interaction, t('This option is not available.'));
-            await channel.setRTCRegion(region === 'auto' ? null : region, 'Temporary channel: region changed by its owner');
-            return done(interaction, region === 'auto' ? t('The region is chosen automatically.') : t`The region is now \`${region}\`.`);
         }
         default:
             return refuse(interaction, t('This option is not available.'));
@@ -539,13 +382,13 @@ async function handleModal(interaction, client, action) {
     return refuse(interaction, t('This form is not available.'));
 }
 
-// Entry point of every "tempvoice:<action>[:<target>]" button, menu and form.
-export async function handleInterfaceInteraction(interaction, client, [action, targetId] = []) {
+// Entry point of every "tempvoice:<action>" button, menu and form.
+export async function handleInterfaceInteraction(interaction, client, [action] = []) {
     try {
         if (!interaction.inGuild()) return null;
         if (interaction.isModalSubmit()) return await handleModal(interaction, client, action);
         if (interaction.isAnySelectMenu()) return await handleSelect(interaction, client, action);
-        return await handleButton(interaction, client, action, targetId);
+        return await handleButton(interaction, client, action);
     } catch (error) {
         if (!MISSING_ACCESS_CODES.has(error?.code)) throw error;
         logger.warn(`Temporary channel action "${action}" failed in guild ${interaction.guildId}: ${error.message}`);

@@ -37,7 +37,6 @@ function mockVoice(name, members = []) {
     },
     setName: async (value) => { channel.name = value; },
     setUserLimit: async (value) => { channel.userLimit = value; },
-    setRTCRegion: async (value) => { channel.rtcRegion = value; },
     delete: async () => { guild.channels.cache.delete(channel.id); channel.deleted = true; },
   });
   for (const member of members) join(member, channel);
@@ -106,25 +105,19 @@ before(async () => {
   const { db } = await initializeDatabase();
   client.db = db;
   guild = mockGuild(client);
-  guild.channels.create = async (options) => {
-    const created = mockVoice(options.name);
-    created.parentId = options.parent ?? null;
-    created.createdWith = options.permissionOverwrites;
-    return created;
-  };
   trigger = mockVoice('➕ Stwórz kanał');
   await saveJoinToCreateConfig(client, guild.id, { enabled: true, triggerChannels: [trigger.id] });
 });
 
-test('the interface has fifteen buttons in three rows', async () => {
+test('the interface has nine buttons in two rows', async () => {
   const message = await runWithLocale('pl', () => buildInterfaceMessage({ triggerChannels: [trigger.id] }));
   const rows = message.components.map((row) => row.toJSON().components);
-  assert.deepEqual(rows.map((row) => row.length), [5, 5, 5]);
+  assert.deepEqual(rows.map((row) => row.length), [5, 4]);
   assert.deepEqual(rows.flat().map((button) => button.custom_id.replace('tempvoice:', '')), [
-    'name', 'limit', 'privacy', 'waiting', 'chat', 'trust', 'untrust', 'invite', 'kick', 'region', 'block', 'unblock', 'claim', 'transfer', 'delete',
+    'name', 'limit', 'privacy', 'invite', 'kick', 'block', 'unblock', 'claim', 'delete',
   ]);
-  assert.deepEqual(rows[0].map((button) => button.label), ['Nazwa', 'Limit', 'Dostęp', 'Poczekalnia', 'Czat']);
-  assert.deepEqual(rows[2].map((button) => button.label), ['Zablokuj', 'Odblokuj', 'Przejmij', 'Transferuj', 'Usuń']);
+  assert.deepEqual(rows[0].map((button) => button.label), ['Nazwa', 'Limit', 'Dostęp', 'Zaproś', 'Wyrzuć']);
+  assert.deepEqual(rows[1].map((button) => button.label), ['Zablokuj', 'Odblokuj', 'Przejmij', 'Usuń']);
   const embed = message.embeds[0].toJSON();
   assert.equal(embed.title, 'Interfejs TempVoice');
   assert.match(embed.description, new RegExp(`<#${trigger.id}>`));
@@ -174,7 +167,7 @@ test('name and limit are changed through a form', async () => {
   assert.match(replyText(await act(owner, 'tempvoice:limit', { fields: { value: '0' } })), /no user limit/);
 });
 
-test('privacy, chat and region', async () => {
+test('privacy', async () => {
   const owner = person('Kuba');
   const channel = await room(owner);
   const everyone = guild.id;
@@ -196,21 +189,26 @@ test('privacy, chat and region', async () => {
   await act(owner, 'tempvoice:privacy', { values: ['unlock'], hidden: true });
   assert.ok(!cannot(channel, everyone, 'ViewChannel') && !cannot(channel, everyone, 'Connect') && can(channel, everyone, 'Connect'));
   assert.match(replyText(await act(owner, 'tempvoice:privacy', { values: ['open'], hidden: true })), /not available/);
-
-  assert.match(replyText(await act(owner, 'tempvoice:chat')), /closed/);
-  assert.ok(cannot(channel, everyone, 'SendMessages'));
-  assert.match(replyText(await act(owner, 'tempvoice:chat')), /open again/);
-  assert.ok(!cannot(channel, everyone, 'SendMessages'));
-
-  const regions = menuOf(await act(owner, 'tempvoice:region')).options.map((option) => option.value);
-  assert.ok(regions[0] === 'auto' && regions.includes('rotterdam'));
-  await act(owner, 'tempvoice:region', { values: ['rotterdam'], hidden: true });
-  assert.equal(channel.rtcRegion, 'rotterdam');
-  await act(owner, 'tempvoice:region', { values: ['auto'], hidden: true });
-  assert.equal(channel.rtcRegion, null);
 });
 
-test('trust, block, invite and kick', async () => {
+// The interface message posted before the update still shows these buttons until it is sent again.
+test('buttons removed from the interface do nothing', async () => {
+  const owner = person('Bartek');
+  const guest = person('Gosc Bartka');
+  const channel = await room(owner, [guest]);
+  const before = [...channel.permissionOverwrites.cache.keys()];
+
+  for (const action of ['waiting', 'chat', 'trust', 'untrust', 'region', 'transfer', `admit:${guest.id}`]) {
+    assert.match(replyText(await act(owner, `tempvoice:${action}`)), /not available/, action);
+  }
+  for (const action of ['trust', 'untrust', 'region', 'transfer']) {
+    assert.match(replyText(await act(owner, `tempvoice:${action}`, { values: [guest.id], hidden: true })), /not available/, action);
+  }
+  assert.deepEqual([...channel.permissionOverwrites.cache.keys()], before);
+  assert.equal((await record(channel)).ownerId, owner.id);
+});
+
+test('block, invite and kick', async () => {
   const owner = person('Ola');
   const friend = person('Przyjaciel');
   const troll = person('Troll');
@@ -219,14 +217,6 @@ test('trust, block, invite and kick', async () => {
   const direct = [];
   friend.send = async (payload) => { direct.push(payload); };
   quiet.send = quiet.user.send;
-
-  assert.match(replyText(await act(owner, 'tempvoice:untrust')), /Nobody is trusted/);
-  assert.equal(menuOf(await act(owner, 'tempvoice:trust')).type, 5, 'a member menu');
-  await act(owner, 'tempvoice:trust', { values: [friend.id, owner.id], hidden: true });
-  assert.ok(can(channel, friend.id, 'Connect') && can(channel, friend.id, 'ViewChannel'));
-  assert.deepEqual(menuOf(await act(owner, 'tempvoice:untrust')).options.map(pair), [[friend.id, 'Przyjaciel']]);
-  await act(owner, 'tempvoice:untrust', { values: [friend.id], hidden: true });
-  assert.equal(channel.permissionOverwrites.cache.has(friend.id), false);
 
   // A blocked person is cut off and cannot see the channel.
   assert.match(replyText(await act(owner, 'tempvoice:unblock')), /Nobody is blocked/);
@@ -238,11 +228,13 @@ test('trust, block, invite and kick', async () => {
   assert.equal(channel.permissionOverwrites.cache.has(troll.id), false);
 
   // An invitation gives access and a private message with the link; closed messages are reported.
+  assert.equal(menuOf(await act(owner, 'tempvoice:invite')).type, 5, 'a member menu');
   const invited = await act(owner, 'tempvoice:invite', { values: [friend.id, quiet.id], hidden: true });
   assert.equal(direct.length, 1);
   assert.match(direct[0].content, new RegExp(`Ola.*Pokój.*https://discord.com/channels/${guild.id}/${channel.id}`));
   assert.match(replyText(invited), new RegExp(`Invited: <@${friend.id}>`));
   assert.match(replyText(invited), new RegExp(`<@${quiet.id}> can join, but the private message did not arrive`));
+  assert.ok(can(channel, friend.id, 'Connect') && can(channel, friend.id, 'ViewChannel'));
   assert.ok(can(channel, quiet.id, 'Connect'));
   await act(owner, 'tempvoice:invite', { values: [friend.id], hidden: true });
   await act(owner, 'tempvoice:invite', { values: [friend.id], hidden: true });
@@ -257,11 +249,10 @@ test('trust, block, invite and kick', async () => {
   assert.match(replyText(await act(owner, 'tempvoice:kick', { values: [friend.id], hidden: true })), /already left/);
 });
 
-test('claim and transfer move the ownership', async () => {
+test('claim moves the ownership', async () => {
   const owner = person('Stary');
   const guest = person('Nowy');
-  const helper = person('Pomocnik', { bot: true });
-  const channel = await room(owner, [guest, helper]);
+  const channel = await room(owner, [guest]);
   await channel.permissionOverwrites.edit(owner.id, { Connect: true, Speak: true, PrioritySpeaker: true, MoveMembers: true }, { type: OverwriteType.Member });
 
   assert.match(replyText(await act(owner, 'tempvoice:claim')), /already yours/);
@@ -275,50 +266,20 @@ test('claim and transfer move the ownership', async () => {
   assert.ok(can(channel, guest.id, 'MoveMembers') && can(channel, guest.id, 'PrioritySpeaker'));
   assert.ok(!can(channel, owner.id, 'MoveMembers') && can(channel, owner.id, 'Connect'));
 
-  // Only people (no bots) are offered as the next owner.
-  assert.match(replyText(await act(guest, 'tempvoice:transfer')), /Nobody else/);
+  // The old owner comes back as a guest.
   join(owner, channel);
-  assert.deepEqual(menuOf(await act(guest, 'tempvoice:transfer')).options.map((option) => option.value), [owner.id]);
-  assert.match(replyText(await act(guest, 'tempvoice:transfer', { values: [helper.id], hidden: true })), /not in your channel/);
-  await act(guest, 'tempvoice:transfer', { values: [owner.id], hidden: true });
-  assert.equal((await record(channel)).ownerId, owner.id);
-  assert.match(replyText(await act(guest, 'tempvoice:limit')), /Only the owner/);
+  assert.match(replyText(await act(owner, 'tempvoice:limit')), /Only the owner/);
+  assert.match(replyText(await act(owner, 'tempvoice:claim')), /still in the channel/);
 });
 
-test('the waiting room locks the channel and the owner lets people in', async () => {
+test('delete asks first and also removes a waiting room left from before', async () => {
   const owner = person('Gospodarz');
-  const visitor = person('Wizyta');
   const channel = await room(owner, [], 'Salon');
-  const { announceWaitingMember } = await import('../src/services/tempVoiceInterface.js');
-
-  assert.match(replyText(await act(owner, 'tempvoice:waiting')), /waiting room .* is open/);
-  const { waitingRoomId } = await record(channel);
-  const waitingRoom = guild.channels.cache.get(waitingRoomId);
-  assert.equal(waitingRoom.name, '⏳ Salon');
-  assert.ok(cannot(channel, guild.id, 'Connect') && can(channel, owner.id, 'Connect'));
-  assert.ok(waitingRoom.createdWith.some((overwrite) => overwrite.id === guild.id && overwrite.deny.length === 1));
-
-  // A person in the waiting room is announced in the chat of the channel; the owner alone decides.
-  join(visitor, waitingRoom);
+  const waitingRoom = mockVoice('⏳ Salon');
   const config = await getJoinToCreateConfig(client, guild.id);
-  assert.equal(await runWithLocale('en', () => announceWaitingMember(guild, config, waitingRoom.id, visitor)), true);
-  assert.equal(await announceWaitingMember(guild, config, channel.id, visitor), false);
-  const notice = channel.sent.at(-1);
-  assert.equal(notice.content, `<@${owner.id}>`);
-  assert.deepEqual(notice.components[0].toJSON().components.map((button) => button.custom_id), [`tempvoice:admit:${visitor.id}`, `tempvoice:reject:${visitor.id}`]);
+  config.temporaryChannels[channel.id].waitingRoomId = waitingRoom.id;
+  await saveJoinToCreateConfig(client, guild.id, config);
 
-  assert.match(replyText(await act(visitor, `tempvoice:admit:${visitor.id}`, { channelId: channel.id })), /Only the owner/);
-  assert.equal(visitor.voice.channelId, waitingRoom.id);
-  const admitted = await act(owner, `tempvoice:admit:${visitor.id}`, { channelId: channel.id });
-  assert.equal(visitor.voice.channelId, channel.id);
-  assert.deepEqual(admitted.replies.at(-1).components, []);
-
-  join(visitor, waitingRoom);
-  await act(owner, `tempvoice:reject:${visitor.id}`, { channelId: channel.id });
-  assert.equal(visitor.voice.channelId, null);
-  assert.match(replyText(await act(owner, `tempvoice:admit:${visitor.id}`, { channelId: channel.id })), /no longer waiting/);
-
-  // Deleting the channel removes the waiting room and the stored record.
   const ask = await act(owner, 'tempvoice:delete');
   assert.equal(ask.replies[0].components[0].toJSON().components[0].custom_id, 'tempvoice:delete_confirm');
   assert.equal(channel.deleted, undefined);
@@ -327,15 +288,9 @@ test('the waiting room locks the channel and the owner lets people in', async ()
   assert.equal(await record(channel), undefined);
 });
 
-test('a second press of "Waiting Room" removes it; missing permissions are explained', async () => {
+test('missing permissions are explained', async () => {
   const owner = person('Ala');
   const channel = await room(owner);
-
-  await act(owner, 'tempvoice:waiting');
-  const waitingRoom = guild.channels.cache.get((await record(channel)).waitingRoomId);
-  assert.match(replyText(await act(owner, 'tempvoice:waiting')), /waiting room is removed/);
-  assert.ok(waitingRoom.deleted);
-  assert.equal((await record(channel)).waitingRoomId, undefined);
 
   channel.setUserLimit = async () => { throw Object.assign(new Error('Missing Permissions'), { code: 50013 }); };
   assert.match(replyText(await act(owner, 'tempvoice:limit', { fields: { value: '3' } })), /missing permissions.*Manage Channels/);

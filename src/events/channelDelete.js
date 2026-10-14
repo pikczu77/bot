@@ -6,7 +6,6 @@ import {
     saveTicketData
 } from '../utils/database.js';
 import { getServerCounters, saveServerCounters } from '../services/serverstatsService.js';
-import { forgetWaitingRoom } from '../services/tempVoiceInterface.js';
 import { logger } from '../utils/logger.js';
 
 export default {
@@ -82,10 +81,6 @@ if (channel.type !== 2 && channel.type !== 4) {
                 } else {
                     logger.warn(`Failed to cleanup temporary channel ${channel.id} from database`);
                 }
-            }
-
-            if (await forgetWaitingRoom(client, guildId, channel.id)) {
-                logger.info(`Waiting room ${channel.id} was deleted, its temporary channel no longer uses it`);
             }
 
             if (config.categoryId === channel.id) {
