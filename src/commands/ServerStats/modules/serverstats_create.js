@@ -1,6 +1,6 @@
 import { PermissionFlagsBits, ChannelType } from 'discord.js';
 import { createEmbed, successEmbed } from '../../../utils/embeds.js';
-import { getServerCounters, saveServerCounters, updateCounter, getCounterBaseName, getCounterTypeLabel } from '../../../services/serverstatsService.js';
+import { getServerCounters, saveServerCounters, updateCounter, getCounterBaseName, getCounterTypeLabel, normalizeCounterNameTemplate } from '../../../services/serverstatsService.js';
 import { logger } from '../../../utils/logger.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
@@ -11,6 +11,7 @@ export async function handleCreate(interaction, client) {
     const type = interaction.options.getString("type");
     const channelType = interaction.options.getString("channel_type");
     const category = interaction.options.getChannel("category");
+    const customName = normalizeCounterNameTemplate(interaction.options.getString("nazwa"));
 
     try {
         await InteractionHelper.safeDefer(interaction);
@@ -64,6 +65,9 @@ export async function handleCreate(interaction, client) {
             createdAt: new Date().toISOString(),
             enabled: true
         };
+        if (customName) {
+            newCounter.name = customName;
+        }
 
         counters.push(newCounter);
 

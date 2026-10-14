@@ -230,6 +230,7 @@
   "`/statystyki create` - Create new counter\n`/statystyki update` - Update existing counter\n`/statystyki usun` - Delete counter": "`/statystyki create` - nowy licznik\n`/statystyki update` - zmiana licznika\n`/statystyki usun` - usunięcie licznika",
   "You need **Manage Channels** permission to update counters.": "Do zmiany liczników potrzebujesz uprawnienia **Zarządzanie kanałami**.",
   "You must provide a new counter type to update.": "Musisz podać nowy typ licznika.",
+  "Provide a new counter type or a new channel name.": "Podaj nowy typ licznika albo nową nazwę kanału.",
   "The channel for this counter no longer exists. You cannot update a counter for a deleted channel.": "Kanał tego licznika już nie istnieje. Nie można zmienić licznika usuniętego kanału.",
   "A **{0}** counter already exists for this server{1}. Delete it first before reusing that type.": "Licznik **{0}** już istnieje na tym serwerze{1}. Usuń go, zanim użyjesz tego typu ponownie.",
   "Failed to save updated counter data. Please try again.": "Nie udało się zapisać zmienionego licznika. Spróbuj ponownie.",

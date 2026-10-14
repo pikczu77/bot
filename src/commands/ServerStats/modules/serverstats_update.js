@@ -1,6 +1,6 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { createEmbed, successEmbed } from '../../../utils/embeds.js';
-import { getServerCounters, saveServerCounters, updateCounter, getCounterEmoji, getCounterTypeLabel } from '../../../services/serverstatsService.js';
+import { getServerCounters, saveServerCounters, updateCounter, getCounterEmoji, getCounterTypeLabel, normalizeCounterNameTemplate } from '../../../services/serverstatsService.js';
 import { logger } from '../../../utils/logger.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
@@ -9,7 +9,8 @@ import { t } from '../../../i18n/index.js';
 export async function handleUpdate(interaction, client) {
     const guild = interaction.guild;
     const counterId = interaction.options.getString("counter-id");
-    const newType = interaction.options.getString("type");
+    const requestedType = interaction.options.getString("type");
+    const newName = normalizeCounterNameTemplate(interaction.options.getString("nazwa"));
 
     try {
         await InteractionHelper.safeDefer(interaction);
@@ -23,8 +24,8 @@ export async function handleUpdate(interaction, client) {
         return;
     }
 
-    if (!newType) {
-        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('You must provide a new counter type to update.') }).catch(logger.error);
+    if (!requestedType && !newName) {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Provide a new counter type or a new channel name.') }).catch(logger.error);
         return;
     }
 
@@ -38,6 +39,7 @@ export async function handleUpdate(interaction, client) {
         }
 
         const counter = counters[counterIndex];
+        const newType = requestedType || counter.type;
         const oldChannel = guild.channels.cache.get(counter.channelId);
 
         if (!oldChannel) {
@@ -57,6 +59,9 @@ export async function handleUpdate(interaction, client) {
         const oldType = counter.type;
 
         counter.type = newType;
+        if (newName) {
+            counter.name = newName;
+        }
         counter.updatedAt = new Date().toISOString();
 
         const saved = await saveServerCounters(client, guild.id, counters);

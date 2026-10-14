@@ -48,6 +48,13 @@ export default {
                         .setRequired(true)
                         .addChannelTypes(ChannelType.GuildCategory)
                 )
+                .addStringOption(option =>
+                    option
+                        .setName("nazwa")
+                        .setDescription("Channel name, {count} = number, e.g. Ludzie: {count}")
+                        .setRequired(false)
+                        .setMaxLength(90)
+                )
         )
         .addSubcommand(subcommand =>
             subcommand
@@ -74,6 +81,13 @@ export default {
                             { name: "members only", value: "members_only" },
                             { name: "bots only", value: "bots" }
                         )
+                )
+                .addStringOption(option =>
+                    option
+                        .setName("nazwa")
+                        .setDescription("New channel name, {count} = number, e.g. Ludzie: {count}")
+                        .setRequired(false)
+                        .setMaxLength(90)
                 )
         )
         .addSubcommand(subcommand =>

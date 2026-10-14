@@ -421,6 +421,8 @@
   "Update an existing statistics tracker": "Zmień istniejący licznik",
   "The ID of the tracker to update": "ID licznika do zmiany",
   "The new tracker type": "Nowy typ licznika",
+  "Channel name, {count} = number, e.g. Ludzie: {count}": "Nazwa kanału, {count} = liczba, np. Ludzie: {count}",
+  "New channel name, {count} = number, e.g. Ludzie: {count}": "Nowa nazwa kanału, {count} = liczba, np. Ludzie: {count}",
   "Delete an existing statistics tracker": "Usuń istniejący licznik",
   "The ID of the tracker to delete": "ID licznika do usunięcia",
   "Your own text commands and automatic replies": "Własne komendy tekstowe i automatyczne odpowiedzi",

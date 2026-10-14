@@ -45,8 +45,22 @@ export function getCounterEmoji(type) {
   return getCounterConfig(type).emoji;
 }
 
-export function formatCounterChannelName(type, count) {
-  const template = botConfig.counters?.defaults?.channelName || '{name}-{count}';
+export const COUNTER_NAME_MAX_LENGTH = 90;
+
+// Custom channel name chosen by the user, e.g. "Ludzie: {count}".
+// A name without {count} gets the number appended.
+export function normalizeCounterNameTemplate(name) {
+  const trimmed = typeof name === 'string' ? name.trim().slice(0, COUNTER_NAME_MAX_LENGTH) : '';
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.includes('{count}') ? trimmed : `${trimmed} {count}`;
+}
+
+export function formatCounterChannelName(type, count, customTemplate = null) {
+  const template = normalizeCounterNameTemplate(customTemplate)
+    || botConfig.counters?.defaults?.channelName
+    || '{name}-{count}';
   const baseName = getCounterBaseName(type);
   return template
     .replaceAll('{name}', baseName)
@@ -128,6 +142,11 @@ function normalizeCounter(counter, guildId) {
     normalized.updatedAt = counter.updatedAt;
   }
 
+  const name = normalizeCounterNameTemplate(counter.name);
+  if (name) {
+    normalized.name = name;
+  }
+
   return normalized;
 }
 
@@ -173,7 +192,7 @@ export async function updateCounter(client, guild, counter) {
       logger.debug(`Base name: "${baseName}", Current name: "${channel.name}"`);
     }
     
-    const newName = formatCounterChannelName(type, count);
+    const newName = formatCounterChannelName(type, count, counter.name);
     if (process.env.NODE_ENV !== 'production') {
       logger.debug(`New name would be: "${newName}"`);
     }
