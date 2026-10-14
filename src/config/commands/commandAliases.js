@@ -26,12 +26,13 @@ export const commandAliases = {
 
     'ban': 'ban',
     'kick': 'kick',
-    'mute': 'timeout',
+    'mute': 'mute',
+    'timeout': 'mute',
     'warn': 'warn',
     'clear': 'purge',
     'purge': 'purge',
-    'untimeout': 'untimeout',
-    'unmute': 'untimeout',
+    'unmute': 'unmute',
+    'untimeout': 'unmute',
 
     'poziom': 'poziom',
     'rank': 'poziom',

@@ -8,7 +8,7 @@ import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
-        .setName("untimeout")
+        .setName("unmute")
         .setDescription("Remove timeout from a user")
         .addUserOption((option) =>
             option
@@ -25,7 +25,7 @@ export default {
             logger.warn(`Untimeout interaction defer failed`, {
                 userId: interaction.user.id,
                 guildId: interaction.guildId,
-                commandName: 'untimeout',
+                commandName: 'unmute',
             });
             return;
         }

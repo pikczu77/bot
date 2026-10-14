@@ -18,7 +18,7 @@ const durationChoices = [
 
 export default {
     data: new SlashCommandBuilder()
-        .setName("timeout")
+        .setName("mute")
         .setDescription("Timeout a user for a specific duration.")
         .addUserOption((option) =>
             option
@@ -46,7 +46,7 @@ export default {
             logger.warn(`Timeout interaction defer failed`, {
                 userId: interaction.user.id,
                 guildId: interaction.guildId,
-                commandName: 'timeout',
+                commandName: 'mute',
             });
             return;
         }
