@@ -4,6 +4,7 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { earningMultiplier, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { t } from '../../i18n/index.js';
 
 const CRIME_TYPES = [
@@ -83,7 +84,7 @@ export default {
 
             const isSuccess = Math.random() > crime.risk;
             const haul = Math.floor(Math.random() * (crime.max - crime.min + 1)) + crime.min;
-            const amountEarned = isSuccess ? Math.floor(haul * settings.payoutPercent / 100) : 0;
+            const amountEarned = isSuccess ? Math.floor(haul * settings.payoutPercent / 100 * earningMultiplier(userData, 'crime')) : 0;
 
             userData.cooldowns = userData.cooldowns || {};
             userData.cooldowns.crime = now;
@@ -95,7 +96,7 @@ export default {
                 
                 const embed = successEmbed(
                     t("🕵️ Crime Successful!"),
-                    t`You successfully committed ${crime.name} and earned **${money(guildId, amountEarned)}**!`
+                    t`You successfully committed ${crime.name} and earned **${money(guildId, amountEarned)}**!` + upgradeBonusLine(userData, 'crime')
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
@@ -103,7 +104,9 @@ export default {
                 // Fine is based on the potential haul of the attempted crime
                 const potentialHaul = Math.floor((crime.min + crime.max) / 2 * settings.payoutPercent / 100);
                 const fine = Math.min(Math.floor(potentialHaul * settings.finePercent / 100), userData.wallet || 0);
-                userData.wallet = Math.max(0, (userData.wallet || 0) - fine);
+                const insured = fine > 0 && (userData.inventory?.insurance || 0) > 0;
+                if (insured) userData.inventory = { ...userData.inventory, insurance: userData.inventory.insurance - 1 };
+                else userData.wallet = Math.max(0, (userData.wallet || 0) - fine);
                 userData.jailedUntil = JAIL_TIME > 0 ? now + JAIL_TIME : 0;
                 
                 await setEconomyData(client, guildId, userId, userData);
@@ -111,7 +114,9 @@ export default {
                 const embed = warningEmbed(
                     t("🚔 Crime Failed!"),
                     t`You were caught while attempting ${crime.name} and have been sent to jail! ` +
-                    t`You were fined ${money(guildId, fine)} and will be in jail for ${formatDuration(JAIL_TIME)}.`
+                    (insured
+                        ? t`Your **Insurance** paid the fine of ${money(guildId, fine)}. You will be in jail for ${formatDuration(JAIL_TIME)}.`
+                        : t`You were fined ${money(guildId, fine)} and will be in jail for ${formatDuration(JAIL_TIME)}.`)
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

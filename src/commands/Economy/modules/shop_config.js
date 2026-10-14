@@ -8,11 +8,11 @@ export default {
         .setDescription('Configure shop settings. (Manage Server required)')
         .addSubcommand(subcommand =>
             subcommand
-                .setName('setrole')
+                .setName('rola-premium')
                 .setDescription('Set the Discord role granted when the Premium Role shop item is purchased.')
                 .addRoleOption(option =>
                     option
-                        .setName('role')
+                        .setName('rola')
                         .setDescription('The role to grant for Premium Role purchases.')
                         .setRequired(true),
                 ),
@@ -21,7 +21,7 @@ export default {
     async execute(interaction, config, client) {
         const subcommand = interaction.options.getSubcommand();
 
-        if (subcommand === 'setrole') {
+        if (subcommand === 'rola-premium') {
             return shopConfigSetrole.execute(interaction, config, client);
         }
     },

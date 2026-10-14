@@ -50,7 +50,7 @@ export default {
       return InteractionHelper.safeEditReply(interaction, {
         embeds: [successEmbed(
           t('Channel Updated'),
-          t`**${DESTINATION_LABELS[destination]}** logs will be sent to ${channel}.\nUse \`/logging dashboard\` to toggle event categories.`,
+          t`**${DESTINATION_LABELS[destination]}** logs will be sent to ${channel}.\nUse \`/logi dashboard\` to toggle event categories.`,
         )],
       });
     } catch (error) {

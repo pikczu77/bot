@@ -1,4 +1,4 @@
-// helpCategories.js — names and icons of the command categories shown in /help.
+// helpCategories.js — names and icons of the command categories shown in /pomoc.
 // A category is a folder in src/commands; the folder name is the English name.
 
 import { t } from '../../i18n/index.js';

@@ -1,13 +1,13 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../../utils/embeds.js';
+import { SlashCommandBuilder } from 'discord.js';
+import { createEmbed } from '../../../utils/embeds.js';
 import { shopItems } from '../../../config/shop/items.js';
 import { getEconomyData } from '../../../utils/economy.js';
-import { withErrorHandling, createError, ErrorTypes } from '../../../utils/errorHandler.js';
-import { logger } from '../../../utils/logger.js';
+import { getEconomySettings } from '../../../services/economySettings.js';
+import { UPGRADES, getUpgradeLevel } from '../../../services/economyUpgrades.js';
+import { withErrorHandling } from '../../../utils/errorHandler.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
-import { t } from '../../../i18n/index.js';
-
-const SHOP_ITEMS = shopItems;
+import { itemLabel } from './buy.js';
+import { t, tr } from '../../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -18,54 +18,27 @@ export default {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
 
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
+        await getEconomySettings(interaction.guildId);
+        const userData = await getEconomyData(client, interaction.guildId, interaction.user.id);
+        const inventory = userData.inventory || {};
 
-            logger.debug(`[ECONOMY] Inventory requested for ${userId}`, { userId, guildId });
+        const items = shopItems
+            .filter((item) => (inventory[item.id] || 0) > 0)
+            .map((item) => `**${itemLabel(item)}:** ${inventory[item.id]}x`);
 
-            const userData = await getEconomyData(client, guildId, userId);
+        const upgrades = UPGRADES
+            .filter((upgrade) => getUpgradeLevel(userData, upgrade.id) > 0)
+            .map((upgrade) => `${upgrade.emoji} ${tr(upgrade.name)} **${getUpgradeLevel(userData, upgrade.id)}/${upgrade.maxLevel}**`);
 
-            if (!userData) {
-                throw createError(
-                    "Failed to load economy data for inventory",
-                    ErrorTypes.DATABASE,
-                    t("Failed to load your economy data. Please try again later."),
-                    { userId, guildId }
-                );
-            }
+        const embed = createEmbed({
+            title: t`🎒 ${interaction.user.username}'s Inventory`,
+            description: items.join('\n') || t('Your inventory is currently empty.'),
+            fields: [{
+                name: t('⚡ Upgrades'),
+                value: upgrades.join('\n') || t('None yet - see `/ulepszenia`.'),
+            }],
+        }).setThumbnail(interaction.user.displayAvatarURL());
 
-            const inventory = userData.inventory || {};
-
-            let inventoryDescription = t("Your inventory is currently empty.");
-
-            if (Object.keys(inventory).length > 0) {
-                inventoryDescription = Object.entries(inventory)
-                    .filter(
-                        ([itemId, quantity]) => {
-                            const item = SHOP_ITEMS.find(i => i.id === itemId);
-                            return quantity > 0 && item;
-                        }
-                    )
-                    .map(
-                        ([itemId, quantity]) => {
-                            const item = SHOP_ITEMS.find(i => i.id === itemId);
-                            return `**${item.name}:** ${quantity}x`;
-                        }
-                    )
-                    .join("\n");
-            }
-
-            logger.info(`[ECONOMY] Inventory retrieved`, { 
-                userId, 
-                guildId,
-                itemCount: Object.keys(inventory).length
-            });
-
-            const embed = createEmbed({ 
-                title: t`🎒 ${interaction.user.username}'s Inventory`, 
-                description: inventoryDescription, 
-            }).setThumbnail(interaction.user.displayAvatarURL());
-
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
     }, { command: 'inventory' })
 };

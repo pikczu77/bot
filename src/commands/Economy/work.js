@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 
 const LAPTOP_MULTIPLIER = 1.5;
 const WORK_JOBS = [
@@ -35,9 +36,8 @@ export default {
             const now = Date.now();
 
             const { work } = (await getEconomySettings(guildId)).commands;
-            const WORK_COOLDOWN = cooldownMs(work.cooldownMinutes);
-
             const userData = await getEconomyData(client, guildId, userId);
+            const WORK_COOLDOWN = staminaCooldown(userData, cooldownMs(work.cooldownMinutes));
 
             if (!userData) {
                 throw createError(
@@ -81,6 +81,8 @@ export default {
                 earned = Math.floor(earned * LAPTOP_MULTIPLIER);
                 multiplierMessage = t("\n💻 **Laptop Bonus:** +50% earnings!");
             }
+            earned = Math.floor(earned * earningMultiplier(userData, 'work'));
+            multiplierMessage += upgradeBonusLine(userData, 'work');
 
             userData.wallet = (userData.wallet || 0) + earned;
             userData.lastWork = now;

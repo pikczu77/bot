@@ -142,7 +142,7 @@
   "Configure Log Channel": "Ustaw kanał logów",
   "Channel where new applications will be logged": "Kanał, na który będą trafiać nowe podania",
   "Log Channel Updated": "Zmieniono kanał logów",
-  "Application logs will now be sent to {0}.\nYou can also manage this from `/logging dashboard`.": "Logi podań będą trafiać na {0}.\nMożesz to też zmienić przez `/logging dashboard`.",
+  "Application logs will now be sent to {0}.\nYou can also manage this from `/logi dashboard`.": "Logi podań będą trafiać na {0}.\nMożesz to też zmienić przez `/logi dashboard`.",
   "An error occurred while updating the log channel.": "Wystąpił błąd podczas zmiany kanału logów.",
   "Configure Manager Roles": "Ustaw role zarządzające",
   "Select roles to grant manager access...": "Wybierz role z dostępem do zarządzania...",

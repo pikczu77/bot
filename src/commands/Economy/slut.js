@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { earningMultiplier } from '../../services/economyUpgrades.js';
 
 const SLUT_ACTIVITIES = [
     { name: t("Cam Stream"), min: 120, max: 450, risk: 0.2 },
@@ -143,7 +144,7 @@ export default {
             }
 
             const baseActivity = randomChoice(SLUT_ACTIVITIES);
-            const scale = settings.payoutPercent / 100;
+            const scale = settings.payoutPercent / 100 * earningMultiplier(userData, 'crime');
             const activity = { ...baseActivity, min: Math.floor(baseActivity.min * scale), max: Math.floor(baseActivity.max * scale) };
 
             const outcome = resolveOutcome(activity, userData.wallet || 0);

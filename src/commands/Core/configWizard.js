@@ -126,7 +126,7 @@ function buildDashboardEmbed(config, guild) {
             },
             {
                 name: t('⚡ Command Access'),
-                value: t('Use `/commands dashboard` to enable or disable commands and subcommands.'),
+                value: t('Use `/komendy dashboard` to enable or disable commands and subcommands.'),
                 inline: false,
             },
             {

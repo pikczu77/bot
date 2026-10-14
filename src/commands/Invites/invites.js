@@ -15,7 +15,7 @@ import {
 import { t } from '../../i18n/index.js';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
-const ADMIN_SUBCOMMANDS = new Set(['bonus', 'reset', 'reward-add', 'reward-remove', 'settings', 'sync']);
+const ADMIN_SUBCOMMANDS = new Set(['bonus', 'reset', 'nagroda-dodaj', 'nagroda-usun', 'settings', 'synchronizuj']);
 
 function nextReward(rewards, total) {
     return [...rewards].sort((a, b) => a.invites - b.invites).find((reward) => reward.invites > total) ?? null;
@@ -23,7 +23,7 @@ function nextReward(rewards, total) {
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('invites')
+        .setName('zaproszenia')
         .setDescription('Invite tracking: who invited whom, leaderboard and rewards')
         .addSubcommand((sub) =>
             sub
@@ -32,7 +32,7 @@ export default {
                 .addUserOption((option) => option.setName('user').setDescription('Member to check')),
         )
         .addSubcommand((sub) => sub.setName('top').setDescription('Top inviters on this server'))
-        .addSubcommand((sub) => sub.setName('rewards').setDescription('Roles you can earn by inviting people'))
+        .addSubcommand((sub) => sub.setName('nagrody').setDescription('Roles you can earn by inviting people'))
         .addSubcommand((sub) =>
             sub
                 .setName('bonus')
@@ -50,14 +50,14 @@ export default {
         )
         .addSubcommand((sub) =>
             sub
-                .setName('reward-add')
+                .setName('nagroda-dodaj')
                 .setDescription('Give a role at a number of invites (admin)')
                 .addIntegerOption((option) => option.setName('invites').setDescription('Invites needed').setRequired(true).setMinValue(1).setMaxValue(100000))
                 .addRoleOption((option) => option.setName('role').setDescription('Role to give').setRequired(true)),
         )
         .addSubcommand((sub) =>
             sub
-                .setName('reward-remove')
+                .setName('nagroda-usun')
                 .setDescription('Remove an invite reward (admin)')
                 .addRoleOption((option) => option.setName('role').setDescription('Reward role').setRequired(true)),
         )
@@ -73,7 +73,7 @@ export default {
                     option.setName('fake_days').setDescription('Accounts younger than this many days do not count').setMinValue(0).setMaxValue(365),
                 ),
         )
-        .addSubcommand((sub) => sub.setName('sync').setDescription('Re-read all invites from Discord (admin)')),
+        .addSubcommand((sub) => sub.setName('synchronizuj').setDescription('Re-read all invites from Discord (admin)')),
     slashOnly: true,
 
     async execute(interaction) {
@@ -120,7 +120,7 @@ export default {
             }));
         }
 
-        if (subcommand === 'rewards') {
+        if (subcommand === 'nagrody') {
             if (config.rewards.length === 0) {
                 return respond(interaction, infoEmbed(t('No invite rewards are set up on this server.')));
             }
@@ -154,7 +154,7 @@ export default {
             ));
         }
 
-        if (subcommand === 'reward-add') {
+        if (subcommand === 'nagroda-dodaj') {
             const invites = interaction.options.getInteger('invites');
             const role = interaction.options.getRole('role');
             if (role.managed || role.id === guild.id) throw userError(t('That role cannot be given by the bot.'));
@@ -167,7 +167,7 @@ export default {
             return respond(interaction, successEmbed(t`${role} will be given at **${invites}** invites.`));
         }
 
-        if (subcommand === 'reward-remove') {
+        if (subcommand === 'nagroda-usun') {
             const role = interaction.options.getRole('role');
             let removed = false;
             await updateInviteConfig(guild.id, (data) => {
@@ -203,7 +203,7 @@ export default {
             }), { ephemeral: true });
         }
 
-        if (subcommand === 'sync') {
+        if (subcommand === 'synchronizuj') {
             await InteractionHelper.safeDefer(interaction);
             if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageGuild)) {
                 throw userError(t('I need the **Manage Server** permission to read invites.'));

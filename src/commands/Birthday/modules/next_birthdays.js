@@ -15,7 +15,7 @@ export default {
             const embed = new EmbedBuilder()
                 .setColor(0xFF0000)
                 .setTitle(t('No Birthdays Found'))
-                .setDescription(t('No birthdays have been set up in this server yet. Use `/birthday set` to add birthdays!'));
+                .setDescription(t('No birthdays have been set up in this server yet. Use `/urodziny ustaw` to add birthdays!'));
             return await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed]
             });
@@ -71,7 +71,7 @@ export default {
             birthdayList += t`${displayIndex}. **${member.displayName}**\n<@${birthday.userId}>\n📅 **Date:** ${birthday.monthName} ${birthday.day}\n⏰ **Time:** ${timeUntil}\n\n`;
         }
 
-        birthdayList += t`Use /birthday set to add your birthday!`;
+        birthdayList += t`Use /urodziny ustaw to add your birthday!`;
 
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)

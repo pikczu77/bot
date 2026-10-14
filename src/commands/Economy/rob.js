@@ -5,6 +5,18 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { bankStealPercent, robSuccessBonus } from '../../services/economyUpgrades.js';
+
+const LOCKPICK_BONUS = 20;
+const MAX_SUCCESS_PERCENT = 95;
+
+/** Take one `itemId` from the inventory. Returns true when there was one. */
+function useItem(userData, itemId) {
+    const count = userData.inventory?.[itemId] || 0;
+    if (count <= 0) return false;
+    userData.inventory = { ...userData.inventory, [itemId]: count - 1 };
+    return true;
+}
 
 export default {
     data: new SlashCommandBuilder()
@@ -20,7 +32,7 @@ export default {
     execute: withErrorHandling(async (interaction, config, client) => {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
+
             const robberId = interaction.user.id;
             const victimUser = interaction.options.getUser("user");
             const guildId = interaction.guildId;
@@ -34,7 +46,7 @@ export default {
                     { robberId, victimId: victimUser.id }
                 );
             }
-            
+
             if (victimUser.bot) {
                 throw createError(
                     "Cannot rob bot",
@@ -49,7 +61,7 @@ export default {
 
             const robberData = await getEconomyData(client, guildId, robberId);
             const victimData = await getEconomyData(client, guildId, victimUser.id);
-            
+
             if (!robberData || !victimData) {
                 throw createError(
                     "Failed to load economy data",
@@ -58,7 +70,7 @@ export default {
                     { robberId: !!robberData, victimId: !!victimData, guildId }
                 );
             }
-            
+
             const lastRob = robberData.lastRob || 0;
 
             if (now < lastRob + ROB_COOLDOWN) {
@@ -74,61 +86,71 @@ export default {
                 );
             }
 
-            if (victimData.wallet < rob.minVictimCash) {
+            const victimWallet = victimData.wallet || 0;
+            const victimBank = victimData.bank || 0;
+
+            if (victimWallet + victimBank < rob.minVictimCash) {
                 throw createError(
                     "Victim too poor",
                     ErrorTypes.VALIDATION,
-                    t`${victimUser.username} is too poor. They need at least ${money(guildId, rob.minVictimCash)} cash to be worth robbing.`,
-                    { victimWallet: victimData.wallet, required: rob.minVictimCash }
+                    t`${victimUser.username} is too poor. They need at least ${money(guildId, rob.minVictimCash)} (cash and bank) to be worth robbing.`,
+                    { victimWallet, victimBank, required: rob.minVictimCash }
                 );
             }
 
-            const hasSafe = victimData.inventory["personal_safe"] || 0;
+            robberData.lastRob = now;
 
-            if (hasSafe > 0) {
-                robberData.lastRob = now;
+            if (useItem(victimData, 'personal_safe')) {
                 await setEconomyData(client, guildId, robberId, robberData);
+                await setEconomyData(client, guildId, victimUser.id, victimData);
 
                 return await InteractionHelper.safeEditReply(interaction, {
                     embeds: [
                         warningEmbed(
                             t('Robbery Blocked'),
-                            t`${victimUser.username} was prepared! Your attempt failed because they own a **Personal Safe**. You got away clean but didn't gain anything.`
+                            t`${victimUser.username} had a **Personal Safe**. It stopped you and broke. You got away clean but didn't gain anything.`
                         )
                     ],
                 });
             }
 
-            const isSuccessful = Math.random() * 100 < rob.successPercent;
+            const usedLockpick = useItem(robberData, 'lockpick');
+            const successPercent = Math.min(
+                Math.max(MAX_SUCCESS_PERCENT, rob.successPercent),
+                rob.successPercent + robSuccessBonus(robberData) + (usedLockpick ? LOCKPICK_BONUS : 0),
+            );
+            const isSuccessful = Math.random() * 100 < successPercent;
             let resultEmbed;
 
             if (isSuccessful) {
-                const amountStolen = Math.floor(victimData.wallet * rob.stealPercent / 100);
+                const bankPercent = bankStealPercent(victimData);
+                const fromWallet = Math.floor(victimWallet * rob.stealPercent / 100);
+                const fromBank = Math.floor(victimBank * bankPercent / 100);
+                const amountStolen = fromWallet + fromBank;
 
                 robberData.wallet = (robberData.wallet || 0) + amountStolen;
-                victimData.wallet = (victimData.wallet || 0) - amountStolen;
+                victimData.wallet = victimWallet - fromWallet;
+                victimData.bank = victimBank - fromBank;
 
                 resultEmbed = successEmbed(
                     t('Robbery Successful'),
-                    t`You successfully stole **${money(guildId, amountStolen)}** from ${victimUser.username}!`
+                    t`You stole **${money(guildId, amountStolen)}** from ${victimUser.username}!` +
+                    t`\n💵 Cash: ${money(guildId, fromWallet)} (${rob.stealPercent}%)\n🏦 Bank: ${money(guildId, fromBank)} (${bankPercent}%)`
                 );
             } else {
                 const fineAmount = Math.floor((robberData.wallet || 0) * rob.finePercent / 100);
+                const insured = fineAmount > 0 && useItem(robberData, 'insurance');
 
-                if ((robberData.wallet || 0) < fineAmount) {
-                    robberData.wallet = 0;
-                } else {
-                    robberData.wallet = (robberData.wallet || 0) - fineAmount;
-                }
+                if (!insured) robberData.wallet = Math.max(0, (robberData.wallet || 0) - fineAmount);
 
                 resultEmbed = buildUserErrorEmbed(
                     'unknown',
-                    t`You failed the robbery and were caught! You were fined **${money(guildId, fineAmount)}** of your own cash.`,
+                    insured
+                        ? t`You failed the robbery and were caught! Your **Insurance** paid the fine of **${money(guildId, fineAmount)}**.`
+                        : t`You failed the robbery and were caught! You were fined **${money(guildId, fineAmount)}** of your own cash.`,
                     { titleOverride: t('Robbery Failed') }
                 );
             }
-
-            robberData.lastRob = now;
 
             await setEconomyData(client, guildId, robberId, robberData);
             await setEconomyData(client, guildId, victimUser.id, victimData);
@@ -146,7 +168,11 @@ export default {
                         inline: true,
                     },
                 )
-                .setFooter({ text: t`Next robbery available in ${formatDuration(ROB_COOLDOWN)}.` });
+                .setFooter({
+                    text: usedLockpick
+                        ? t`Lockpick used: ${successPercent}% success chance. Next robbery in ${formatDuration(ROB_COOLDOWN)}.`
+                        : t`Success chance: ${successPercent}%. Next robbery in ${formatDuration(ROB_COOLDOWN)}.`,
+                });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed] });
     }, { command: 'rob' })

@@ -76,7 +76,7 @@ async function handlePrefixCommand(message, client) {
     let command = client.commands.get(resolvedCommandName);
 
     // Commands that were merged into a group still answer to their old prefix name:
-    // `!deposit 50` runs `/bank deposit`.
+    // `!deposit 50` runs `/bank wplac`.
     if (!command) {
       const grouped = client.groupedCommands?.get(resolvedCommandName.toLowerCase());
       if (grouped) {

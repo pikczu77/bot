@@ -9,7 +9,7 @@ import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
-        .setName('logging')
+        .setName('logi')
         .setDescription('Manage server logging — channels, filters, and event categories.')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .setDMPermission(false)

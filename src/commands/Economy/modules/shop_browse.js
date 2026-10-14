@@ -1,95 +1,100 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, EmbedBuilder, MessageFlags } from 'discord.js';
+// /sklep przegladaj — the shop as one message: a category menu, an item menu that buys
+// the picked item, and a button to the permanent upgrades. The menus are handled by
+// src/interactions/selectMenus/economy/shop.js, so they keep working after a restart.
+
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
+import { createEmbed } from '../../../utils/embeds.js';
+import { getEconomyData } from '../../../utils/economy.js';
 import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
-import { getColor } from '../../../config/bot.js';
-import { logger } from '../../../utils/logger.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
-import { t } from '../../../i18n/index.js';
+import { purchaseRoom } from '../../../config/shop/items.js';
+import { itemLabel } from './buy.js';
+import { t, tr } from '../../../i18n/index.js';
+
+export const SHOP_CATEGORIES = [
+    { id: 'tool', emoji: '🛠️', name: t('Tools'), description: t('Kept forever. They raise what you earn.') },
+    { id: 'consumable', emoji: '🧪', name: t('Consumables'), description: t('Used up by the command they help.') },
+    { id: 'role', emoji: '🎭', name: t('Roles'), description: t('Discord roles for sale.') },
+];
+
+const clip = (text, max) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+/** The whole shop message for `ownerId`, showing `categoryId`. */
+export async function buildShopView({ client, guild, ownerId, categoryId = null }) {
+    const guildId = guild.id;
+    const settings = await getEconomySettings(guildId);
+    const items = getShopItems(settings, guild);
+    const userData = await getEconomyData(client, guildId, ownerId);
+    const categories = SHOP_CATEGORIES.filter((category) => items.some((item) => item.type === category.id));
+    const category = categories.find((entry) => entry.id === categoryId) ?? categories[0] ?? SHOP_CATEGORIES[0];
+    const shown = items.filter((item) => item.type === category.id).slice(0, 25);
+
+    const lines = shown.map((item) => {
+        const owned = userData.inventory?.[item.id] || 0;
+        const room = purchaseRoom(item, userData);
+        const status = item.type === 'tool' && !item.stackable && owned > 0
+            ? t(' · ✅ owned')
+            : owned > 0 ? t` · 🎒 ${owned}x` : '';
+        const limit = room === 0 && item.type === 'consumable' ? t(' · limit reached') : '';
+        return `**${itemLabel(item)}** — ${money(guildId, item.price)}${status}${limit}\n${tr(item.description)}`;
+    });
+
+    const embed = createEmbed({
+        title: t`🛒 Shop · ${category.emoji} ${category.name}`,
+        description: [
+            `-# ${tr(category.description)}`,
+            lines.join('\n\n') || t('Nothing for sale here yet.'),
+        ].join('\n\n'),
+        fields: [
+            { name: t('💵 Cash'), value: money(guildId, userData.wallet || 0), inline: true },
+            { name: t('🏦 Bank'), value: money(guildId, userData.bank || 0), inline: true },
+        ],
+        footer: { text: t('Pick an item in the menu to buy it. Cash is used first, then the bank.') },
+    });
+
+    const components = [];
+    if (categories.length > 1) {
+        components.push(new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`sklep:kat:${ownerId}`)
+                .setPlaceholder(t('Category'))
+                .addOptions(categories.map((entry) => ({
+                    label: tr(entry.name),
+                    value: entry.id,
+                    emoji: entry.emoji,
+                    description: clip(tr(entry.description), 100),
+                    default: entry.id === category.id,
+                }))),
+        ));
+    }
+    if (shown.length > 0) {
+        components.push(new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`sklep:kup:${ownerId}:${category.id}`)
+                .setPlaceholder(t('Buy an item…'))
+                .addOptions(shown.map((item) => ({
+                    label: clip(itemLabel(item), 100),
+                    value: item.id,
+                    description: clip(`${money(guildId, item.price)} · ${tr(item.description)}`, 100),
+                }))),
+        ));
+    }
+    components.push(new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`ulepszenia:pokaz:${ownerId}`)
+            .setLabel(t('Permanent upgrades'))
+            .setEmoji('⚡')
+            .setStyle(ButtonStyle.Primary),
+    ));
+
+    return { embeds: [embed], components };
+}
 
 export default {
     async execute(interaction, config, client) {
         try {
-            const guildId = interaction.guildId;
-            const shopItems = getShopItems(await getEconomySettings(guildId), interaction.guild);
-            const TARGET_MAX_PAGES = 3;
-            const ITEMS_PER_PAGE = Math.max(1, Math.ceil(shopItems.length / TARGET_MAX_PAGES));
-            const totalPages = Math.ceil(shopItems.length / ITEMS_PER_PAGE);
-            let currentPage = 1;
-
-            const createShopEmbed = (page) => {
-                const startIndex = (page - 1) * ITEMS_PER_PAGE;
-                const pageItems = shopItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-                const embed = new EmbedBuilder()
-                    .setTitle(t('Store'))
-                    .setColor(getColor('primary'))
-                    .setDescription(t('Use `/buy item_id:<id> quantity:<amount>` to purchase an item.'));
-                pageItems.forEach(item => {
-                    embed.addFields({
-                        name: `${item.name} (${item.id})`,
-                        value: t`**Type:** ${item.type}\n **Price:** ${money(guildId, item.price)}\n${item.description}`,
-                        inline: false,
-                    });
-                });
-                embed.setFooter({ text: t`Page ${page}/${totalPages}` });
-                return embed;
-            };
-
-            const createShopComponents = (page) => {
-                if (totalPages <= 1) return [];
-                return [
-                    new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('shop_prev')
-                            .setLabel(t('⬅️ Previous'))
-                            .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(page === 1),
-                        new ButtonBuilder()
-                            .setCustomId('shop_next')
-                            .setLabel(t('Next ➡️'))
-                            .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(page === totalPages),
-                    ),
-                ];
-            };
-
-            const message = await interaction.reply({
-                embeds: [createShopEmbed(currentPage)],
-                components: createShopComponents(currentPage),
-                flags: 0,
-            });
-
-            const collector = message.createMessageComponentCollector({
-                componentType: ComponentType.Button,
-                time: 300000,
-            });
-
-            collector.on('collect', async (buttonInteraction) => {
-                if (buttonInteraction.user.id !== interaction.user.id) {
-                    await buttonInteraction.reply({ content: t('❌ You cannot use these buttons. Run `/shop` to get your own shop view.'), flags: 64 });
-                    return;
-                }
-                const { customId } = buttonInteraction;
-                if (customId === 'shop_prev' || customId === 'shop_next') {
-                    await buttonInteraction.deferUpdate();
-                    if (customId === 'shop_prev' && currentPage > 1) currentPage--;
-                    else if (customId === 'shop_next' && currentPage < totalPages) currentPage++;
-                    await buttonInteraction.editReply({
-                        embeds: [createShopEmbed(currentPage)],
-                        components: createShopComponents(currentPage),
-                    });
-                }
-            });
-
-            collector.on('end', async () => {
-                try {
-                    const disabledComponents = createShopComponents(currentPage);
-                    disabledComponents.forEach(row => row.components.forEach(btn => btn.setDisabled(true)));
-                    await message.edit({ components: disabledComponents });
-                } catch (error) {
-                    logger.debug('shop_browse: could not disable components on collector end', {
-                        error: error.message,
-                    });
-                }
-            });
+            const view = await buildShopView({ client, guild: interaction.guild, ownerId: interaction.user.id });
+            await interaction.reply(view);
         } catch (error) {
             await handleInteractionError(interaction, error, { command: 'shop_browse' });
         }

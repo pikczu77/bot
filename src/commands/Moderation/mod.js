@@ -10,6 +10,6 @@ export default createCommandGroup({
         tempban,
         softban,
         nick,
-        history,
+        { command: history, as: 'historia' },
     ],
 });

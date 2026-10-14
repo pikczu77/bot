@@ -47,7 +47,7 @@ export async function handleList(interaction, client) {
         if (validCounters.length === 0) {
             const embed = createEmbed({
                 title: t("Server Counters"),
-                description: t("No counters have been set up for this server yet.\n\nUse `/serverstats create` to set up your first counter!"),
+                description: t("No counters have been set up for this server yet.\n\nUse `/statystyki create` to set up your first counter!"),
                 color: getColor('warning')
             });
 
@@ -59,7 +59,7 @@ export async function handleList(interaction, client) {
 
             embed.addFields({
                 name: t("**Usage Examples**"),
-                value: t("`/serverstats create type:members channel_type:voice category:Stats`\n`/serverstats create type:bots channel_type:text category:Server Info`\n`/serverstats list`"),
+                value: t("`/statystyki create type:members channel_type:voice category:Stats`\n`/statystyki create type:bots channel_type:text category:Server Info`\n`/statystyki list`"),
                 inline: false
             });
 
@@ -108,7 +108,7 @@ export async function handleList(interaction, client) {
 
         embed.addFields({
             name: t("**Management Commands**"),
-            value: t("`/serverstats create` - Create new counter\n`/serverstats update` - Update existing counter\n`/serverstats delete` - Delete counter"),
+            value: t("`/statystyki create` - Create new counter\n`/statystyki update` - Update existing counter\n`/statystyki usun` - Delete counter"),
             inline: false
         });
 

@@ -21,7 +21,7 @@ export default {
             return InteractionHelper.safeReply(interaction, {
                 embeds: [successEmbed(
                     t('Report Channel Set'),
-                    t`All new reports will now be sent to ${channel}.\nYou can also manage this from \`/logging dashboard\`.`,
+                    t`All new reports will now be sent to ${channel}.\nYou can also manage this from \`/logi dashboard\`.`,
                 )],
                 ephemeral: true,
             });

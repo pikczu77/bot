@@ -13,7 +13,7 @@ import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
-        .setName("serverstats")
+        .setName("statystyki")
         .setDescription("Manage server statistics that track member counts and channel data")
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
         .addSubcommand(subcommand =>
@@ -78,7 +78,7 @@ export default {
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName("delete")
+                .setName("usun")
                 .setDescription("Delete an existing statistics tracker")
                 .addStringOption(option =>
                     option
@@ -101,7 +101,7 @@ export default {
             case "update":
                 await handleUpdate(interaction, client);
                 break;
-            case "delete":
+            case "usun":
                 await handleDelete(interaction, client);
                 break;
             default:

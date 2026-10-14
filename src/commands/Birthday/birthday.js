@@ -13,11 +13,11 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
-        .setName('birthday')
+        .setName('urodziny')
         .setDescription('Birthday system commands')
         .addSubcommand(subcommand =>
             subcommand
-                .setName('set')
+                .setName('ustaw')
                 .setDescription('Set your birthday')
                 .addIntegerOption(option =>
                     option
@@ -49,22 +49,22 @@ export default {
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName('list')
+                .setName('lista')
                 .setDescription('List all birthdays in the server')
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName('remove')
+                .setName('usun')
                 .setDescription('Remove your birthday')
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName('next')
+                .setName('nastepne')
                 .setDescription('Show upcoming birthdays')
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName('setchannel')
+                .setName('kanal')
                 .setDescription('Set or disable the channel for birthday announcements. (Manage Server required)')
                 .addChannelOption(option =>
                     option
@@ -79,17 +79,17 @@ export default {
         const subcommand = interaction.options.getSubcommand();
 
         switch (subcommand) {
-            case 'set':
+            case 'ustaw':
                 return await birthdaySet.execute(interaction, config, client);
             case 'info':
                 return await birthdayInfo.execute(interaction, config, client);
-            case 'list':
+            case 'lista':
                 return await birthdayList.execute(interaction, config, client);
-            case 'remove':
+            case 'usun':
                 return await birthdayRemove.execute(interaction, config, client);
-            case 'next':
+            case 'nastepne':
                 return await nextBirthdays.execute(interaction, config, client);
-            case 'setchannel':
+            case 'kanal':
                 return await birthdaySetchannel.execute(interaction, config, client);
             default:
                 return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Unknown subcommand') });

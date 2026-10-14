@@ -115,7 +115,7 @@ async function createCategoryCommandsMenu(category, client) {
 
             if (commandData) {
                 if (
-                    commandData.name === "help" ||
+                    commandData.name === "pomoc" ||
                     commandData.name === "commandlist"
                 )
                     continue;
@@ -244,7 +244,7 @@ export async function createAllCommandsMenu(page = 1, client) {
 
                 if (commandData) {
                     if (
-                        commandData.name === "help" ||
+                        commandData.name === "pomoc" ||
                         commandData.name === "commandlist"
                     )
                         continue;

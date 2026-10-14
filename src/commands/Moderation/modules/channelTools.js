@@ -56,7 +56,7 @@ export const sticky = {
         requireBotPermission(guild, [PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageMessages], interaction.channel);
         await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
         await setSticky(interaction.channel, interaction.options.getString('text').replace(/\\n/g, '\n'));
-        return respond(interaction, successEmbed(t('📌 The message will stay at the bottom of this channel. Remove it with `/channel unsticky`.')));
+        return respond(interaction, successEmbed(t('📌 The message will stay at the bottom of this channel. Remove it with `/channel odepnij`.')));
     },
 };
 

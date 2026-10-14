@@ -5,6 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { staminaCooldown } from '../../services/economyUpgrades.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -19,9 +20,8 @@ export default {
             const guildId = interaction.guildId;
 
             const { beg } = (await getEconomySettings(guildId)).commands;
-            const COOLDOWN = cooldownMs(beg.cooldownMinutes);
-
             let userData = await getEconomyData(client, guildId, userId);
+            const COOLDOWN = staminaCooldown(userData, cooldownMs(beg.cooldownMinutes));
             
             if (!userData) {
                 throw createError(

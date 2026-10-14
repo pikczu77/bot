@@ -43,49 +43,49 @@ export default {
                 .addBooleanOption((option) => option.setName('anonymous').setDescription('Hide staff names from members (default: no)'))
                 .addStringOption((option) => option.setName('greeting').setDescription('Text sent to a member after their first message').setMaxLength(1000)),
         )
-        .addSubcommand((sub) => sub.setName('disable').setDescription('Turn modmail off'))
+        .addSubcommand((sub) => sub.setName('wylacz').setDescription('Turn modmail off'))
         .addSubcommand((sub) => sub.setName('status').setDescription('Show modmail settings'))
         .addSubcommand((sub) =>
             sub
-                .setName('contact')
+                .setName('kontakt')
                 .setDescription('Start a conversation with a member')
                 .addUserOption((option) => option.setName('user').setDescription('Member to contact').setRequired(true)),
         )
         .addSubcommand((sub) =>
             sub
-                .setName('reply')
+                .setName('odpowiedz')
                 .setDescription('Answer in this conversation')
                 .addStringOption((option) => option.setName('message').setDescription('Your answer').setRequired(true).setMaxLength(1900))
                 .addBooleanOption((option) => option.setName('anonymous').setDescription('Send without your name')),
         )
         .addSubcommand((sub) =>
             sub
-                .setName('close')
+                .setName('zamknij')
                 .setDescription('Close this conversation')
                 .addStringOption((option) => option.setName('reason').setDescription('Reason shown to the member').setMaxLength(500)),
         )
         .addSubcommand((sub) =>
-            sub.setName('block').setDescription('Stop a member from using modmail')
+            sub.setName('zablokuj').setDescription('Stop a member from using modmail')
                 .addUserOption((option) => option.setName('user').setDescription('Member').setRequired(true)),
         )
         .addSubcommand((sub) =>
-            sub.setName('unblock').setDescription('Let a member use modmail again')
+            sub.setName('odblokuj').setDescription('Let a member use modmail again')
                 .addUserOption((option) => option.setName('user').setDescription('Member').setRequired(true)),
         )
         .addSubcommand((sub) =>
-            sub.setName('snippet-add').setDescription('Save a ready-made answer')
+            sub.setName('szablon-dodaj').setDescription('Save a ready-made answer')
                 .addStringOption((option) => option.setName('name').setDescription('Short name').setRequired(true).setMaxLength(32))
                 .addStringOption((option) => option.setName('text').setDescription('The answer').setRequired(true).setMaxLength(1900)),
         )
         .addSubcommand((sub) =>
-            sub.setName('snippet-remove').setDescription('Delete a ready-made answer')
+            sub.setName('szablon-usun').setDescription('Delete a ready-made answer')
                 .addStringOption((option) => option.setName('name').setDescription('Snippet name').setRequired(true).setAutocomplete(true)),
         )
         .addSubcommand((sub) =>
-            sub.setName('snippet').setDescription('Send a ready-made answer in this conversation')
+            sub.setName('szablon').setDescription('Send a ready-made answer in this conversation')
                 .addStringOption((option) => option.setName('name').setDescription('Snippet name').setRequired(true).setAutocomplete(true)),
         )
-        .addSubcommand((sub) => sub.setName('snippets').setDescription('List ready-made answers')),
+        .addSubcommand((sub) => sub.setName('szablony').setDescription('List ready-made answers')),
     slashOnly: true,
 
     async autocomplete(interaction) {
@@ -143,7 +143,7 @@ export default {
             ));
         }
 
-        if (subcommand === 'disable') {
+        if (subcommand === 'wylacz') {
             await updateModmailConfig(guild.id, (data) => { data.enabled = false; });
             return respond(interaction, successEmbed(t('Modmail is off. Open conversations stay until they are closed.')));
         }
@@ -164,7 +164,7 @@ export default {
             }), { ephemeral: true });
         }
 
-        if (subcommand === 'contact') {
+        if (subcommand === 'kontakt') {
             const user = interaction.options.getUser('user');
             if (user.bot) throw userError(t('Bots cannot use modmail.'));
             await InteractionHelper.safeDefer(interaction);
@@ -172,10 +172,10 @@ export default {
             return respond(interaction, successEmbed(t`Conversation with ${user} opened: <#${thread.channelId}>`));
         }
 
-        if (subcommand === 'reply' || subcommand === 'snippet') {
+        if (subcommand === 'odpowiedz' || subcommand === 'szablon') {
             const thread = await requireThread(interaction);
             let message;
-            if (subcommand === 'snippet') {
+            if (subcommand === 'szablon') {
                 const name = interaction.options.getString('name').toLowerCase().trim();
                 message = config.snippets[name];
                 if (!message) throw userError(t`There is no snippet called \`${name}\`.`);
@@ -193,16 +193,16 @@ export default {
             }));
         }
 
-        if (subcommand === 'close') {
+        if (subcommand === 'zamknij') {
             await requireThread(interaction);
             await respond(interaction, successEmbed(t('Closing the conversation…')));
             await closeThread(client, guild, interaction.channelId, interaction.member, interaction.options.getString('reason'));
             return undefined;
         }
 
-        if (subcommand === 'block' || subcommand === 'unblock') {
+        if (subcommand === 'zablokuj' || subcommand === 'odblokuj') {
             const user = interaction.options.getUser('user');
-            const block = subcommand === 'block';
+            const block = subcommand === 'zablokuj';
             await updateModmailConfig(guild.id, (data) => {
                 data.blocked = data.blocked.filter((id) => id !== user.id);
                 if (block) data.blocked.push(user.id);
@@ -212,12 +212,12 @@ export default {
             ), { ephemeral: true });
         }
 
-        if (subcommand === 'snippet-add') {
+        if (subcommand === 'szablon-dodaj') {
             const name = await setSnippet(guild.id, interaction.options.getString('name'), interaction.options.getString('text'));
-            return respond(interaction, successEmbed(t`Snippet \`${name}\` saved. Send it with \`/modmail snippet\`.`), { ephemeral: true });
+            return respond(interaction, successEmbed(t`Snippet \`${name}\` saved. Send it with \`/modmail szablon\`.`), { ephemeral: true });
         }
 
-        if (subcommand === 'snippet-remove') {
+        if (subcommand === 'szablon-usun') {
             const name = interaction.options.getString('name');
             if (!await removeSnippet(guild.id, name)) throw userError(t`There is no snippet called \`${name}\`.`);
             return respond(interaction, successEmbed(t`Snippet \`${name}\` deleted.`), { ephemeral: true });
@@ -226,7 +226,7 @@ export default {
         if (subcommand === 'snippets') {
             const entries = Object.entries(config.snippets);
             if (entries.length === 0) {
-                return respond(interaction, infoEmbed(t('No snippets yet. Add one with `/modmail snippet-add`.')), { ephemeral: true });
+                return respond(interaction, infoEmbed(t('No snippets yet. Add one with `/modmail szablon-dodaj`.')), { ephemeral: true });
             }
             return respond(interaction, createEmbed({
                 title: t('📋 Modmail snippets'),

@@ -3,7 +3,7 @@ import './helpers/env.js';
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { Collection, PermissionFlagsBits } from 'discord.js';
-import { mockChannel, mockGuild, mockInteraction, mockMember, mockRole, mockUser, replyText } from './helpers/mock.js';
+import { mockChannel, mockGuild, mockInteraction, mockMember, mockRole, mockUser, replyText, snowflake } from './helpers/mock.js';
 import { runWithLocale } from '../src/i18n/index.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
@@ -42,7 +42,7 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
     'tools', 'poll', 'embedbuilder', 'tag', 'apply', 'app-admin', 'verification', 'verify', 'autoverify', 'rank',
   ];
   assert.deepEqual(removed.filter((name) => client.commands.has(name)), []);
-  assert.equal(client.commands.size, 63);
+  assert.equal(client.commands.size, 64);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);
@@ -61,34 +61,34 @@ test('/ship is stable for a pair and refuses self-ships', async () => {
   assert.match(replyText(polish), /Nazwa shipu/);
 });
 
-test('/invites shows stats, leaderboard and admin tools', async () => {
+test('/zaproszenia shows stats, leaderboard and admin tools', async () => {
   await addBonusInvites(guild.id, regular.id, 4);
-  const shown = await run('invites', { subcommand: 'show', options: { user: regular.user } });
+  const shown = await run('zaproszenia', { subcommand: 'show', options: { user: regular.user } });
   assert.match(replyText(shown), /\*\*4\*\* invites/);
-  const polish = await run('invites', { locale: 'pl', subcommand: 'show', options: { user: regular.user } });
+  const polish = await run('zaproszenia', { locale: 'pl', subcommand: 'show', options: { user: regular.user } });
   assert.match(replyText(polish), /\*\*4\*\* zaproszenia/);
 
-  const board = await run('invites', { subcommand: 'top' });
+  const board = await run('zaproszenia', { subcommand: 'top' });
   assert.match(replyText(board), new RegExp(`<@${regular.id}>`));
 
   const role = mockRole(guild, 'Inviter');
-  await run('invites', { subcommand: 'reward-add', options: { invites: 3, role } });
-  const rewards = await run('invites', { subcommand: 'rewards' });
+  await run('zaproszenia', { subcommand: 'nagroda-dodaj', options: { invites: 3, role } });
+  const rewards = await run('zaproszenia', { subcommand: 'nagrody' });
   assert.match(replyText(rewards), new RegExp(role.id));
 
-  await assert.rejects(run('invites', { member: regular, subcommand: 'reset' }), /permission/i);
+  await assert.rejects(run('zaproszenia', { member: regular, subcommand: 'reset' }), /permission/i);
 });
 
-test('/channel slowmode goes through the command group', async () => {
-  const done = await run('channel', { subcommand: 'slowmode', options: { time: '30s' } });
+test('/channel wolny-tryb goes through the command group', async () => {
+  const done = await run('channel', { subcommand: 'wolny-tryb', options: { time: '30s' } });
   assert.equal(channel.rateLimitPerUser, 30);
   assert.match(replyText(done), /30s/);
-  await run('channel', { subcommand: 'slowmode', options: { time: '0' } });
+  await run('channel', { subcommand: 'wolny-tryb', options: { time: '0' } });
   assert.equal(channel.rateLimitPerUser, 0);
-  await assert.rejects(run('channel', { subcommand: 'slowmode', options: { time: 'kiedys' } }));
+  await assert.rejects(run('channel', { subcommand: 'wolny-tryb', options: { time: 'kiedys' } }));
 
   // Discord only gates the top-level command; the member check must stop a regular user.
-  const blocked = mockInteraction({ client, guild, channel, member: regular, commandName: 'channel', subcommand: 'slowmode', options: { time: '5s' } });
+  const blocked = mockInteraction({ client, guild, channel, member: regular, commandName: 'channel', subcommand: 'wolny-tryb', options: { time: '5s' } });
   await runWithLocale('en', () => client.commands.get('channel').execute(blocked, {}, client));
   assert.equal(channel.rateLimitPerUser, 0);
 });
@@ -96,7 +96,7 @@ test('/channel slowmode goes through the command group', async () => {
 test('empty lists explain what to do next', async () => {
   assert.match(replyText(await run('minecraft', { subcommand: 'list' })), /minecraft track/);
   assert.match(replyText(await run('modmail', { subcommand: 'status' })), /Modmail/);
-  assert.match(replyText(await run('giveaway', { subcommand: 'list' })), /giveaway create/);
+  assert.match(replyText(await run('konkurs', { subcommand: 'list' })), /konkurs utworz/);
   assert.match(replyText(await run('role', { subcommand: 'info', options: { role: mockRole(guild, 'VIP') } })), /VIP/);
 });
 
@@ -161,8 +161,8 @@ test('economy commands follow the server settings: payouts, currency, tax, shop,
   assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7777);
   assert.equal((await getEconomyData(client, guild.id, admin.id)).wallet, 1900);
 
-  await assert.rejects(run('shop', { member: regular, subcommand: 'buy', options: { item_id: 'laptop' } }), /not found/);
-  const bought = await run('shop', { member: regular, subcommand: 'buy', options: { item_id: `role_${vip.id}` } });
+  await assert.rejects(run('sklep', { member: regular, subcommand: 'kup', options: { przedmiot: 'laptop' } }), /not found/);
+  const bought = await run('sklep', { member: regular, subcommand: 'kup', options: { przedmiot: `role_${vip.id}` } });
   assert.match(replyText(bought), /500 zł/);
   assert.ok(regular.roles.cache.has(vip.id));
   assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7277);
@@ -174,6 +174,134 @@ test('economy commands follow the server settings: payouts, currency, tax, shop,
   assert.equal(await getEconomyAccessDenial({ guild, member: regular, channel }, client.commands.get('ship')), null);
 
   await setEconomyData(client, guild.id, regular.id, { ...(await getEconomyData(client, guild.id, regular.id)), wallet: 0 });
+});
+
+/** A button or menu click on a message. Records what the handler answered. */
+function mockComponent({ guild, channel, member, customId, values = [] }) {
+  const calls = { reply: [], update: [], followUp: [] };
+  return {
+    calls,
+    id: snowflake(),
+    client,
+    guild,
+    guildId: guild.id,
+    channel,
+    channelId: channel.id,
+    member,
+    user: member.user,
+    customId,
+    values,
+    createdTimestamp: Date.now(),
+    replied: false,
+    deferred: false,
+    reply: async (payload) => { calls.reply.push(payload); },
+    update: async (payload) => { calls.update.push(payload); },
+    followUp: async (payload) => { calls.followUp.push(payload); },
+  };
+}
+
+const payloadText = (payload) => replyText({ replies: [payload] });
+
+test('economy: /sklep picks items from a list, /ulepszenia upgrades stay and pay, /rob reaches the bank', async () => {
+  const { updateEconomySettings } = await import('../src/services/economySettings.js');
+  const { getEconomyData, setEconomyData, getMaxBankCapacity } = await import('../src/utils/economy.js');
+  const { buyUpgrade, bankStealPercent, getUpgrade, upgradePrice } = await import('../src/services/economyUpgrades.js');
+  const upgradeButtons = (await import('../src/interactions/buttons/economy/upgrades.js')).default;
+  const shopMenu = (await import('../src/interactions/selectMenus/economy/shop.js')).default;
+
+  const town = mockGuild(client, 'Miasto');
+  const street = mockChannel(town, 'ulica');
+  const player = mockMember(town, mockUser('Gracz'));
+  const victim = mockMember(town, mockUser('Ofiara'));
+  const inTown = (name, options) => run(name, { guild: town, channel: street, ...options });
+  const data = (member) => getEconomyData(client, town.id, member.id);
+  const save = async (member, patch) => setEconomyData(client, town.id, member.id, { ...(await data(member)), ...patch });
+
+  await updateEconomySettings(town.id, (settings) => {
+    settings.currency = { symbol: 'zł', position: 'right', separator: ' ' };
+    settings.commands.work = { min: 1000, max: 1000, cooldownMinutes: 60 };
+    settings.commands.rob = { ...settings.commands.rob, successPercent: 100, finePercent: 10, minVictimCash: 500 };
+  });
+
+  // Bank security: 50% of the bank, 10 points less per level, never below 10%.
+  assert.deepEqual([0, 1, 2, 3, 4].map((level) => bankStealPercent({ upgrades: { bank_security: level } })), [50, 40, 30, 20, 10]);
+  assert.equal(upgradePrice(getUpgrade('bank_security'), 4), null);
+  assert.equal(getMaxBankCapacity({ upgrades: { bank_capacity: 2 } }) - getMaxBankCapacity({}), 40_000);
+
+  // /sklep kup: the item list comes from autocomplete; a typed name works too.
+  const asking = mockInteraction({ client, guild: town, channel: street, member: player, commandName: 'sklep', subcommand: 'kup' });
+  let choices = [];
+  asking.respond = async (list) => { choices = list; };
+  await runWithLocale('pl', () => client.commands.get('sklep').autocomplete(asking, client));
+  assert.ok(choices.some((choice) => choice.value === 'lockpick' && /Wytrych — 3 000 zł/.test(choice.name)), JSON.stringify(choices));
+
+  await save(player, { wallet: 1000, bank: 9000 });
+  const lockpicks = await inTown('sklep', { member: player, subcommand: 'kup', options: { przedmiot: 'Lockpick', ilosc: 2 } });
+  assert.match(replyText(lockpicks), /2x \*\*🗝️ Lockpick\*\*/);
+  assert.deepEqual({ wallet: (await data(player)).wallet, bank: (await data(player)).bank, picks: (await data(player)).inventory.lockpick }, { wallet: 0, bank: 4000, picks: 2 });
+  await assert.rejects(inTown('sklep', { member: player, subcommand: 'kup', options: { przedmiot: 'lockpick', ilosc: 4 } }), /limit/i);
+
+  // The shop message: the item menu buys for whoever picks.
+  const shop = await inTown('sklep', { member: player, subcommand: 'przegladaj' });
+  const shopRows = shop.replies.at(-1).components.map((row) => row.toJSON());
+  assert.ok(shopRows.some((row) => row.components[0].custom_id === `sklep:kup:${player.id}:tool`));
+  const pick = mockComponent({ guild: town, channel: street, member: player, customId: `sklep:kup:${player.id}:consumable`, values: ['energy_drink'] });
+  await runWithLocale('en', () => shopMenu.execute(pick, client, ['kup', player.id, 'consumable']));
+  assert.equal(pick.calls.update.length, 1);
+  assert.match(payloadText(pick.calls.followUp[0]), /Energy Drink/);
+  assert.equal((await data(player)).inventory.energy_drink, 1);
+
+  // /ulepszenia: one button per upgrade; pressing it buys the next level for good.
+  await save(player, { wallet: 1000, bank: 5000 });
+  const list = await inTown('ulepszenia', { member: player });
+  assert.match(replyText(list), /Career · 0\/10/);
+  const buttons = list.replies.at(-1).components.flatMap((row) => row.toJSON().components);
+  const careerButton = buttons.find((button) => button.custom_id === `ulepszenia:kup:${player.id}:work`);
+  assert.equal(careerButton.disabled, false);
+
+  const press = mockComponent({ guild: town, channel: street, member: player, customId: careerButton.custom_id });
+  await runWithLocale('en', () => upgradeButtons.execute(press, client, ['kup', player.id, 'work']));
+  assert.match(payloadText(press.calls.update[0]), /Career\*\* is now level \*\*1\*\*/);
+  assert.deepEqual({ wallet: (await data(player)).wallet, bank: (await data(player)).bank, level: (await data(player)).upgrades.work }, { wallet: 0, bank: 4000, level: 1 });
+
+  const stranger = mockComponent({ guild: town, channel: street, member: victim, customId: careerButton.custom_id });
+  await runWithLocale('en', () => upgradeButtons.execute(stranger, client, ['kup', player.id, 'work']));
+  assert.equal(stranger.calls.update.length, 0);
+  assert.match(payloadText(stranger.calls.reply[0]), /Ofiara/);
+  assert.equal((await data(victim)).upgrades?.work ?? 0, 0);
+
+  const worked = await inTown('work', { member: player });
+  assert.match(replyText(worked), /1 100 zł/);
+
+  // /mine on a break: the Energy Drink skips it once.
+  await inTown('mine', { member: player });
+  const again = await inTown('mine', { member: player });
+  assert.match(replyText(again), /Energy Drink/);
+  assert.equal((await data(player)).inventory.energy_drink, 0);
+  await assert.rejects(inTown('mine', { member: player }), /cooldown/i);
+
+  // /rob: 80% of the cash and 50% of an unprotected bank.
+  await save(victim, { wallet: 1000, bank: 10_000 });
+  await save(player, { wallet: 0 });
+  const robbed = await inTown('rob', { member: player, options: { user: victim.user } });
+  assert.match(replyText(robbed), /5 800 zł/);
+  assert.deepEqual({ wallet: (await data(victim)).wallet, bank: (await data(victim)).bank }, { wallet: 200, bank: 5000 });
+  assert.equal((await data(player)).inventory.lockpick, 1);
+
+  // Bank security level 1: only 40% of the bank.
+  await save(victim, { wallet: 10_000, bank: 5000 });
+  assert.equal((await buyUpgrade(client, town.id, victim.id, 'bank_security')).ok, true);
+  await save(player, { lastRob: 0 });
+  await save(victim, { wallet: 1000, bank: 5000 });
+  await inTown('rob', { member: player, options: { user: victim.user } });
+  assert.deepEqual({ wallet: (await data(victim)).wallet, bank: (await data(victim)).bank }, { wallet: 200, bank: 3000 });
+
+  // A Personal Safe stops one robbery and breaks.
+  await save(player, { lastRob: 0 });
+  await save(victim, { inventory: { personal_safe: 1 } });
+  const blocked = await inTown('rob', { member: player, options: { user: victim.user } });
+  assert.match(replyText(blocked), /Personal Safe/);
+  assert.deepEqual({ wallet: (await data(victim)).wallet, safes: (await data(victim)).inventory.personal_safe }, { wallet: 200, safes: 0 });
 });
 
 test('leveling follows the server settings: multipliers, exceptions, rewards, voice', async () => {

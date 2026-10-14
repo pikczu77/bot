@@ -5,6 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { gambleWinBonus } from '../../services/economyUpgrades.js';
 
 const CLOVER_WIN_BONUS = 0.1;
 const CHARM_WIN_BONUS = 0.08;
@@ -70,7 +71,7 @@ export default {
                 );
             }
 
-            let winChance = BASE_WIN_CHANCE;
+            let winChance = BASE_WIN_CHANCE + gambleWinBonus(userData) / 100;
             let cloverMessage = "";
             let usedClover = false;
             let usedCharm = false;
@@ -89,6 +90,7 @@ export default {
                 usedCharm = true;
             }
 
+            winChance = Math.min(winChance, 0.95);
             const win = Math.random() < winChance;
             let cashChange = 0;
             let resultEmbed;

@@ -329,7 +329,7 @@ async function applyLogging(client, guild, body) {
     for (const [category, value] of Object.entries(plainObject(body.categories, 'categories'))) {
       if (!LOG_CATEGORIES.includes(category)) throw new ApiError(400, `categories.${category}: unknown category`);
       const enabled = boolean(value, `categories.${category}`);
-      // Same shape as /logging toggle: the category switch plus every event in it.
+      // Same shape as /logi toggle: the category switch plus every event in it.
       logging.enabledEvents[`${category}.*`] = enabled;
       for (const type of Object.values(EVENT_TYPES)) if (type.startsWith(`${category}.`)) logging.enabledEvents[type] = enabled;
     }

@@ -62,7 +62,7 @@ export async function createInitialHelpMenu(client) {
                 name: t('🚀 Getting Started'),
                 value: [
                     t('**1. Launch setup** — Run `/configwizard` to configure prefix, mod role, and logs.'),
-                    t('**2. Enable systems** — Use `/commands dashboard` to turn categories on or off.'),                    t('**3. Browse commands** — Use the menu below to view categories and commands.'),
+                    t('**2. Enable systems** — Use `/komendy dashboard` to turn categories on or off.'),                    t('**3. Browse commands** — Use the menu below to view categories and commands.'),
                 ].join('\n'),
                 inline: false,
             },
@@ -113,7 +113,7 @@ export async function createInitialHelpMenu(client) {
 export default {
     slashOnly: true,
     data: new SlashCommandBuilder()
-        .setName("help")
+        .setName("pomoc")
         .setDescription("Displays the help menu with all available commands"),
 
     async execute(interaction, guildConfig, client) {
@@ -136,7 +136,7 @@ export default {
 
                 const closedEmbed = createEmbed({
                     title: t("Help menu closed"),
-                    description: t("Help menu has been closed, use /help again."),
+                    description: t("Help menu has been closed, use /pomoc again."),
                     color: "secondary",
                 });
 

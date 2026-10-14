@@ -7,14 +7,14 @@ import greroll from './modules/greroll.js';
 import glist from './modules/glist.js';
 
 export default createCommandGroup({
-    name: 'giveaway',
+    name: 'konkurs',
     description: 'Giveaways with entry requirements, bonus entries and rerolls',
     defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
     members: [
-        { command: gcreate, as: 'create' },
-        { command: gend, as: 'end' },
-        { command: gdelete, as: 'delete' },
-        { command: greroll, as: 'reroll' },
+        { command: gcreate, as: 'utworz' },
+        { command: gend, as: 'zakoncz' },
+        { command: gdelete, as: 'usun' },
+        { command: greroll, as: 'losuj-ponownie' },
         { command: glist, as: 'list' },
     ],
 });

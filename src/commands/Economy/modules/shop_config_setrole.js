@@ -12,7 +12,7 @@ export default {
             return await replyUserError(interaction, { type: ErrorTypes.PERMISSION, message: t('You need **Manage Server** permissions to set the premium role.') });
         }
 
-        const role = interaction.options.getRole('role');
+        const role = interaction.options.getRole('rola');
         const guildId = interaction.guildId;
 
         try {

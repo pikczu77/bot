@@ -8,6 +8,7 @@ import { validateDiscordId, validateNumber } from './validation.js';
 import { DEFAULT_ECONOMY_DATA } from './constants.js';
 import { createError, ErrorTypes, wrapServiceBoundary } from './errorHandler.js';
 import { getEconomySettings } from '../services/economySettings.js';
+import { extraBankCapacity } from '../services/economyUpgrades.js';
 import { t } from '../i18n/index.js';
 
 const ECONOMY_CONFIG = BotConfig.economy || {};
@@ -49,7 +50,8 @@ export function getMaxBankCapacity(userData) {
 
     const bankNotes = inventory['bank_note'] || 0;
     capacity += (bankNotes * 10000);
-    
+    capacity += extraBankCapacity(userData);
+
     return capacity;
 }
 

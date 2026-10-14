@@ -5,8 +5,10 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 
 const FISHING_ROD_MULTIPLIER = 1.5;
+const GOLDEN_ROD_MULTIPLIER = 2.0;
 
 const FISH_TYPES = [
     { name: t('Bass'), emoji: '🐟', rarity: 'common' },
@@ -42,13 +44,16 @@ export default {
             const now = Date.now();
 
             const { fish } = (await getEconomySettings(guildId)).commands;
-            const FISH_COOLDOWN = cooldownMs(fish.cooldownMinutes);
-
             const userData = await getEconomyData(client, guildId, userId);
+            const FISH_COOLDOWN = staminaCooldown(userData, cooldownMs(fish.cooldownMinutes));
             const lastFish = userData.lastFish || 0;
             const hasFishingRod = userData.inventory["fishing_rod"] || 0;
 
-            if (now < lastFish + FISH_COOLDOWN) {
+            let usedEnergyDrink = false;
+            if (now < lastFish + FISH_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
+                userData.inventory["energy_drink"] -= 1;
+                usedEnergyDrink = true;
+            } else if (now < lastFish + FISH_COOLDOWN) {
                 const remaining = lastFish + FISH_COOLDOWN - now;
                 const hours = Math.floor(remaining / (1000 * 60 * 60));
                 const minutes = Math.floor(
@@ -90,10 +95,16 @@ export default {
             let finalEarned = baseEarned;
             let multiplierMessage = "";
 
-            if (hasFishingRod > 0) {
+            if ((userData.inventory["golden_rod"] || 0) > 0) {
+                finalEarned = Math.floor(baseEarned * GOLDEN_ROD_MULTIPLIER);
+                multiplierMessage = t`\n🪝 **Golden Rod Bonus: +100%**`;
+            } else if (hasFishingRod > 0) {
                 finalEarned = Math.floor(baseEarned * FISHING_ROD_MULTIPLIER);
                 multiplierMessage = t`\n🎣 **Fishing Rod Bonus: +50%**`;
             }
+            finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'fish'));
+            multiplierMessage += upgradeBonusLine(userData, 'fish');
+            if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
 

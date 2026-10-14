@@ -10,7 +10,7 @@ import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
-        .setName("priority")
+        .setName("priorytet")
         .setDescription("Sets the priority level for the current support ticket.")
         .addStringOption((option) =>
             option
@@ -62,7 +62,7 @@ export default {
             channelName: interaction.channel.name,
             guildId: interaction.guildId,
             priority: priorityLevel,
-            commandName: 'priority'
+            commandName: 'priorytet'
         });
     },
 };

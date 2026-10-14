@@ -26,17 +26,17 @@ export default {
         .setDescription('Give or take roles — for one member or for everyone')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
         .addSubcommand((sub) =>
-            sub.setName('add').setDescription('Give a role to a member')
+            sub.setName('dodaj').setDescription('Give a role to a member')
                 .addUserOption((option) => option.setName('member').setDescription('Member').setRequired(true))
                 .addRoleOption((option) => option.setName('role').setDescription('Role').setRequired(true)),
         )
         .addSubcommand((sub) =>
-            sub.setName('remove').setDescription('Take a role from a member')
+            sub.setName('usun').setDescription('Take a role from a member')
                 .addUserOption((option) => option.setName('member').setDescription('Member').setRequired(true))
                 .addRoleOption((option) => option.setName('role').setDescription('Role').setRequired(true)),
         )
         .addSubcommand((sub) =>
-            sub.setName('all').setDescription('Give a role to everyone on the server')
+            sub.setName('wszyscy').setDescription('Give a role to everyone on the server')
                 .addRoleOption((option) => option.setName('role').setDescription('Role').setRequired(true))
                 .addStringOption((option) => option.setName('who').setDescription('Who gets it (default: humans)').addChoices(...WHO_CHOICES)),
         )
@@ -75,12 +75,12 @@ export default {
         requireBotPermission(guild, PermissionFlagsBits.ManageRoles);
         assertRoleUsable(interaction, role);
 
-        if (subcommand === 'add' || subcommand === 'remove') {
+        if (subcommand === 'dodaj' || subcommand === 'usun') {
             const user = interaction.options.getUser('member');
             const member = await guild.members.fetch(user.id).catch(() => null);
             if (!member) throw userError(t('The target user is not currently in this server.'));
             const has = member.roles.cache.has(role.id);
-            if (subcommand === 'add') {
+            if (subcommand === 'dodaj') {
                 if (has) throw userError(t`${member} already has ${role}.`);
                 await member.roles.add(role, `Role given by ${interaction.user.tag}`);
                 return respond(interaction, successEmbed(t`Gave ${role} to ${member}.`));

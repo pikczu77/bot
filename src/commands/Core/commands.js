@@ -48,7 +48,7 @@ async function ensureManageGuild(interaction) {
 
 export default {
   data: new SlashCommandBuilder()
-    .setName('commands')
+    .setName('komendy')
     .setDescription('Enable or disable bot commands and categories for this server')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setDMPermission(false)
@@ -59,7 +59,7 @@ export default {
     )
     .addSubcommand((subcommand) =>
       subcommand
-        .setName('disable')
+        .setName('wylacz')
         .setDescription('Disable a command or entire category')
         .addStringOption((option) =>
           option
@@ -81,7 +81,7 @@ export default {
     )
     .addSubcommand((subcommand) =>
       subcommand
-        .setName('enable')
+        .setName('wlacz')
         .setDescription('Enable a command or entire category')
         .addStringOption((option) =>
           option
@@ -218,7 +218,7 @@ export default {
 
     const scope = interaction.options.getString('scope');
     const target = interaction.options.getString('target');
-    const isDisable = subcommand === 'disable';
+    const isDisable = subcommand === 'wylacz';
 
     const deferred = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
     if (!deferred) {
@@ -228,7 +228,7 @@ export default {
     if (scope === 'category') {
       const category = resolveCategoryChoice(client, target);
       if (!category) {
-        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t`No category matched \`${target}\`. Use \`/commands dashboard\` to browse categories.` });
+        return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t`No category matched \`${target}\`. Use \`/komendy dashboard\` to browse categories.` });
       }
 
       if (isDisable) {

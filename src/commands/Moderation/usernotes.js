@@ -14,7 +14,7 @@ export default {
         .setDescription("Manage user notes for moderation purposes")
         .addSubcommand(subcommand =>
             subcommand
-                .setName("add")
+                .setName("dodaj")
                 .setDescription("Add a note to a user")
                 .addUserOption(option =>
                     option
@@ -54,7 +54,7 @@ export default {
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName("remove")
+                .setName("usun")
                 .setDescription("Remove a specific note from a user")
                 .addUserOption(option =>
                     option
@@ -89,7 +89,7 @@ export default {
         const targetUser = interaction.options.getUser("target");
         const guildId = interaction.guild.id;
 
-        if (subcommand !== "view" && subcommand !== "remove" && subcommand !== "clear" && subcommand !== "add") {
+        if (subcommand !== "view" && subcommand !== "usun" && subcommand !== "clear" && subcommand !== "dodaj") {
             return await replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Please select a valid subcommand.') });
         }
 
@@ -101,11 +101,11 @@ export default {
 
         try {
             switch (subcommand) {
-                case "add":
+                case "dodaj":
                     return await handleAddNote(interaction, targetUser, notes, guildId);
                 case "view":
                     return await handleViewNotes(interaction, targetUser, notes);
-                case "remove":
+                case "usun":
                     return await handleRemoveNote(interaction, targetUser, notes, guildId);
                 case "clear":
                     return await handleClearNotes(interaction, targetUser, notes, guildId);

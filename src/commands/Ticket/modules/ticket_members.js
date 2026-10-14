@@ -1,4 +1,4 @@
-// ticket_members.js — /ticket add, /ticket remove, /ticket rename.
+// ticket_members.js — /ticket dodaj, /ticket usun, /ticket rename.
 
 import { PermissionFlagsBits } from 'discord.js';
 import { createEmbed, successEmbed } from '../../../utils/embeds.js';
@@ -8,7 +8,7 @@ import { getTicketPermissionContext } from '../../../utils/ticket/ticketPermissi
 import { logger } from '../../../utils/logger.js';
 import { t } from '../../../i18n/index.js';
 
-export const TICKET_MEMBER_SUBCOMMANDS = new Set(['add', 'remove', 'rename']);
+export const TICKET_MEMBER_SUBCOMMANDS = new Set(['dodaj', 'usun', 'rename']);
 
 const MEMBER_ACCESS = {
     ViewChannel: true,
@@ -58,7 +58,7 @@ export async function handleTicketMemberCommand(interaction, client, subcommand)
             return replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('Bots cannot be added to tickets.') });
         }
 
-        if (subcommand === 'add') {
+        if (subcommand === 'dodaj') {
             const member = await interaction.guild.members.fetch(user.id).catch(() => null);
             if (!member) {
                 return replyUserError(interaction, { type: ErrorTypes.VALIDATION, message: t('The target user is not currently in this server.') });

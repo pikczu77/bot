@@ -9,7 +9,7 @@ import { claimTicket } from '../../services/ticket.js';
 import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
-        .setName("claim")
+        .setName("przejmij")
         .setDescription("Claims an open ticket, assigning it to you.")
         .setDMPermission(false),
 
@@ -45,7 +45,7 @@ export default {
             channelId: interaction.channel.id,
             channelName: interaction.channel.name,
             guildId: interaction.guildId,
-            commandName: 'claim'
+            commandName: 'przejmij'
         });
     },
 };

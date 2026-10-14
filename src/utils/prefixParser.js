@@ -1,6 +1,7 @@
 // prefixParser.js
 
 import { resolveSubcommandAlias } from '../config/commands/commandAliases.js';
+import { findSubcommand } from '../config/commands/subcommandNames.js';
 import { logger } from './logger.js';
 import { t } from '../i18n/index.js';
 
@@ -115,8 +116,9 @@ export function mapArgumentsToOptions(args, commandData) {
       const group = subcommandGroup.options?.find((g) => g.name === subcommandGroupName);
       if (group && args.length > 1) {
         subcommandName = resolveSubcommandAlias(args[1]);
-        const sub = group.options?.find((s) => s.name === subcommandName);
+        const sub = findSubcommand(group.options || [], subcommandName);
         if (sub) {
+          subcommandName = sub.name;
           optionDefs = sub.options?.filter((opt) => opt.type !== 1 && opt.type !== 2) || [];
           currentArgs = args.slice(2);
         } else {
@@ -132,9 +134,9 @@ export function mapArgumentsToOptions(args, commandData) {
       logger.debug(
         `Looking for subcommand: ${resolvedSubcommand}, available: ${subcommands.map((s) => s.name).join(', ')}`,
       );
-      const sub = subcommands.find((s) => s.name === resolvedSubcommand);
+      const sub = findSubcommand(subcommands, resolvedSubcommand);
       if (sub) {
-        subcommandName = resolvedSubcommand;
+        subcommandName = sub.name;
         optionDefs = sub.options?.filter((opt) => opt.type !== 1 && opt.type !== 2) || [];
         currentArgs = args.slice(1);
         logger.debug(`Found subcommand ${subcommandName}, optionDefs: ${optionDefs.length}`);

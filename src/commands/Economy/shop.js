@@ -5,12 +5,12 @@ import inventory from './modules/inventory.js';
 import shopConfig from './modules/shop_config.js';
 
 export default createCommandGroup({
-    name: 'shop',
+    name: 'sklep',
     description: 'Browse the shop, buy items and manage your inventory',
     members: [
-        { command: shopBrowse, as: 'browse' },
+        { command: shopBrowse, as: 'przegladaj' },
         buy,
-        inventory,
-        { command: shopConfig, as: 'config' },
+        { command: inventory, as: 'ekwipunek' },
+        { command: shopConfig, as: 'ustawienia' },
     ],
 });

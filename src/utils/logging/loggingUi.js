@@ -107,7 +107,7 @@ export function createLoggingMainMenuSelect() {
           .setEmoji('📝'),
         new StringSelectMenuOptionBuilder()
           .setLabel(t('Set Reports Channel'))
-          .setDescription(t('User reports filed via /report'))
+          .setDescription(t('User reports filed via /zglos'))
           .setValue('set:reports')
           .setEmoji('🚨'),
         new StringSelectMenuOptionBuilder()

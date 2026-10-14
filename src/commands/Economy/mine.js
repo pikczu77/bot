@@ -5,6 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 
 const PICKAXE_MULTIPLIER = 1.2;
 const DIAMOND_PICKAXE_MULTIPLIER = 2.0;
@@ -31,14 +32,17 @@ export default {
             const now = Date.now();
 
             const { mine } = (await getEconomySettings(guildId)).commands;
-            const MINE_COOLDOWN = cooldownMs(mine.cooldownMinutes);
-
             const userData = await getEconomyData(client, guildId, userId);
+            const MINE_COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
             const lastMine = userData.lastMine || 0;
             const hasDiamondPickaxe = userData.inventory["diamond_pickaxe"] || 0;
             const hasPickaxe = userData.inventory["pickaxe"] || 0;
 
-            if (now < lastMine + MINE_COOLDOWN) {
+            let usedEnergyDrink = false;
+            if (now < lastMine + MINE_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
+                userData.inventory["energy_drink"] -= 1;
+                usedEnergyDrink = true;
+            } else if (now < lastMine + MINE_COOLDOWN) {
                 const remaining = lastMine + MINE_COOLDOWN - now;
                 const hours = Math.floor(remaining / (1000 * 60 * 60));
                 const minutes = Math.floor(
@@ -68,6 +72,10 @@ export default {
                 finalEarned = Math.floor(baseEarned * PICKAXE_MULTIPLIER);
                 multiplierMessage = t`\n⛏️ **Pickaxe Bonus: +20%**`;
             }
+
+            finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'mine'));
+            multiplierMessage += upgradeBonusLine(userData, 'mine');
+            if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             const location =
                 MINE_LOCATIONS[

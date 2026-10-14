@@ -95,7 +95,7 @@ export default {
         )
         .addSubcommand((subcommand) =>
             subcommand
-                .setName("add")
+                .setName("dodaj")
                 .setDescription("Adds a member to the current ticket.")
                 .addUserOption((option) =>
                     option.setName("user").setDescription("The member to add.").setRequired(true),
@@ -103,7 +103,7 @@ export default {
         )
         .addSubcommand((subcommand) =>
             subcommand
-                .setName("remove")
+                .setName("usun")
                 .setDescription("Removes a member from the current ticket.")
                 .addUserOption((option) =>
                     option.setName("user").setDescription("The member to remove.").setRequired(true),

@@ -9,7 +9,7 @@ import { closeTicket } from '../../services/ticket.js';
 import { t } from '../../i18n/index.js';
 export default {
     data: new SlashCommandBuilder()
-        .setName("close")
+        .setName("zamknij")
         .setDescription("Closes the current ticket.")
         .setDMPermission(false)
         .addStringOption((option) =>
@@ -56,7 +56,7 @@ export default {
             channelName: interaction.channel.name,
             guildId: interaction.guildId,
             reason: reason,
-            commandName: 'close'
+            commandName: 'zamknij'
         });
     },
 };

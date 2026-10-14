@@ -34,7 +34,9 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     rob: {
       cooldownMinutes: toMinutes(base.cooldowns?.rob, 4 * 60 * 60_000),
       successPercent: Math.round((Number(base.robSuccessRate) || 0.4) * 100),
-      stealPercent: 15,
+      // Share of the victim's cash a successful /rob takes. The bank part depends on the
+      // victim's "Bank security" upgrade (services/economyUpgrades.js).
+      stealPercent: 80,
       finePercent: 10,
       minVictimCash: 500,
     },
@@ -86,6 +88,8 @@ function normalize(stored) {
   for (const name of Object.keys(settings.commands)) {
     if (isPlainObject(stored.commands?.[name])) Object.assign(settings.commands[name], stored.commands[name]);
   }
+  // 15% was the old default cash share of /rob; since 2026-10-14 it is 80% (with the bank also at risk).
+  if (stored.commands?.rob?.stealPercent === 15) settings.commands.rob.stealPercent = 80;
   if (isPlainObject(stored.shop)) {
     settings.shop = {
       items: isPlainObject(stored.shop.items) ? stored.shop.items : {},

@@ -114,8 +114,8 @@ export function buildOverviewEmbed(snapshot, guild) {
     name: t('How to Use'),
     value: [
       t('• Select a category below to manage commands and subcommands'),
-      t('• `/commands disable` — turn off a category or specific command'),
-      t('• `/commands enable` — turn something back on'),
+      t('• `/komendy wylacz` — turn off a category or specific command'),
+      t('• `/komendy wlacz` — turn something back on'),
     ].join('\n'),
   });
 

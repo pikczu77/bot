@@ -6,7 +6,7 @@ import { t } from '../../i18n/index.js';
 /** Top-level commands that cannot be invoked via prefix at all. */
 export const SLASH_ONLY_COMMANDS = new Set([
   'configwizard',
-  'help',
+  'pomoc',
   'wipedata',
 ]);
 
@@ -32,7 +32,7 @@ export const COMMAND_BLOCKED_SUBCOMMANDS = {
     'clear',
     '247',
   ]),
-  birthday: new Set(['setchannel']),
+  urodziny: new Set(['kanal']),
   report: new Set(['setchannel']),
 };
 

@@ -8,7 +8,7 @@ import { t } from '../../i18n/index.js';
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('report')
+        .setName('zglos')
         .setDescription('Report a user to server staff, or configure where reports are sent.')
         .setDMPermission(false)
         .addSubcommand(subcommand =>

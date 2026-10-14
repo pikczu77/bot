@@ -9,7 +9,7 @@ const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 
 export default {
     data: new SlashCommandBuilder()
-        .setName("weather")
+        .setName("pogoda")
         .setDescription("Get real-time weather information for a location")
         .addStringOption((option) =>
             option
@@ -24,7 +24,7 @@ export default {
             logger.warn(`Weather interaction defer failed`, {
                 userId: interaction.user.id,
                 guildId: interaction.guildId,
-                commandName: 'weather'
+                commandName: 'pogoda'
             });
             return;
         }

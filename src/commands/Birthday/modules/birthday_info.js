@@ -19,7 +19,7 @@ export default {
                 .setColor(0xFF0000)
                 .setTitle(t('No Birthday Found'))
                 .setDescription(targetUser.id === interaction.user.id 
-                    ? t("You haven't set your birthday yet. Use `/birthday set` to add it!")
+                    ? t("You haven't set your birthday yet. Use `/urodziny ustaw` to add it!")
                     : t`${targetUser.username} hasn't set their birthday yet.`);
             return await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed]

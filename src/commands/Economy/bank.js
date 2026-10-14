@@ -6,7 +6,7 @@ export default createCommandGroup({
     name: 'bank',
     description: 'Move money between your wallet and your bank',
     members: [
-        deposit,
-        withdraw,
+        { command: deposit, as: 'wplac' },
+        { command: withdraw, as: 'wyplac' },
     ],
 });

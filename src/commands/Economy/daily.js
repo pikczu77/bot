@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { earningMultiplier, interestPercent, upgradeBonusLine } from '../../services/economyUpgrades.js';
 
 const PREMIUM_BONUS_PERCENTAGE = 0.1;
 
@@ -71,6 +72,17 @@ export default {
                 earned += bonusAmount;
                 bonusMessage = t`\n✨ **Premium Bonus:** +${money(guildId, bonusAmount)}`;
                 hasPremiumRole = true;
+            }
+
+            const boosted = Math.floor(earned * earningMultiplier(userData, 'daily'));
+            if (boosted > earned) {
+                bonusMessage += upgradeBonusLine(userData, 'daily', guildId);
+                earned = boosted;
+            }
+            const interest = Math.floor((userData.bank || 0) * interestPercent(userData) / 100);
+            if (interest > 0) {
+                earned += interest;
+                bonusMessage += t`\n📈 **Interest:** +${money(guildId, interest)} (${interestPercent(userData)}% of your bank)`;
             }
 
             userData.wallet = (userData.wallet || 0) + earned;

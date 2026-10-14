@@ -14,7 +14,7 @@ export default {
         const guild = requireGuild(interaction);
         const giveaways = await getGuildGiveaways(interaction.client, guild.id);
         if (giveaways.length === 0) {
-            return respond(interaction, infoEmbed(t('No giveaways yet. Start one with `/giveaway create`.')), { ephemeral: true });
+            return respond(interaction, infoEmbed(t('No giveaways yet. Start one with `/konkurs utworz`.')), { ephemeral: true });
         }
 
         const link = (giveaway) => `https://discord.com/channels/${guild.id}/${giveaway.channelId}/${giveaway.messageId}`;
@@ -42,7 +42,7 @@ export default {
 
         return respond(interaction, createEmbed({
             title: t('🎉 Giveaways'),
-            description: t('End one early with `/giveaway end`, pick new winners with `/giveaway reroll`.'),
+            description: t('End one early with `/konkurs zakoncz`, pick new winners with `/konkurs losuj-ponownie`.'),
             fields,
             footer: false,
         }), { ephemeral: true });

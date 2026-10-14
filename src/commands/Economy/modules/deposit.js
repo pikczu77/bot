@@ -82,7 +82,7 @@ export default {
                 throw createError(
                     "Bank is full",
                     ErrorTypes.VALIDATION,
-                    t`Your bank is currently full (Max Capacity: ${money(guildId, maxBank)}). Purchase a **Bank Upgrade** to increase your limit.`,
+                    t`Your bank is currently full (Max Capacity: ${money(guildId, maxBank)}). Raise the limit with **Bigger vault** in \`/ulepszenia\` or buy a **Bank Note** in \`/sklep\`.`,
                     { maxBank, currentBank: userData.bank, userId }
                 );
             }

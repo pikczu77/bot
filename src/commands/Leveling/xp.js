@@ -9,8 +9,8 @@ export default createCommandGroup({
     description: 'Add, remove or set levels for a member',
     defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
     members: [
-        { command: leveladd, as: 'add' },
-        { command: levelremove, as: 'remove' },
+        { command: leveladd, as: 'dodaj' },
+        { command: levelremove, as: 'usun' },
         { command: levelset, as: 'set' },
     ],
 });

@@ -112,7 +112,7 @@ test('language and automod changes are validated and saved', async () => {
   }
 });
 
-test('server logs: channel, categories and skipped channels are saved where /logging reads them', async () => {
+test('server logs: channel, categories and skipped channels are saved where /logi reads them', async () => {
   const { getGuildConfig } = await import('../src/services/config/guildConfig.js');
   const { isEventEnabled, resolveLogChannel, getIgnoreList } = await import('../src/services/loggingService.js');
   const overview = await call('GET', `/guilds/${guild.id}`);

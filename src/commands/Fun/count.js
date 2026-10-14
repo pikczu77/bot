@@ -17,7 +17,7 @@ import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 import { t } from '../../i18n/index.js';
 export default {
   data: new SlashCommandBuilder()
-    .setName('count')
+    .setName('liczenie')
     .setDescription('Manage the server counting game')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setDMPermission(false)
@@ -41,7 +41,7 @@ export default {
         ),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName('disable').setDescription('Disable the counting game for this server'),
+      subcommand.setName('wylacz').setDescription('Disable the counting game for this server'),
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('status').setDescription('View current counting game status'),
@@ -100,7 +100,7 @@ export default {
         });
       }
 
-      if (subcommand === 'disable') {
+      if (subcommand === 'wylacz') {
         if (!config.enabled) {
           return await InteractionHelper.safeEditReply(interaction, {
             embeds: [infoEmbed(t('Counting Game Disabled'), t('The counting game is already disabled for this server.'))],
@@ -138,7 +138,7 @@ export default {
 
       if (subcommand === 'reset') {
         if (!config.enabled) {
-          return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Enable the counting game first with `/count setup`.') });
+          return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Enable the counting game first with `/liczenie setup`.') });
         }
 
         const startNumber = interaction.options.getInteger('start') || 1;
