@@ -6,8 +6,9 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
+import { requireTool } from './modules/buy.js';
 
-const FISHING_ROD_MULTIPLIER = 1.5;
+// A Fishing Rod (or the Golden Rod) is needed to fish; the Golden Rod also doubles the catch value.
 const GOLDEN_ROD_MULTIPLIER = 2.0;
 
 const FISH_TYPES = [
@@ -47,7 +48,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
             const FISH_COOLDOWN = staminaCooldown(userData, cooldownMs(fish.cooldownMinutes));
             const lastFish = userData.lastFish || 0;
-            const hasFishingRod = userData.inventory["fishing_rod"] || 0;
+            await requireTool({ guild: interaction.guild, userData, toolIds: ['fishing_rod', 'golden_rod'], action: 'fish' });
 
             let usedEnergyDrink = false;
             if (now < lastFish + FISH_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
@@ -98,9 +99,6 @@ export default {
             if ((userData.inventory["golden_rod"] || 0) > 0) {
                 finalEarned = Math.floor(baseEarned * GOLDEN_ROD_MULTIPLIER);
                 multiplierMessage = t`\n🪝 **Golden Rod Bonus: +100%**`;
-            } else if (hasFishingRod > 0) {
-                finalEarned = Math.floor(baseEarned * FISHING_ROD_MULTIPLIER);
-                multiplierMessage = t`\n🎣 **Fishing Rod Bonus: +50%**`;
             }
             finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'fish'));
             multiplierMessage += upgradeBonusLine(userData, 'fish');

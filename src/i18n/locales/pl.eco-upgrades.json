@@ -41,7 +41,6 @@
   "Lockpick used: {0}% success chance. Next robbery in {1}.": "Użyto wytrycha: {0}% szans. Następny napad za {1}.",
   "Success chance: {0}%. Next robbery in {1}.": "Szansa powodzenia: {0}%. Następny napad za {1}.",
   "Golden Rod": "Złota wędka",
-  "Doubles what you earn with `/fish`.": "Podwaja zarobek z `/fish`.",
   "Energy Drink": "Energetyk",
   "Skips the break of `/mine` or `/fish` once.": "Raz pomija przerwę `/mine` albo `/fish`.",
   "Lockpick": "Wytrych",
@@ -85,5 +84,10 @@
   "+{0}% earnings": "+{0}% zarobków",
   "Item to buy - pick it from the list": "Przedmiot do kupienia - wybierz z listy",
   "Your permanent economy upgrades - see them and buy the next level": "Twoje stałe ulepszenia ekonomii - zobacz je i kup kolejny poziom",
-  "Show the upgrades of another member": "Pokaż ulepszenia innej osoby"
+  "Show the upgrades of another member": "Pokaż ulepszenia innej osoby",
+  "Needed for `/mine`.": "Potrzebny do `/mine`.",
+  "Needed for `/fish`.": "Potrzebna do `/fish`.",
+  "Works as a pickaxe and doubles what you earn with `/mine`.": "Działa jak kilof i podwaja zarobek z `/mine`.",
+  "Works as a fishing rod and doubles what you earn with `/fish`.": "Działa jak wędka i podwaja zarobek z `/fish`.",
+  "You need **{0}** for this. Buy it with `/sklep kup` for **{1}**.": "Do tego potrzebujesz: **{0}**. Kup przez `/sklep kup` za **{1}**."
 }

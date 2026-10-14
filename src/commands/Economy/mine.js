@@ -6,8 +6,9 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
+import { requireTool } from './modules/buy.js';
 
-const PICKAXE_MULTIPLIER = 1.2;
+// A Pickaxe (or the Diamond Pickaxe) is needed to mine; the Diamond Pickaxe also doubles the find.
 const DIAMOND_PICKAXE_MULTIPLIER = 2.0;
 
 const MINE_LOCATIONS = [
@@ -36,7 +37,7 @@ export default {
             const MINE_COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
             const lastMine = userData.lastMine || 0;
             const hasDiamondPickaxe = userData.inventory["diamond_pickaxe"] || 0;
-            const hasPickaxe = userData.inventory["pickaxe"] || 0;
+            await requireTool({ guild: interaction.guild, userData, toolIds: ['pickaxe', 'diamond_pickaxe'], action: 'mine' });
 
             let usedEnergyDrink = false;
             if (now < lastMine + MINE_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
@@ -68,9 +69,6 @@ export default {
             if (hasDiamondPickaxe > 0) {
                 finalEarned = Math.floor(baseEarned * DIAMOND_PICKAXE_MULTIPLIER);
                 multiplierMessage = t`\n💎 **Diamond Pickaxe Bonus: +100%**`;
-            } else if (hasPickaxe > 0) {
-                finalEarned = Math.floor(baseEarned * PICKAXE_MULTIPLIER);
-                multiplierMessage = t`\n⛏️ **Pickaxe Bonus: +20%**`;
             }
 
             finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'mine'));

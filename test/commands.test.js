@@ -273,6 +273,16 @@ test('economy: /sklep picks items from a list, /ulepszenia upgrades stay and pay
   const worked = await inTown('work', { member: player });
   assert.match(replyText(worked), /1 100 zł/);
 
+  // /mine and /fish need a tool from the shop.
+  await assert.rejects(inTown('mine', { member: player, locale: 'pl' }), (error) => {
+    assert.match(error.message, /Missing tool for mine/);
+    assert.match(error.userMessage, /Kilof.*3 000 zł/);
+    return true;
+  });
+  await assert.rejects(inTown('fish', { member: player }), /Missing tool for fish/);
+  await save(player, { inventory: { ...(await data(player)).inventory, pickaxe: 1, fishing_rod: 1 } });
+  assert.match(replyText(await inTown('fish', { member: player })), /zł/);
+
   // /mine on a break: the Energy Drink skips it once.
   await inTown('mine', { member: player });
   const again = await inTown('mine', { member: player });

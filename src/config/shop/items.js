@@ -19,17 +19,17 @@ export const shopItems = [
         id: 'pickaxe',
         emoji: '⛏️',
         name: t('⛏️ Pickaxe'),
-        price: 7500,
-        description: t('Used for mining commands'),
+        price: 3000,
+        description: t('Needed for `/mine`.'),
         type: 'tool',
-        effect: { type: 'mining_yield', multiplier: 1.2 }
+        effect: { type: 'mining_tool', multiplier: 1.0 }
     },
     {
         id: 'diamond_pickaxe',
         emoji: '💎',
         name: t('Diamond Pickaxe'),
         price: 50000,
-        description: t('Increases yield from `/mine`'),
+        description: t('Works as a pickaxe and doubles what you earn with `/mine`.'),
         type: 'tool',
         effect: { type: 'mining_yield', multiplier: 2.0 }
     },
@@ -37,17 +37,17 @@ export const shopItems = [
         id: 'fishing_rod',
         emoji: '🎣',
         name: t('🎣 Fishing Rod'),
-        price: 5000,
-        description: t('Used for fishing commands'),
+        price: 2000,
+        description: t('Needed for `/fish`.'),
         type: 'tool',
-        effect: { type: 'fishing_yield', multiplier: 1.5 }
+        effect: { type: 'fishing_tool', multiplier: 1.0 }
     },
     {
         id: 'golden_rod',
         emoji: '🪝',
         name: t('Golden Rod'),
         price: 40000,
-        description: t('Doubles what you earn with `/fish`.'),
+        description: t('Works as a fishing rod and doubles what you earn with `/fish`.'),
         type: 'tool',
         effect: { type: 'fishing_yield', multiplier: 2.0 }
     },

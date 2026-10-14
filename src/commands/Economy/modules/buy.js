@@ -28,6 +28,25 @@ export function findShopItem(items, query) {
 }
 
 /**
+ * Stop a gathering command (/fish, /mine) when the member owns none of `toolIds`.
+ * When the server took every one of those tools out of the shop, the command works without one.
+ */
+export async function requireTool({ guild, userData, toolIds, action }) {
+    if (toolIds.some((id) => (userData.inventory?.[id] || 0) > 0)) return;
+    const items = getShopItems(await getEconomySettings(guild.id), guild);
+    const forSale = items.filter((item) => toolIds.includes(item.id));
+    if (forSale.length === 0) return;
+
+    const cheapest = forSale.reduce((best, item) => (item.price < best.price ? item : best));
+    throw createError(
+        `Missing tool for ${action}`,
+        ErrorTypes.VALIDATION,
+        t`You need **${itemLabel(cheapest)}** for this. Buy it with \`/sklep kup\` for **${money(guild.id, cheapest.price)}**.`,
+        { action, toolIds, expected: true }
+    );
+}
+
+/**
  * Buy `quantity` of `itemId` for `member`. Pays from cash first, then from the bank.
  * Throws a user error when the purchase is not possible. Returns the success embed.
  */
