@@ -4,12 +4,12 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
-import { requireTool } from './modules/buy.js';
+import { itemLabel, requireTool } from './modules/buy.js';
+import { bestInChain } from '../../config/shop/items.js';
 
-// A Pickaxe (or the Diamond Pickaxe) is needed to mine; the Diamond Pickaxe also doubles the find.
-const DIAMOND_PICKAXE_MULTIPLIER = 2.0;
+// A Pickaxe (or a better one) is needed to mine; the Steel Pickaxe adds +50%, the Diamond Pickaxe +100%.
 
 const MINE_LOCATIONS = [
     t("abandoned gold mine"),
@@ -32,12 +32,12 @@ export default {
             const guildId = interaction.guildId;
             const now = Date.now();
 
-            const { mine } = (await getEconomySettings(guildId)).commands;
+            const settings = await getEconomySettings(guildId);
+            const { mine } = settings.commands;
             const userData = await getEconomyData(client, guildId, userId);
             const MINE_COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
             const lastMine = userData.lastMine || 0;
-            const hasDiamondPickaxe = userData.inventory["diamond_pickaxe"] || 0;
-            await requireTool({ guild: interaction.guild, userData, toolIds: ['pickaxe', 'diamond_pickaxe'], action: 'mine' });
+            await requireTool({ guild: interaction.guild, userData, toolIds: ['pickaxe', 'steel_pickaxe', 'diamond_pickaxe'], action: 'mine' });
 
             let usedEnergyDrink = false;
             if (now < lastMine + MINE_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
@@ -66,13 +66,21 @@ export default {
             let finalEarned = baseEarned;
             let multiplierMessage = "";
 
-            if (hasDiamondPickaxe > 0) {
-                finalEarned = Math.floor(baseEarned * DIAMOND_PICKAXE_MULTIPLIER);
-                multiplierMessage = t`\n💎 **Diamond Pickaxe Bonus: +100%**`;
+            const pickaxe = bestInChain(userData, 'mine');
+            if (pickaxe?.bonusPercent) {
+                finalEarned = Math.floor(baseEarned * (1 + pickaxe.bonusPercent / 100));
+                multiplierMessage = `\n${itemLabel(pickaxe)}: **+${pickaxe.bonusPercent}%**`;
             }
 
             finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'mine'));
-            multiplierMessage += upgradeBonusLine(userData, 'mine');
+            multiplierMessage += upgradeBonusLine(userData, 'mine', guildId);
+            if ((userData.inventory["dynamite"] || 0) > 0) {
+                userData.inventory["dynamite"] -= 1;
+                finalEarned *= 2;
+                multiplierMessage += t`\n🧨 **Dynamite** used - double find!`;
+            }
+            finalEarned = scaleEarnings(settings, finalEarned);
+            multiplierMessage += earningsLine(settings);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             const location =

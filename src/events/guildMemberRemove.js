@@ -7,6 +7,7 @@ import { getGuildBirthdays, deleteBirthday } from '../utils/database.js';
 import { deleteUserLevelData, getLevelingConfig } from '../services/leveling/leveling.js';
 import { getEconomySettings } from '../services/economySettings.js';
 import { getEconomyKey } from '../utils/database.js';
+import { endMarriageOnLeave } from '../services/marriageService.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n/index.js';
 
@@ -107,6 +108,13 @@ export default {
             }
         } catch (error) {
             logger.debug('Error handling economy data on member leave:', error);
+        }
+
+        try {
+            // The joint bank ends with the marriage; the spouse keeps their own account.
+            await endMarriageOnLeave(guild.id, user.id);
+        } catch (error) {
+            logger.debug('Error ending a marriage on member leave:', error);
         }
 
         try {

@@ -4,7 +4,7 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { staminaCooldown } from '../../services/economyUpgrades.js';
 
 export default {
@@ -19,7 +19,8 @@ export default {
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
 
-            const { beg } = (await getEconomySettings(guildId)).commands;
+            const settings = await getEconomySettings(guildId);
+            const { beg } = settings.commands;
             let userData = await getEconomyData(client, guildId, userId);
             const COOLDOWN = staminaCooldown(userData, cooldownMs(beg.cooldownMinutes));
             
@@ -56,8 +57,8 @@ export default {
             let newCash = userData.wallet;
 
             if (success) {
-                const amountWon =
-                    Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min;
+                const amountWon = scaleEarnings(settings,
+                    Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min);
 
                 newCash += amountWon;
 

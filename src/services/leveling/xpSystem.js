@@ -7,7 +7,7 @@ import { formatLogLine } from '../../utils/logging/logEmbeds.js';
 import { Mutex } from '../../utils/mutex.js';
 import { wrapServiceBoundary } from '../../utils/errorHandler.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
-import { money } from '../economySettings.js';
+import { getEconomySettings, money, scaleEarnings } from '../economySettings.js';
 import { t, trAny } from '../../i18n/index.js';
 
 /**
@@ -132,9 +132,10 @@ async function awardRoleReward(guild, member, roleId, level, config) {
 
 // Economy money for the levels gained. Returns the amount paid (0 when the reward is off).
 async function payLevelMoney(client, guild, member, config, levelsGained) {
-  const amount = Math.max(0, Math.floor(Number(config.moneyPerLevel) || 0)) * levelsGained;
-  if (amount <= 0) return 0;
+  const base = Math.max(0, Math.floor(Number(config.moneyPerLevel) || 0)) * levelsGained;
+  if (base <= 0) return 0;
   try {
+    const amount = scaleEarnings(await getEconomySettings(guild.id), base);
     const account = await getEconomyData(client, guild.id, member.user.id);
     account.wallet = (account.wallet || 0) + amount;
     await setEconomyData(client, guild.id, member.user.id, account);

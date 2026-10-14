@@ -17,6 +17,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
   startingBank: 0,
   clearOnLeave: false,
   payTaxPercent: 0,
+  // Every payout of the earning commands, chat money and level-up money, in percent (150 = x1.5).
+  earningsPercent: 100,
   // Money for chatting: `amount` per message, at most once per `cooldownSeconds`.
   activity: { enabled: false, amount: 5, cooldownSeconds: 60 },
   // mode "block": commands work everywhere except the listed; "allow": only on the listed.
@@ -50,6 +52,11 @@ export const ECONOMY_DEFAULTS = Object.freeze({
 
 const MAX_MONEY = 1_000_000_000;
 const MAX_COOLDOWN = 30 * 24 * 60;
+export const EARNINGS_PERCENT_LIMITS = Object.freeze([10, 1000]);
+
+// Version of the built-in prices. Older stored settings lose their shop price overrides
+// once, so the prices balanced on 2026-10-14 reach servers that had set their own.
+const BALANCE_VERSION = 2;
 
 /** Allowed range of every number in `commands` — the panel API validates against this. */
 export const COMMAND_LIMITS = Object.freeze({
@@ -79,7 +86,7 @@ function normalize(stored) {
   const settings = structuredClone(ECONOMY_DEFAULTS);
   if (!isPlainObject(stored)) return settings;
 
-  for (const key of ['startingWallet', 'startingBank', 'clearOnLeave', 'payTaxPercent']) {
+  for (const key of ['startingWallet', 'startingBank', 'clearOnLeave', 'payTaxPercent', 'earningsPercent']) {
     if (key in stored) settings[key] = stored[key];
   }
   for (const key of ['currency', 'activity', 'channels', 'roles']) {
@@ -96,7 +103,41 @@ function normalize(stored) {
       roles: Array.isArray(stored.shop.roles) ? stored.shop.roles : [],
     };
   }
+  if ((Number(stored.balanceVersion) || 1) < BALANCE_VERSION) {
+    settings.shop.items = Object.fromEntries(Object.entries(settings.shop.items)
+      .map(([id, { price, ...rest }]) => [id, rest])
+      .filter(([, rest]) => Object.keys(rest).length > 0));
+  }
+  settings.balanceVersion = BALANCE_VERSION;
   return settings;
+}
+
+/** `amount` scaled by the server's earnings multiplier. */
+export const scaleEarnings = (settings, amount) =>
+  Math.floor((Number(amount) || 0) * (Number(settings?.earningsPercent) || 100) / 100);
+
+/** "\n🌟 **Server multiplier:** x1.5" when the server changed the multiplier, '' otherwise. */
+export function earningsLine(settings) {
+  const percent = Number(settings?.earningsPercent) || 100;
+  return percent === 100 ? '' : t`\n🌟 **Server multiplier:** x${percent / 100}`;
+}
+
+const average = ({ min, max }) => ((Number(min) || 0) + (Number(max) || 0)) / 2;
+
+/** Round a price to a number that reads well: 50s below 1,000, 100s below 10,000, then 500s. */
+export function nicePrice(value) {
+  const step = value < 1_000 ? 50 : value < 10_000 ? 100 : 500;
+  return Math.max(step, Math.round(value / step) * step);
+}
+
+/**
+ * Default price of an item tied to what a command pays (`priceFrom`): the average payout
+ * of those commands on this server, times `factor`, so the item can win or lose money.
+ */
+function payoutPrice(settings, { commands, factor }) {
+  const payouts = commands.map((name) => average(settings.commands[name] ?? {}));
+  const mean = payouts.reduce((sum, value) => sum + value, 0) / payouts.length;
+  return nicePrice(scaleEarnings(settings, mean * factor));
 }
 
 export async function getEconomySettings(guildId) {
@@ -182,10 +223,11 @@ export const shopRoleItemId = (roleId) => `role_${roleId}`;
 export function getShopCatalog(settings, guild = null) {
   const builtIn = shopItems.map((item) => {
     const override = settings.shop.items[item.id] ?? {};
+    const defaultPrice = item.priceFrom ? payoutPrice(settings, item.priceFrom) : item.price;
     return {
       ...item,
-      defaultPrice: item.price,
-      price: Number.isInteger(override.price) ? override.price : item.price,
+      defaultPrice,
+      price: Number.isInteger(override.price) ? override.price : defaultPrice,
       enabled: override.enabled !== false,
     };
   });

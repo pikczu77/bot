@@ -46,6 +46,7 @@ import {
   COMMAND_LIMITS,
   CURRENCY_POSITIONS,
   CURRENCY_SEPARATORS,
+  EARNINGS_PERCENT_LIMITS,
   LIST_MODES,
   MAX_MONEY,
   MAX_SHOP_ROLES,
@@ -366,7 +367,7 @@ function applyIdList(target, patch, field, known) {
 }
 
 function economyView(settings, guild, premiumRoleId) {
-  const { shop, ...rest } = settings;
+  const { shop, balanceVersion, ...rest } = settings;
   return {
     ...rest,
     shop: {
@@ -382,7 +383,7 @@ function economyView(settings, guild, premiumRoleId) {
       })),
       roles: shop.roles,
     },
-    limits: COMMAND_LIMITS,
+    limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS },
   };
 }
 
@@ -402,6 +403,7 @@ async function applyEconomy(client, guild, body) {
     if ('startingBank' in body) data.startingBank = integer(body.startingBank, 'startingBank', 0, MAX_MONEY);
     if ('clearOnLeave' in body) data.clearOnLeave = boolean(body.clearOnLeave, 'clearOnLeave');
     if ('payTaxPercent' in body) data.payTaxPercent = integer(body.payTaxPercent, 'payTaxPercent', 0, 90);
+    if ('earningsPercent' in body) data.earningsPercent = integer(body.earningsPercent, 'earningsPercent', ...EARNINGS_PERCENT_LIMITS);
 
     if ('activity' in body) {
       const activity = plainObject(body.activity, 'activity');
@@ -429,13 +431,19 @@ async function applyEconomy(client, guild, body) {
       const shop = plainObject(body.shop, 'shop');
       if ('premiumRoleId' in shop) premiumRoleId = requireRole(guild, shop.premiumRoleId, 'shop.premiumRoleId');
 
-      const builtIn = new Set(getShopCatalog(data).filter((item) => !item.custom).map((item) => item.id));
+      // Default prices follow the payouts saved above; a price equal to the default is not
+      // stored, so it keeps following them (the panel sends every item's price on each save).
+      const defaults = new Map(getShopCatalog(data).filter((item) => !item.custom).map((item) => [item.id, item.defaultPrice]));
       for (const [itemId, patch] of Object.entries('items' in shop ? plainObject(shop.items, 'shop.items') : {})) {
-        if (!builtIn.has(itemId)) throw new ApiError(400, `shop.items.${itemId}: unknown item`);
+        if (!defaults.has(itemId)) throw new ApiError(400, `shop.items.${itemId}: unknown item`);
         plainObject(patch, `shop.items.${itemId}`);
         const entry = { ...data.shop.items[itemId] };
         if ('enabled' in patch) entry.enabled = boolean(patch.enabled, `shop.items.${itemId}.enabled`);
-        if ('price' in patch) entry.price = integer(patch.price, `shop.items.${itemId}.price`, 0, MAX_MONEY);
+        if ('price' in patch) {
+          const price = patch.price === null ? null : integer(patch.price, `shop.items.${itemId}.price`, 0, MAX_MONEY);
+          if (price === null || price === defaults.get(itemId)) delete entry.price;
+          else entry.price = price;
+        }
         data.shop.items[itemId] = entry;
       }
 
@@ -1028,7 +1036,7 @@ export function createPanelRouter(client) {
 
   router.get('/guilds/:guildId/economy/users/:userId', route(async ({ guild, req }) => {
     const userId = requireUserId(req.params.userId);
-    const data = await getEconomyData(client, guild.id, userId);
+    const data = await getEconomyData(client, guild.id, userId, { joint: false });
     return { userId, name: userName(client, guild, userId), wallet: data.wallet, bank: data.bank };
   }));
 
@@ -1042,7 +1050,7 @@ export function createPanelRouter(client) {
     if ('bank' in body) changes.bank = integer(body.bank, 'bank', low, MAX_MONEY);
     if (!Object.keys(changes).length) throw new ApiError(400, 'wallet or bank: amount expected');
 
-    const data = await getEconomyData(client, guild.id, userId);
+    const data = await getEconomyData(client, guild.id, userId, { joint: false });
     for (const [field, amount] of Object.entries(changes)) {
       data[field] = Math.min(MAX_MONEY * 1000, Math.max(0, mode === 'add' ? (data[field] || 0) + amount : amount));
     }

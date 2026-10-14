@@ -5,7 +5,8 @@ import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { t } from '../../i18n/index.js';
 
 // The same two people always get the same score, whichever order they are given in.
-function loveScore(firstId, secondId) {
+// /randka uses it too, so a good /ship pair also has better dates.
+export function loveScore(firstId, secondId) {
     const [low, high] = [String(firstId), String(secondId)].sort();
     let hash = 2166136261;
     for (const char of `${low}:${high}`) {

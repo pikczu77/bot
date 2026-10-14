@@ -7,8 +7,10 @@ import { logger } from './logger.js';
 import { validateDiscordId, validateNumber } from './validation.js';
 import { DEFAULT_ECONOMY_DATA } from './constants.js';
 import { createError, ErrorTypes, wrapServiceBoundary } from './errorHandler.js';
-import { getEconomySettings } from '../services/economySettings.js';
+import { getEconomySettings, scaleEarnings } from '../services/economySettings.js';
 import { extraBankCapacity } from '../services/economyUpgrades.js';
+import { getSpouseId, pairKey } from '../services/marriageService.js';
+import { Mutex } from './mutex.js';
 import { t } from '../i18n/index.js';
 
 const ECONOMY_CONFIG = BotConfig.economy || {};
@@ -52,7 +54,15 @@ export function getMaxBankCapacity(userData) {
     capacity += (bankNotes * 10000);
     capacity += extraBankCapacity(userData);
 
+    // Married: the joint bank holds what both accounts can hold.
+    capacity += userData._joint?.partnerCapacity || 0;
+
     return capacity;
+}
+
+/** The member's own account, without the spouse's part of a joint bank. */
+export function ownBank(userData) {
+    return userData?._joint?.ownBank ?? (userData?.bank || 0);
 }
 
 export function formatCurrency(amount) {
@@ -60,26 +70,121 @@ export function formatCurrency(amount) {
     return `${amount.toLocaleString()} ${currencyName}`;
 }
 
-export async function getEconomyData(client, guildId, userId) {
+async function readEconomyRecord(client, guildId, userId) {
+    const key = getEconomyKey(guildId, userId);
+    const data = await client.db.get(key, {});
+    const settings = await getEconomySettings(guildId);
+    const defaults = {
+        ...DEFAULT_ECONOMY_DATA,
+        wallet: settings.startingWallet,
+        bank: settings.startingBank,
+    };
+    const record = normalizeEconomyData(data, defaults);
+    delete record._joint;
+    return record;
+}
+
+async function spouseOf(guildId, userId) {
+    try {
+        return await getSpouseId(guildId, userId);
+    } catch (error) {
+        logger.error(`Could not read the marriage of user ${userId}`, error);
+        return null;
+    }
+}
+
+/**
+ * Economy data of a member. For a married member `bank` is the joint bank (own account +
+ * spouse's account) and `_joint` = { partnerId, ownBank, partnerBank, partnerCapacity }
+ * says how it splits; setEconomyData() spreads a change of `bank` back over both accounts.
+ * Pass `{ joint: false }` for the member's own account only (the web panel does).
+ */
+export async function getEconomyData(client, guildId, userId, { joint = true } = {}) {
     try {
         if (!client.db || typeof client.db.get !== 'function') {
             throw new Error(t('Database not available'));
         }
 
-        const key = getEconomyKey(guildId, userId);
-        const data = await client.db.get(key, {});
-        const settings = await getEconomySettings(guildId);
-        const defaults = {
-            ...DEFAULT_ECONOMY_DATA,
-            wallet: settings.startingWallet,
-            bank: settings.startingBank,
+        const data = await readEconomyRecord(client, guildId, userId);
+        const partnerId = joint ? await spouseOf(guildId, userId) : null;
+        if (!partnerId) return data;
+
+        const partner = await readEconomyRecord(client, guildId, partnerId);
+        data._joint = {
+            partnerId,
+            ownBank: data.bank || 0,
+            partnerBank: partner.bank || 0,
+            partnerCapacity: getMaxBankCapacity(partner),
         };
-        
-        return normalizeEconomyData(data, defaults);
+        data.bank = data._joint.ownBank + data._joint.partnerBank;
+        return data;
     } catch (error) {
         logger.error(`Error getting economy data for user ${userId}`, error);
         return normalizeEconomyData({}, DEFAULT_ECONOMY_DATA);
     }
+}
+
+/**
+ * Save the data of a married member: the change of the joint `bank` since it was read goes
+ * to the accounts. Money in fills the own account first (up to its capacity), then the
+ * spouse's; money out comes from the own account first, then from the spouse's. Both
+ * accounts are read again here, so changes the spouse made in the meantime are kept.
+ */
+async function saveJointEconomyData(client, guildId, userId, plain, joint, original) {
+    const ownKey = getEconomyKey(guildId, userId);
+    const partnerKey = getEconomyKey(guildId, joint.partnerId);
+    const stillMarried = (await spouseOf(guildId, userId)) === joint.partnerId;
+
+    const storedOwn = await client.db.get(ownKey, null);
+    let own = storedOwn && typeof storedOwn === 'object' ? Math.max(0, Number(storedOwn.bank) || 0) : joint.ownBank;
+    const partnerRecord = await readEconomyRecord(client, guildId, joint.partnerId);
+    let partner = partnerRecord.bank || 0;
+    const partnerBefore = partner;
+
+    let change = Math.max(0, plain.bank || 0) - (joint.ownBank + joint.partnerBank);
+    if (change > 0) {
+        const toOwn = Math.min(change, Math.max(0, getMaxBankCapacity(plain) - own));
+        own += toOwn;
+        change -= toOwn;
+        if (stillMarried) {
+            const toPartner = Math.min(change, Math.max(0, getMaxBankCapacity(partnerRecord) - partner));
+            partner += toPartner;
+            change -= toPartner;
+        }
+        own += change;
+    } else if (change < 0) {
+        let missing = -change;
+        const fromOwn = Math.min(own, missing);
+        own -= fromOwn;
+        missing -= fromOwn;
+        if (stillMarried) partner -= Math.min(partner, missing);
+    }
+
+    if (partner !== partnerBefore) {
+        await client.db.set(partnerKey, normalizeEconomyData({ ...partnerRecord, bank: partner }, DEFAULT_ECONOMY_DATA));
+    }
+    await client.db.set(ownKey, normalizeEconomyData({ ...plain, bank: own }, DEFAULT_ECONOMY_DATA));
+
+    // A second save of the same object must not apply the change again.
+    joint.ownBank = own;
+    joint.partnerBank = stillMarried ? partner : 0;
+    if (original && typeof original === 'object') original.bank = joint.ownBank + joint.partnerBank;
+}
+
+/**
+ * Divorce: the two bank accounts are added up and split in half (the odd coin goes to
+ * `secondId`). Call it after the marriage was removed. Returns { first, second } = new balances.
+ */
+export async function splitJointBank(client, guildId, firstId, secondId) {
+    return Mutex.runExclusive(`joint-bank:${guildId}:${pairKey(firstId, secondId)}`, async () => {
+        const first = await readEconomyRecord(client, guildId, firstId);
+        const second = await readEconomyRecord(client, guildId, secondId);
+        const total = (first.bank || 0) + (second.bank || 0);
+        const half = Math.floor(total / 2);
+        await client.db.set(getEconomyKey(guildId, firstId), normalizeEconomyData({ ...first, bank: half }, DEFAULT_ECONOMY_DATA));
+        await client.db.set(getEconomyKey(guildId, secondId), normalizeEconomyData({ ...second, bank: total - half }, DEFAULT_ECONOMY_DATA));
+        return { first: half, second: total - half };
+    });
 }
 
 export async function setEconomyData(client, guildId, userId, data) {
@@ -89,7 +194,14 @@ export async function setEconomyData(client, guildId, userId, data) {
         }
 
         const key = getEconomyKey(guildId, userId);
-        const normalized = normalizeEconomyData(data, DEFAULT_ECONOMY_DATA);
+        const { _joint: joint, ...plain } = data ?? {};
+        if (joint?.partnerId) {
+            await Mutex.runExclusive(`joint-bank:${guildId}:${pairKey(userId, joint.partnerId)}`, () =>
+                saveJointEconomyData(client, guildId, userId, plain, joint, data));
+            return true;
+        }
+
+        const normalized = normalizeEconomyData(plain, DEFAULT_ECONOMY_DATA);
         await client.db.set(key, normalized);
         return true;
     } catch (error) {
@@ -103,8 +215,10 @@ const ACTIVITY_MAP_LIMIT = 20000;
 
 /** Money for chatting (economy settings: activity). Returns the amount paid, 0 when none. */
 export async function payActivityReward(client, guildId, userId) {
-    const { activity } = await getEconomySettings(guildId);
-    if (!activity.enabled || activity.amount <= 0) return 0;
+    const settings = await getEconomySettings(guildId);
+    const { activity } = settings;
+    const amount = scaleEarnings(settings, activity.amount);
+    if (!activity.enabled || amount <= 0) return 0;
 
     const key = `${guildId}:${userId}`;
     const now = Date.now();
@@ -113,9 +227,9 @@ export async function payActivityReward(client, guildId, userId) {
     lastActivityReward.set(key, now);
 
     const data = await getEconomyData(client, guildId, userId);
-    data.wallet = (data.wallet || 0) + activity.amount;
+    data.wallet = (data.wallet || 0) + amount;
     await setEconomyData(client, guildId, userId, data);
-    return activity.amount;
+    return amount;
 }
 
 export async function updateBalance(client, guildId, userId, options = {}) {

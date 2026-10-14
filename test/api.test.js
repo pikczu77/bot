@@ -238,8 +238,14 @@ test('economy settings, shop and balances are changed from the panel', async () 
       clearOnLeave: true,
       activity: { enabled: true, amount: 3, cooldownSeconds: 30 },
       channels: { mode: 'allow', list: [channel.id] },
-      commands: { work: { min: 50, max: 80, cooldownMinutes: 15 }, gamble: { maxBet: 5000 } },
-      shop: { premiumRoleId: role.id, items: { laptop: { price: 999 }, lucky_clover: { enabled: false } }, roles: [{ roleId: role.id, price: 4000, description: 'Kolorowy nick' }] },
+      earningsPercent: 150,
+      commands: { work: { min: 50, max: 80, cooldownMinutes: 15 }, gamble: { maxBet: 5000 }, mine: { min: 300, max: 800 } },
+      shop: {
+        premiumRoleId: role.id,
+        // energy_drink at its default (/mine 300-800 x1.5 -> 750): no override is stored.
+        items: { laptop: { price: 999 }, lucky_clover: { enabled: false }, energy_drink: { price: 750, enabled: true } },
+        roles: [{ roleId: role.id, price: 4000, description: 'Kolorowy nick' }],
+      },
     },
   });
   assert.equal(saved.status, 200, JSON.stringify(saved.json));
@@ -249,6 +255,10 @@ test('economy settings, shop and balances are changed from the panel', async () 
 
   const settings = await getEconomySettings(guild.id);
   assert.deepEqual(settings.commands.work, { min: 50, max: 80, cooldownMinutes: 15 });
+  assert.equal(settings.earningsPercent, 150);
+  assert.deepEqual(settings.shop.items.energy_drink, { enabled: true });
+  assert.equal(saved.json.limits.earningsPercent[1], 1000);
+  assert.equal('balanceVersion' in saved.json, false);
   assert.equal(settings.commands.gamble.winPercent, 40);
   assert.equal(money(guild.id, 1234567), '1 234 567 <:zielony:1489590956075389089>');
   assert.equal(formatMoney({ currency: { symbol: '$', position: 'left', separator: ',' } }, 10000), '$10,000');
@@ -260,6 +270,8 @@ test('economy settings, shop and balances are changed from the panel', async () 
 
   for (const body of [
     { currency: { symbol: '@everyone' } },
+    { earningsPercent: 5 },
+    { earningsPercent: 1001 },
     { currency: { position: 'top' } },
     { commands: { work: { min: 500, max: 5 } } },
     { commands: { work: { speed: 1 } } },

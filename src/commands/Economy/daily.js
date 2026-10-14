@@ -7,7 +7,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, interestPercent, upgradeBonusLine } from '../../services/economyUpgrades.js';
 
 const PREMIUM_BONUS_PERCENTAGE = 0.1;
@@ -27,7 +27,8 @@ export default {
 
             logger.debug(`[ECONOMY] Daily claimed started for ${userId}`, { userId, guildId });
 
-            const { daily } = (await getEconomySettings(guildId)).commands;
+            const settings = await getEconomySettings(guildId);
+            const { daily } = settings.commands;
             const DAILY_COOLDOWN = cooldownMs(daily.cooldownMinutes);
             const DAILY_AMOUNT = daily.amount;
 
@@ -79,7 +80,11 @@ export default {
                 bonusMessage += upgradeBonusLine(userData, 'daily', guildId);
                 earned = boosted;
             }
-            const interest = Math.floor((userData.bank || 0) * interestPercent(userData) / 100);
+            earned = scaleEarnings(settings, earned);
+            bonusMessage += earningsLine(settings);
+            // Married members share a bank view; interest is paid on their own account only.
+            const ownBank = userData._joint?.ownBank ?? userData.bank ?? 0;
+            const interest = Math.floor(ownBank * interestPercent(userData) / 100);
             if (interest > 0) {
                 earned += interest;
                 bonusMessage += t`\n📈 **Interest:** +${money(guildId, interest)} (${interestPercent(userData)}% of your bank)`;

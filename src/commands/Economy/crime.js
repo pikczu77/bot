@@ -3,9 +3,11 @@ import { createEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } fr
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { t } from '../../i18n/index.js';
+
+const BALACLAVA_BONUS = 0.15;
 
 const CRIME_TYPES = [
     { name: t("Pickpocketing"), min: 100, max: 500, risk: 0.3 },
@@ -40,7 +42,8 @@ export default {
             const guildId = interaction.guildId;
             const now = Date.now();
 
-            const settings = (await getEconomySettings(guildId)).commands.crime;
+            const economySettings = await getEconomySettings(guildId);
+            const settings = economySettings.commands.crime;
             const CRIME_COOLDOWN = cooldownMs(settings.cooldownMinutes);
             const JAIL_TIME = cooldownMs(settings.jailMinutes);
 
@@ -82,9 +85,12 @@ export default {
                 );
             }
 
-            const isSuccess = Math.random() > crime.risk;
+            // A Balaclava lowers the risk of this one crime by 15 points.
+            const usedBalaclava = (userData.inventory?.balaclava || 0) > 0;
+            if (usedBalaclava) userData.inventory = { ...userData.inventory, balaclava: userData.inventory.balaclava - 1 };
+            const isSuccess = Math.random() > Math.max(0, crime.risk - (usedBalaclava ? BALACLAVA_BONUS : 0));
             const haul = Math.floor(Math.random() * (crime.max - crime.min + 1)) + crime.min;
-            const amountEarned = isSuccess ? Math.floor(haul * settings.payoutPercent / 100 * earningMultiplier(userData, 'crime')) : 0;
+            const amountEarned = isSuccess ? scaleEarnings(economySettings, haul * settings.payoutPercent / 100 * earningMultiplier(userData, 'crime')) : 0;
 
             userData.cooldowns = userData.cooldowns || {};
             userData.cooldowns.crime = now;
@@ -96,7 +102,8 @@ export default {
                 
                 const embed = successEmbed(
                     t("🕵️ Crime Successful!"),
-                    t`You successfully committed ${crime.name} and earned **${money(guildId, amountEarned)}**!` + upgradeBonusLine(userData, 'crime')
+                    t`You successfully committed ${crime.name} and earned **${money(guildId, amountEarned)}**!` + upgradeBonusLine(userData, 'crime', guildId)
+                    + earningsLine(economySettings) + (usedBalaclava ? t`\n🥷 **Balaclava** used: +15% success chance.` : '')
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

@@ -5,7 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier } from '../../services/economyUpgrades.js';
 
 const SLUT_ACTIVITIES = [
@@ -117,7 +117,8 @@ export default {
 
             logger.debug(`[ECONOMY] Slut command started for ${userId}`, { userId, guildId });
 
-            const settings = (await getEconomySettings(guildId)).commands.slut;
+            const economySettings = await getEconomySettings(guildId);
+            const settings = economySettings.commands.slut;
             const SLUT_COOLDOWN = cooldownMs(settings.cooldownMinutes);
 
             const userData = await getEconomyData(client, guildId, userId);
@@ -148,6 +149,7 @@ export default {
             const activity = { ...baseActivity, min: Math.floor(baseActivity.min * scale), max: Math.floor(baseActivity.max * scale) };
 
             const outcome = resolveOutcome(activity, userData.wallet || 0);
+            if (outcome.type === 'payout') outcome.delta = scaleEarnings(economySettings, outcome.delta);
 
             userData.lastSlut = now;
             userData.totalSluts = (userData.totalSluts || 0) + 1;

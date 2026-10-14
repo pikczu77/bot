@@ -4,12 +4,12 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
-import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
+import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
-import { requireTool } from './modules/buy.js';
+import { itemLabel, requireTool } from './modules/buy.js';
+import { bestInChain } from '../../config/shop/items.js';
 
-// A Fishing Rod (or the Golden Rod) is needed to fish; the Golden Rod also doubles the catch value.
-const GOLDEN_ROD_MULTIPLIER = 2.0;
+// A Fishing Rod (or a better rod) is needed to fish; the Carbon Rod adds +50%, the Golden Rod +100%.
 
 const FISH_TYPES = [
     { name: t('Bass'), emoji: '🐟', rarity: 'common' },
@@ -44,11 +44,12 @@ export default {
             const guildId = interaction.guildId;
             const now = Date.now();
 
-            const { fish } = (await getEconomySettings(guildId)).commands;
+            const settings = await getEconomySettings(guildId);
+            const { fish } = settings.commands;
             const userData = await getEconomyData(client, guildId, userId);
             const FISH_COOLDOWN = staminaCooldown(userData, cooldownMs(fish.cooldownMinutes));
             const lastFish = userData.lastFish || 0;
-            await requireTool({ guild: interaction.guild, userData, toolIds: ['fishing_rod', 'golden_rod'], action: 'fish' });
+            await requireTool({ guild: interaction.guild, userData, toolIds: ['fishing_rod', 'carbon_rod', 'golden_rod'], action: 'fish' });
 
             let usedEnergyDrink = false;
             if (now < lastFish + FISH_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
@@ -96,12 +97,20 @@ export default {
             let finalEarned = baseEarned;
             let multiplierMessage = "";
 
-            if ((userData.inventory["golden_rod"] || 0) > 0) {
-                finalEarned = Math.floor(baseEarned * GOLDEN_ROD_MULTIPLIER);
-                multiplierMessage = t`\n🪝 **Golden Rod Bonus: +100%**`;
+            const rod = bestInChain(userData, 'fish');
+            if (rod?.bonusPercent) {
+                finalEarned = Math.floor(baseEarned * (1 + rod.bonusPercent / 100));
+                multiplierMessage = `\n${itemLabel(rod)}: **+${rod.bonusPercent}%**`;
             }
             finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'fish'));
-            multiplierMessage += upgradeBonusLine(userData, 'fish');
+            multiplierMessage += upgradeBonusLine(userData, 'fish', guildId);
+            if ((userData.inventory["fishing_net"] || 0) > 0) {
+                userData.inventory["fishing_net"] -= 1;
+                finalEarned *= 2;
+                multiplierMessage += t`\n🕸️ **Fishing Net** used - double catch!`;
+            }
+            finalEarned = scaleEarnings(settings, finalEarned);
+            multiplierMessage += earningsLine(settings);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];

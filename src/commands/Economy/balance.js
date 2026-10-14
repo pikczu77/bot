@@ -9,7 +9,7 @@ import { money } from '../../services/economySettings.js';
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('balance')
+        .setName('balans')
         .setDescription("Check your or someone else's balance")
         .addUserOption(option =>
             option
@@ -58,7 +58,8 @@ export default {
 
             const embed = createEmbed({
                 title: t`${targetUser.username}'s Balance`,
-                description: t`Here is the current financial status for ${targetUser.username}.`,
+                description: t`Here is the current financial status for ${targetUser.username}.`
+                    + (userData._joint ? `\n${t`🏦 Joint bank with <@${userData._joint.partnerId}>`}` : ''),
             })
                 .addFields(
                     {
@@ -85,5 +86,5 @@ export default {
             logger.info(`[ECONOMY] Balance retrieved`, { userId: targetUser.id, wallet, bank });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-    }, { command: 'balance' })
+    }, { command: 'balans' })
 };

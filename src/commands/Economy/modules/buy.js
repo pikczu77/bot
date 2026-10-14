@@ -1,13 +1,14 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+// Buying from the shop: used by /sklep (option `kup`), the shop menus and the item tiers
+// of /ulepszenia.
+
 import { successEmbed } from '../../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../../utils/economy.js';
 import { getGuildConfig } from '../../../services/config/guildConfig.js';
-import { withErrorHandling, createError, ErrorTypes } from '../../../utils/errorHandler.js';
-import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { createError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { t, tr } from '../../../i18n/index.js';
 import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
-import { spendMoney, withEconomyLock } from '../../../services/economyUpgrades.js';
-import { purchaseRoom } from '../../../config/shop/items.js';
+import { discountPercent, discountedPrice, spendMoney, withEconomyLock } from '../../../services/economyUpgrades.js';
+import { missingRequirement, purchaseRoom } from '../../../config/shop/items.js';
 
 /** "💻 Laptop" — the item's emoji in front unless its name already starts with an emoji. */
 export function itemLabel(item) {
@@ -15,7 +16,7 @@ export function itemLabel(item) {
     return item.emoji && /^[\p{L}\p{N}]/u.test(name) ? `${item.emoji} ${name}` : name;
 }
 
-const fold = (text) => String(text ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+export const fold = (text) => String(text ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
 
 /** Find a shop item by id or by its (translated or English) name. */
 export function findShopItem(items, query) {
@@ -41,7 +42,7 @@ export async function requireTool({ guild, userData, toolIds, action }) {
     throw createError(
         `Missing tool for ${action}`,
         ErrorTypes.VALIDATION,
-        t`You need **${itemLabel(cheapest)}** for this. Buy it with \`/sklep kup\` for **${money(guild.id, cheapest.price)}**.`,
+        t`You need **${itemLabel(cheapest)}** for this. Buy it in \`/sklep\` for **${money(guild.id, cheapest.price)}**.`,
         { action, toolIds, expected: true }
     );
 }
@@ -71,7 +72,16 @@ export async function purchaseItem({ client, guild, member, itemId, quantity = 1
     return withEconomyLock(guildId, userId, async () => {
         const userData = await getEconomyData(client, guildId, userId);
         const room = purchaseRoom(item, userData);
-        const totalCost = item.price * quantity;
+        const totalCost = discountedPrice(item.price, userData) * quantity;
+        const needed = missingRequirement(item, userData);
+        if (needed) {
+            throw createError(
+                "Previous tier missing",
+                ErrorTypes.VALIDATION,
+                t`Buy **${itemLabel(needed)}** first - **${itemLabel(item)}** is its upgrade.`,
+                { itemId, needed: needed.id, expected: true }
+            );
+        }
 
         if (item.type === 'role') {
             if (!roleId) {
@@ -115,6 +125,7 @@ export async function purchaseItem({ client, guild, member, itemId, quantity = 1
         }
 
         let description = t`You bought ${quantity}x **${itemLabel(item)}** for **${money(guildId, totalCost)}**!`;
+        if (discountPercent(userData) > 0) description += t`\n-# 🏷️ Discount ${discountPercent(userData)}% included.`;
         if (bank !== userData.bank) {
             description += t`\n-# ${money(guildId, bank - userData.bank)} was taken from your bank.`;
         }
@@ -141,7 +152,8 @@ export async function purchaseItem({ client, guild, member, itemId, quantity = 1
             }
             description += t`\n\n**👑 The role ${role.toString()} has been granted to you!**`;
         } else {
-            userData.inventory = { ...(userData.inventory || {}), [item.id]: (userData.inventory?.[item.id] || 0) + quantity };
+            const added = quantity * (item.uses || 1);
+            userData.inventory = { ...(userData.inventory || {}), [item.id]: (userData.inventory?.[item.id] || 0) + added };
             description += item.type === 'tool'
                 ? t`\n\n**🛠️ ${itemLabel(item)} added to your inventory!**`
                 : t`\n\n🎒 You now have **${userData.inventory[item.id]}x** ${itemLabel(item)}.`;
@@ -156,58 +168,3 @@ export async function purchaseItem({ client, guild, member, itemId, quantity = 1
     });
 }
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName('kup')
-        .setDescription('Buy an item from the shop')
-        .addStringOption(option =>
-            option
-                .setName('przedmiot')
-                .setDescription('Item to buy - pick it from the list')
-                .setRequired(true)
-                .setAutocomplete(true)
-        )
-        .addIntegerOption(option =>
-            option
-                .setName('ilosc')
-                .setDescription('Quantity to buy (default: 1)')
-                .setRequired(false)
-                .setMinValue(1)
-                .setMaxValue(10)
-        ),
-
-    async autocomplete(interaction) {
-        const settings = await getEconomySettings(interaction.guildId);
-        const wanted = fold(interaction.options.getFocused());
-        const choices = getShopItems(settings, interaction.guild)
-            .filter((item) => !wanted || fold(itemLabel(item)).includes(wanted) || item.id.includes(wanted))
-            .slice(0, 25)
-            .map((item) => ({
-                name: `${itemLabel(item)} — ${money(interaction.guildId, item.price)}`.slice(0, 100),
-                value: item.id,
-            }));
-        await interaction.respond(choices);
-    },
-
-    execute: withErrorHandling(async (interaction, config, client) => {
-        const deferred = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
-        if (!deferred) return;
-
-        const query = interaction.options.getString('przedmiot');
-        const quantity = interaction.options.getInteger('ilosc') || 1;
-        const items = getShopItems(await getEconomySettings(interaction.guildId), interaction.guild);
-        const item = findShopItem(items, query);
-
-        if (!item) {
-            throw createError(
-                `Item ${query} not found`,
-                ErrorTypes.VALIDATION,
-                t`There is no **${query}** in the shop. Pick an item from the list or open \`/sklep przegladaj\`.`,
-                { query, expected: true }
-            );
-        }
-
-        const embed = await purchaseItem({ client, guild: interaction.guild, member: interaction.member, itemId: item.id, quantity });
-        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-    }, { command: 'buy' })
-};

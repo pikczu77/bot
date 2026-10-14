@@ -3,7 +3,7 @@ import { getEconomyData } from '../../utils/economy.js';
 import { getEconomySettings } from '../../services/economySettings.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { buildUpgradesView } from './modules/upgrades_view.js';
+import { buildUpgradesView, shopPrices } from './modules/upgrades_view.js';
 import { t } from '../../i18n/index.js';
 
 export default {
@@ -29,7 +29,8 @@ export default {
         await getEconomySettings(interaction.guildId);
         const userData = await getEconomyData(client, interaction.guildId, user.id);
         const own = user.id === interaction.user.id;
-        const view = buildUpgradesView({ guildId: interaction.guildId, userData, user, ownerId: own ? user.id : null });
+        const prices = await shopPrices(interaction.guild);
+        const view = buildUpgradesView({ guildId: interaction.guildId, userData, user, ownerId: own ? user.id : null, prices });
         await InteractionHelper.safeEditReply(interaction, view);
     }, { command: 'ulepszenia' })
 };

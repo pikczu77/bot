@@ -42,7 +42,8 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
     'tools', 'poll', 'embedbuilder', 'tag', 'apply', 'app-admin', 'verification', 'verify', 'autoverify', 'rank',
   ];
   assert.deepEqual(removed.filter((name) => client.commands.has(name)), []);
-  assert.equal(client.commands.size, 64);
+  // 64 on 2026-10-14 morning; then /hajs /ruletka /blackjack /slots /ekwipunek and /randka /slub.
+  assert.equal(client.commands.size, 71);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);
@@ -146,23 +147,23 @@ test('economy commands follow the server settings: payouts, currency, tax, shop,
     settings.currency = { symbol: 'zł', position: 'right', separator: ' ' };
     settings.startingWallet = 1000;
     settings.payTaxPercent = 10;
-    settings.commands.work = { min: 7777, max: 7777, cooldownMinutes: 60 };
+    settings.commands.daily = { amount: 7777, cooldownMinutes: 60 };
     settings.shop.items.laptop = { enabled: false };
     settings.shop.roles = [{ roleId: vip.id, price: 500, description: 'Kolor' }];
     settings.channels = { mode: 'allow', list: [casino.id] };
   });
 
-  const worked = await run('work', { member: regular });
-  assert.match(replyText(worked), /\*\*7 777 zł\*\*/);
+  const claimed = await run('daily', { member: regular });
+  assert.match(replyText(claimed), /\*\*7 777 zł\*\*/);
   assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 8777);
-  await assert.rejects(run('work', { member: regular }), /cooldown/i);
+  await assert.rejects(run('daily', { member: regular }), /cooldown/i);
 
   await run('pay', { member: regular, options: { user: admin.user, amount: 1000 } });
   assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7777);
   assert.equal((await getEconomyData(client, guild.id, admin.id)).wallet, 1900);
 
-  await assert.rejects(run('sklep', { member: regular, subcommand: 'kup', options: { przedmiot: 'laptop' } }), /not found/);
-  const bought = await run('sklep', { member: regular, subcommand: 'kup', options: { przedmiot: `role_${vip.id}` } });
+  await assert.rejects(run('sklep', { member: regular, options: { kup: 'laptop' } }), /not found/);
+  const bought = await run('sklep', { member: regular, options: { kup: `role_${vip.id}` } });
   assert.match(replyText(bought), /500 zł/);
   assert.ok(regular.roles.cache.has(vip.id));
   assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7277);
@@ -219,7 +220,6 @@ test('economy: /sklep picks items from a list, /ulepszenia upgrades stay and pay
 
   await updateEconomySettings(town.id, (settings) => {
     settings.currency = { symbol: 'zł', position: 'right', separator: ' ' };
-    settings.commands.work = { min: 1000, max: 1000, cooldownMinutes: 60 };
     settings.commands.rob = { ...settings.commands.rob, successPercent: 100, finePercent: 10, minVictimCash: 500 };
   });
 
@@ -229,20 +229,20 @@ test('economy: /sklep picks items from a list, /ulepszenia upgrades stay and pay
   assert.equal(getMaxBankCapacity({ upgrades: { bank_capacity: 2 } }) - getMaxBankCapacity({}), 40_000);
 
   // /sklep kup: the item list comes from autocomplete; a typed name works too.
-  const asking = mockInteraction({ client, guild: town, channel: street, member: player, commandName: 'sklep', subcommand: 'kup' });
+  const asking = mockInteraction({ client, guild: town, channel: street, member: player, commandName: 'sklep' });
   let choices = [];
   asking.respond = async (list) => { choices = list; };
   await runWithLocale('pl', () => client.commands.get('sklep').autocomplete(asking, client));
-  assert.ok(choices.some((choice) => choice.value === 'lockpick' && /Wytrych — 3 000 zł/.test(choice.name)), JSON.stringify(choices));
+  assert.ok(choices.some((choice) => choice.value === 'lockpick' && /Wytrych — 1 500 zł/.test(choice.name)), JSON.stringify(choices));
 
   await save(player, { wallet: 1000, bank: 9000 });
-  const lockpicks = await inTown('sklep', { member: player, subcommand: 'kup', options: { przedmiot: 'Lockpick', ilosc: 2 } });
+  const lockpicks = await inTown('sklep', { member: player, options: { kup: 'Lockpick', ilosc: 2 } });
   assert.match(replyText(lockpicks), /2x \*\*🗝️ Lockpick\*\*/);
-  assert.deepEqual({ wallet: (await data(player)).wallet, bank: (await data(player)).bank, picks: (await data(player)).inventory.lockpick }, { wallet: 0, bank: 4000, picks: 2 });
-  await assert.rejects(inTown('sklep', { member: player, subcommand: 'kup', options: { przedmiot: 'lockpick', ilosc: 4 } }), /limit/i);
+  assert.deepEqual({ wallet: (await data(player)).wallet, bank: (await data(player)).bank, picks: (await data(player)).inventory.lockpick }, { wallet: 0, bank: 7000, picks: 2 });
+  await assert.rejects(inTown('sklep', { member: player, options: { kup: 'lockpick', ilosc: 4 } }), /limit/i);
 
   // The shop message: the item menu buys for whoever picks.
-  const shop = await inTown('sklep', { member: player, subcommand: 'przegladaj' });
+  const shop = await inTown('sklep', { member: player });
   const shopRows = shop.replies.at(-1).components.map((row) => row.toJSON());
   assert.ok(shopRows.some((row) => row.components[0].custom_id === `sklep:kup:${player.id}:tool`));
   const pick = mockComponent({ guild: town, channel: street, member: player, customId: `sklep:kup:${player.id}:consumable`, values: ['energy_drink'] });
@@ -270,13 +270,13 @@ test('economy: /sklep picks items from a list, /ulepszenia upgrades stay and pay
   assert.match(payloadText(stranger.calls.reply[0]), /Ofiara/);
   assert.equal((await data(victim)).upgrades?.work ?? 0, 0);
 
-  const worked = await inTown('work', { member: player });
-  assert.match(replyText(worked), /1 100 zł/);
+  const offers = await inTown('work', { member: player });
+  assert.match(replyText(offers), /Job offers/);
 
   // /mine and /fish need a tool from the shop.
   await assert.rejects(inTown('mine', { member: player, locale: 'pl' }), (error) => {
     assert.match(error.message, /Missing tool for mine/);
-    assert.match(error.userMessage, /Kilof.*3 000 zł/);
+    assert.match(error.userMessage, /Kilof.*2 500 zł/);
     return true;
   });
   await assert.rejects(inTown('fish', { member: player }), /Missing tool for fish/);
