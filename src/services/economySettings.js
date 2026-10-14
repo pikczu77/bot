@@ -112,14 +112,35 @@ function normalize(stored) {
   return settings;
 }
 
-/** `amount` scaled by the server's earnings multiplier. */
-export const scaleEarnings = (settings, amount) =>
-  Math.floor((Number(amount) || 0) * (Number(settings?.earningsPercent) || 100) / 100);
+// The "Fortune" upgrade (services/economyUpgrades.js): every payout +10% per level, on top
+// of all other bonuses. It lives here so every place that scales a payout applies it.
+export const FORTUNE_MAX_LEVEL = 5;
+export const FORTUNE_PERCENT_PER_LEVEL = 10;
 
-/** "\n🌟 **Server multiplier:** x1.5" when the server changed the multiplier, '' otherwise. */
-export function earningsLine(settings) {
+/** Fortune level of a member (0-5). */
+export function fortuneLevel(userData) {
+  const level = Number(userData?.upgrades?.fortune);
+  return Number.isInteger(level) && level > 0 ? Math.min(level, FORTUNE_MAX_LEVEL) : 0;
+}
+
+/**
+ * `amount` scaled by the server's earnings multiplier and, when `userData` is given,
+ * by the member's Fortune upgrade.
+ */
+export const scaleEarnings = (settings, amount, userData = null) =>
+  Math.floor((Number(amount) || 0) * (Number(settings?.earningsPercent) || 100) / 100
+    * (100 + fortuneLevel(userData) * FORTUNE_PERCENT_PER_LEVEL) / 100);
+
+/**
+ * "\n💰 **Fortune 2/5:** +20% all earnings" when the member has Fortune and
+ * "\n🌟 **Server multiplier:** x1.5" when the server changed the multiplier; '' without either.
+ */
+export function earningsLine(settings, userData = null) {
+  const level = fortuneLevel(userData);
+  let text = level > 0 ? t`\n💰 **Fortune ${level}/${FORTUNE_MAX_LEVEL}:** +${level * FORTUNE_PERCENT_PER_LEVEL}% all earnings` : '';
   const percent = Number(settings?.earningsPercent) || 100;
-  return percent === 100 ? '' : t`\n🌟 **Server multiplier:** x${percent / 100}`;
+  if (percent !== 100) text += t`\n🌟 **Server multiplier:** x${percent / 100}`;
+  return text;
 }
 
 const average = ({ min, max }) => ((Number(min) || 0) + (Number(max) || 0)) / 2;

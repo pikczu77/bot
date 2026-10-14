@@ -9,7 +9,7 @@
 
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { Mutex } from '../utils/mutex.js';
-import { money } from './economySettings.js';
+import { FORTUNE_MAX_LEVEL, FORTUNE_PERCENT_PER_LEVEL, money } from './economySettings.js';
 import { t } from '../i18n/index.js';
 
 /** Share of the victim's bank a successful /rob takes: 50% minus 10 points per security level, never below 10%. */
@@ -20,17 +20,19 @@ export const BANK_STEAL_MIN_PERCENT = 10;
 export const BANK_CAPACITY_PER_LEVEL = 20_000;
 export const DISCOUNT_PER_LEVEL = 5;
 export const LUCK_PER_LEVEL = 1;
+export const STAMINA_PER_LEVEL = 5;
 
 // price of level N+1 = basePrice * growth^N, rounded to 100. `step` = earnings percent per level.
 export const UPGRADES = Object.freeze([
+  { id: 'fortune', emoji: '💰', name: t('Fortune'), description: t('Every payout is bigger: work, mining, fishing, crime, begging, /daily, chat and level-up money.'), maxLevel: FORTUNE_MAX_LEVEL, basePrice: 25_000, growth: 2, step: FORTUNE_PERCENT_PER_LEVEL },
   { id: 'work', emoji: '💼', name: t('Career'), description: t('Higher `/work` pay.'), maxLevel: 10, basePrice: 2_000, growth: 1.3, step: 10 },
   { id: 'overtime', emoji: '⏰', name: t('Overtime'), description: t('Work several times in a row before the break.'), maxLevel: 4, basePrice: 5_000, growth: 1.8 },
   { id: 'mine', emoji: '⛏️', name: t('Mining'), description: t('Higher `/mine` earnings.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
   { id: 'fish', emoji: '🎣', name: t('Fishing'), description: t('Higher `/fish` earnings.'), maxLevel: 10, basePrice: 2_000, growth: 1.3, step: 10 },
   { id: 'crime', emoji: '🦹', name: t('Street smarts'), description: t('Higher `/crime` and `/slut` payouts.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
   { id: 'daily', emoji: '📅', name: t('Daily bonus'), description: t('Bigger `/daily` reward.'), maxLevel: 10, basePrice: 800, growth: 1.3, step: 25 },
-  { id: 'luck', emoji: '🍀', name: t('Luck'), description: t('Better win chance in every game.'), maxLevel: 10, basePrice: 1_500, growth: 1.3 },
-  { id: 'stamina', emoji: '⚡', name: t('Stamina'), description: t('Shorter breaks after `/work`, `/mine`, `/fish` and `/beg`.'), maxLevel: 8, basePrice: 3_000, growth: 1.35 },
+  { id: 'luck', emoji: '🍀', name: t('Luck'), description: t('+1% win chance in every casino game per level.'), maxLevel: 15, basePrice: 1_500, growth: 1.3 },
+  { id: 'stamina', emoji: '⚡', name: t('Stamina'), description: t('Shorter breaks after every earning command and casino game (not /daily, not jail).'), maxLevel: 10, basePrice: 3_000, growth: 1.35 },
   { id: 'thief', emoji: '🥷', name: t('Thief'), description: t('Better `/rob` success chance.'), maxLevel: 5, basePrice: 3_000, growth: 1.6 },
   { id: 'discount', emoji: '🏷️', name: t('Discount'), description: t('Everything in `/sklep` and `/ulepszenia` is cheaper.'), maxLevel: 5, basePrice: 5_000, growth: 1.8 },
   { id: 'bank_security', emoji: '🛡️', name: t('Bank security'), description: t('Robbers take a smaller part of your bank.'), maxLevel: 4, basePrice: 5_000, growth: 1.8 },
@@ -73,7 +75,8 @@ export const bankStealPercent = (userData) =>
 export const extraBankCapacity = (userData) => getUpgradeLevel(userData, 'bank_capacity') * BANK_CAPACITY_PER_LEVEL;
 export const interestPercent = (userData) => getUpgradeLevel(userData, 'interest');
 export const robSuccessBonus = (userData) => getUpgradeLevel(userData, 'thief') * 5;
-export const staminaCooldown = (userData, ms) => Math.round(ms * (1 - getUpgradeLevel(userData, 'stamina') * 0.05));
+/** Break of an earning command or casino game after the Stamina upgrade (-5% a level, -50% at 10). */
+export const staminaCooldown = (userData, ms) => Math.round(ms * (1 - getUpgradeLevel(userData, 'stamina') * STAMINA_PER_LEVEL / 100));
 /** How many `/work` shifts fit in a row before the break: 1, or up to 5 with Overtime. */
 export const workShiftsInARow = (userData) => 1 + getUpgradeLevel(userData, 'overtime');
 
@@ -93,7 +96,8 @@ export function describeUpgradeEffect(upgrade, level, guildId) {
     case 'interest': return t`${level}% of the bank with every /daily`;
     case 'thief': return t`+${level * 5}% robbery success`;
     case 'luck': return t`+${level * LUCK_PER_LEVEL}% win chance`;
-    case 'stamina': return t`-${level * 5}% break time`;
+    case 'stamina': return t`-${level * STAMINA_PER_LEVEL}% break time`;
+    case 'fortune': return t`+${level * FORTUNE_PERCENT_PER_LEVEL}% all earnings`;
     case 'overtime': return t`${level + 1} {0|shift|shifts} in a row`;
     case 'discount': return t`-${level * DISCOUNT_PER_LEVEL}% prices`;
     default: return t`+${level * (upgrade.step ?? 10)}% earnings`;

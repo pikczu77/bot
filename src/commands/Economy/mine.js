@@ -6,6 +6,7 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
+import { assertNotJailed } from '../../services/economyJail.js';
 import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain } from '../../config/shop/items.js';
 
@@ -37,6 +38,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
             const MINE_COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
             const lastMine = userData.lastMine || 0;
+            assertNotJailed(userData, now);
             await requireTool({ guild: interaction.guild, userData, toolIds: ['pickaxe', 'steel_pickaxe', 'diamond_pickaxe'], action: 'mine' });
 
             let usedEnergyDrink = false;
@@ -79,8 +81,8 @@ export default {
                 finalEarned *= 2;
                 multiplierMessage += t`\n🧨 **Dynamite** used - double find!`;
             }
-            finalEarned = scaleEarnings(settings, finalEarned);
-            multiplierMessage += earningsLine(settings);
+            finalEarned = scaleEarnings(settings, finalEarned, userData);
+            multiplierMessage += earningsLine(settings, userData);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             const location =

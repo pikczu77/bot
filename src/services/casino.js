@@ -2,18 +2,22 @@
 // common break and highest bet from the server's gamble settings), luck, and the line
 // that tells the player their exact win chance.
 //
-// Luck multiplies a game's win chance: 1 + luck/100. Sources: the Luck upgrade (+1% a
-// level), the best clover item (+10% golden, +15% diamond) and one consumable per game
-// (Lucky Clover +10%, Lucky Charm +5%). A win chance never goes above MAX_WIN_CHANCE.
+// Luck adds percentage points to a game's win chance: 40% with luck +3 is 43%. Sources: the Luck upgrade (+1 a level, 15 levels), the best clover item
+// (golden +4, diamond +6) and one consumable per game (Lucky Clover +4, Lucky Charm +2),
+// together at most MAX_LUCK = 25. Bets that pay more than x2 get fewer points,
+// (2 / payout)^2 of them, so a roulette number (x36) is not a sure profit. A win chance
+// never goes above MAX_WIN_CHANCE.
 
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { createError, ErrorTypes } from '../utils/errorHandler.js';
 import { cooldownMs, getEconomySettings, money } from './economySettings.js';
-import { LUCK_PER_LEVEL, getUpgradeLevel, withEconomyLock } from './economyUpgrades.js';
+import { LUCK_PER_LEVEL, getUpgradeLevel, staminaCooldown, withEconomyLock } from './economyUpgrades.js';
+import { assertNotJailed } from './economyJail.js';
 import { bestInChain, getItemById } from '../config/shop/items.js';
 import { t, tr } from '../i18n/index.js';
 
 export const MAX_WIN_CHANCE = 0.95;
+export const MAX_LUCK = 25;
 
 const LUCK_ITEMS = ['lucky_clover', 'lucky_charm'];
 
@@ -21,7 +25,7 @@ const LUCK_ITEMS = ['lucky_clover', 'lucky_charm'];
 export function permanentLuck(userData) {
   const upgrade = getUpgradeLevel(userData, 'luck') * LUCK_PER_LEVEL;
   const clover = bestInChain(userData, 'luck');
-  return { upgrade, clover, total: upgrade + (clover?.bonusPercent ?? 0) };
+  return { upgrade, clover, total: Math.min(MAX_LUCK, upgrade + (clover?.bonusPercent ?? 0)) };
 }
 
 /** Use one luck consumable (Lucky Clover first). Mutates `userData`. Returns the item or null. */
@@ -39,10 +43,15 @@ export function useLuckItem(userData) {
 export function takeLuck(userData) {
   const permanent = permanentLuck(userData);
   const item = useLuckItem(userData);
-  return { ...permanent, item, total: permanent.total + (item?.luckPercent ?? 0) };
+  return { ...permanent, item, total: Math.min(MAX_LUCK, permanent.total + (item?.luckPercent ?? 0)) };
 }
 
-export const applyLuck = (chance, luckPercent) => Math.min(MAX_WIN_CHANCE, chance * (1 + (luckPercent || 0) / 100));
+/** Points of luck a bet paying `payout` times the stake gets: all of them up to x2, fewer above. */
+export const luckPoints = (luckPercent, payout = 2) => (luckPercent || 0) * Math.min(1, (2 / payout) ** 2);
+
+/** Win chance (0-1) after luck, for a bet that pays `payout` times the stake. */
+export const applyLuck = (chance, luckPercent, payout = 2) =>
+  Math.max(chance, Math.min(MAX_WIN_CHANCE, chance + luckPoints(luckPercent, payout) / 100));
 
 const percent = (chance) => {
   const value = chance * 100;
@@ -50,10 +59,11 @@ const percent = (chance) => {
 };
 export { percent as formatChance };
 
-/** "🎯 Your win chance: 55% · base 50% · luck +10%" for the footer of every game. */
+/** "🎯 Your win chance: 55% · base 50% · luck +5%" for the footer of every game. */
 export function chanceLine(base, final, luck) {
   let text = t`🎯 Your win chance: ${percent(final)}%`;
-  if (luck?.total > 0) text += t` · base ${percent(base)}% · luck +${luck.total}%`;
+  // A roulette number gets almost no luck; "+0.0%" would only confuse.
+  if (luck?.total > 0 && final - base >= 0.001) text += t` · base ${percent(base)}% · luck +${percent(final - base)}%`;
   return text;
 }
 
@@ -69,11 +79,12 @@ export function luckLines(luck) {
 /** Throw a user error when `bet` is not allowed right now. */
 export function checkBet({ settings, userData, bet, guildId, now = Date.now() }) {
   const { gamble } = settings.commands;
+  assertNotJailed(userData, now);
   if (gamble.maxBet > 0 && bet > gamble.maxBet) {
     throw createError("Bet above the limit", ErrorTypes.VALIDATION,
       t`The highest bet on this server is ${money(guildId, gamble.maxBet)}.`, { bet, maxBet: gamble.maxBet, expected: true });
   }
-  const cooldown = cooldownMs(gamble.cooldownMinutes);
+  const cooldown = staminaCooldown(userData, cooldownMs(gamble.cooldownMinutes));
   const remaining = (userData.lastGamble || 0) + cooldown - now;
   if (remaining > 0) {
     const minutes = Math.floor(remaining / 60_000);
@@ -134,7 +145,7 @@ export function spinRoulette(betId, number, luckPercent, random = Math.random) {
   const winning = numbers.filter((n) => bet.wins(n, number));
   const losing = numbers.filter((n) => !bet.wins(n, number));
   const base = winning.length / 37;
-  const chance = applyLuck(base, luckPercent);
+  const chance = applyLuck(base, luckPercent, bet.payout);
   const win = random() < chance;
   const pool = win ? winning : losing;
   return { bet, base, chance, win, result: pool[Math.floor(random() * pool.length)] };
@@ -156,12 +167,14 @@ export const SLOT_OUTCOMES = Object.freeze([
 ]);
 
 export const SLOT_BASE_CHANCE = SLOT_OUTCOMES.reduce((sum, outcome) => sum + outcome.chance, 0);
+// What a win pays on average (about x3), so slots get the luck of an x3 bet.
+export const SLOT_AVERAGE_PAYOUT = SLOT_OUTCOMES.reduce((sum, outcome) => sum + outcome.chance * outcome.payout, 0) / SLOT_BASE_CHANCE;
 
 const pick = (list, random) => list[Math.floor(random() * list.length)];
 
 /** Spin the reels. Returns the 3 symbols, the winning line (or null) and the win chance. */
 export function spinSlots(luckPercent, random = Math.random) {
-  const chance = applyLuck(SLOT_BASE_CHANCE, luckPercent);
+  const chance = applyLuck(SLOT_BASE_CHANCE, luckPercent, SLOT_AVERAGE_PAYOUT);
   const scale = chance / SLOT_BASE_CHANCE;
   let roll = random();
   let outcome = null;

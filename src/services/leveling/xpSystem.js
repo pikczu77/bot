@@ -135,8 +135,8 @@ async function payLevelMoney(client, guild, member, config, levelsGained) {
   const base = Math.max(0, Math.floor(Number(config.moneyPerLevel) || 0)) * levelsGained;
   if (base <= 0) return 0;
   try {
-    const amount = scaleEarnings(await getEconomySettings(guild.id), base);
     const account = await getEconomyData(client, guild.id, member.user.id);
+    const amount = scaleEarnings(await getEconomySettings(guild.id), base, account);
     account.wallet = (account.wallet || 0) + amount;
     await setEconomyData(client, guild.id, member.user.id, account);
     return amount;

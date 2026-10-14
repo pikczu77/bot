@@ -80,8 +80,8 @@ export default {
                 bonusMessage += upgradeBonusLine(userData, 'daily', guildId);
                 earned = boosted;
             }
-            earned = scaleEarnings(settings, earned);
-            bonusMessage += earningsLine(settings);
+            earned = scaleEarnings(settings, earned, userData);
+            bonusMessage += earningsLine(settings, userData);
             // Married members share a bank view; interest is paid on their own account only.
             const ownBank = userData._joint?.ownBank ?? userData.bank ?? 0;
             const interest = Math.floor(ownBank * interestPercent(userData) / 100);

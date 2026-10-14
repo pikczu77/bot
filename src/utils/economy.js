@@ -217,8 +217,7 @@ const ACTIVITY_MAP_LIMIT = 20000;
 export async function payActivityReward(client, guildId, userId) {
     const settings = await getEconomySettings(guildId);
     const { activity } = settings;
-    const amount = scaleEarnings(settings, activity.amount);
-    if (!activity.enabled || amount <= 0) return 0;
+    if (!activity.enabled || scaleEarnings(settings, activity.amount) <= 0) return 0;
 
     const key = `${guildId}:${userId}`;
     const now = Date.now();
@@ -227,6 +226,7 @@ export async function payActivityReward(client, guildId, userId) {
     lastActivityReward.set(key, now);
 
     const data = await getEconomyData(client, guildId, userId);
+    const amount = scaleEarnings(settings, activity.amount, data);
     data.wallet = (data.wallet || 0) + amount;
     await setEconomyData(client, guildId, userId, data);
     return amount;

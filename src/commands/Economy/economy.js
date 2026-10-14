@@ -1,7 +1,8 @@
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType } from 'discord.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import economyDashboard from './modules/economy_dashboard.js';
 import shopConfigSetrole from './modules/shop_config_setrole.js';
+import economyGuide from './modules/economy_guide.js';
 
 export default {
     slashOnly: true,
@@ -25,6 +26,18 @@ export default {
                         .setDescription('The role to grant for Premium Role purchases.')
                         .setRequired(true),
                 ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('poradnik')
+                .setDescription('Post the economy guide (every command and how it works) in a channel')
+                .addChannelOption(option =>
+                    option
+                        .setName('kanal')
+                        .setDescription('Channel for the guide (default: this channel)')
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                        .setRequired(false),
+                ),
         ),
     category: 'Economy',
 
@@ -34,6 +47,9 @@ export default {
         // Answers on its own (a private reply).
         if (subcommand === 'rola-premium') {
             return shopConfigSetrole.execute(interaction, config, client);
+        }
+        if (subcommand === 'poradnik') {
+            return economyGuide.execute(interaction, config, client);
         }
 
         const deferred = await InteractionHelper.safeDefer(interaction, {

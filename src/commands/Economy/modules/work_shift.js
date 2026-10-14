@@ -9,28 +9,31 @@ import { logger } from '../../../utils/logger.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine, withEconomyLock, workShiftsInARow } from '../../../services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS, activeJob, ensureOffers, getServerLevel, randomPay, takeJob } from '../../../services/economyJobs.js';
+import { assertNotJailed } from '../../../services/economyJail.js';
 import { bestInChain } from '../../../config/shop/items.js';
 import { itemLabel } from './buy.js';
 import { t, tr } from '../../../i18n/index.js';
 
-/** What one shift pays on top of the job's base pay: best work tool × Career × server multiplier. */
-function payFactor(settings, userData) {
+/** What one shift pays on top of the job's base pay: best work tool × Career. scaleEarnings adds the server multiplier and Fortune. */
+function payFactor(userData) {
     const tool = bestInChain(userData, 'work');
-    return (1 + (tool?.bonusPercent ?? 0) / 100) * earningMultiplier(userData, 'work') * (settings.earningsPercent / 100);
+    return (1 + (tool?.bonusPercent ?? 0) / 100) * earningMultiplier(userData, 'work');
 }
 
 function offersView({ guildId, settings, userData, user, level, offers }) {
-    const factor = payFactor(settings, userData);
-    const pay = (amount) => money(guildId, Math.floor(amount * factor));
+    const factor = payFactor(userData);
+    const pay = (amount) => money(guildId, scaleEarnings(settings, Math.floor(amount * factor), userData));
     const next = JOBS.find((job) => job.level > level);
 
     const embed = createEmbed({
-        title: t('💼 Job offers'),
+        title: t`💼 Job offers · level ${level}`,
         description: [
-            t`Your server level: **${level}**. Pick one of the offers - the higher your level, the better the jobs.`,
+            t`📊 Your server level: **${level}**. Pick one of the offers - the higher your level, the better the jobs.`,
             t`A job lasts **${JOB_SHIFTS} shifts** of \`/work\`, then you get new offers.`,
-            next ? t`-# 🔒 Next: ${next.emoji} ${tr(next.name)} from level ${next.level} (${pay(next.min)} - ${pay(next.max)})` : '',
-        ].filter(Boolean).join('\n'),
+            next
+                ? t`-# 🔒 Next: ${next.emoji} ${tr(next.name)} from level ${next.level} (${pay(next.min)} - ${pay(next.max)}), ${next.level - level} {5|level|levels} to go`
+                : t('-# 👑 You can get the best jobs.'),
+        ].join('\n'),
         fields: offers.map((job) => ({
             name: `${job.emoji} ${tr(job.name)}`,
             value: t`**${pay(job.min)} - ${pay(job.max)}** per shift\n-# from level ${job.level}`,
@@ -54,6 +57,7 @@ function offersView({ guildId, settings, userData, user, level, offers }) {
  * @returns {{ earned: number, extras: string, ended: boolean, nextAt: number|null, inARowLeft: number }}
  */
 export function workShift({ settings, userData, job, guildId, now = Date.now(), random = Math.random }) {
+    assertNotJailed(userData, now);
     const cooldown = staminaCooldown(userData, cooldownMs(settings.commands.work.cooldownMinutes));
     const allowed = workShiftsInARow(userData);
     const lastWork = userData.lastWork || 0;
@@ -78,9 +82,9 @@ export function workShift({ settings, userData, job, guildId, now = Date.now(), 
     }
 
     const tool = bestInChain(userData, 'work');
-    const earned = scaleEarnings(settings, Math.floor(randomPay(job, random) * payFactor({ earningsPercent: 100 }, userData)));
+    const earned = scaleEarnings(settings, Math.floor(randomPay(job, random) * payFactor(userData)), userData);
     if (tool?.bonusPercent) extras = t`\n${itemLabel(tool)}: **+${tool.bonusPercent}%**` + extras;
-    extras += upgradeBonusLine(userData, 'work', guildId) + earningsLine(settings);
+    extras += upgradeBonusLine(userData, 'work', guildId) + earningsLine(settings, userData);
 
     userData.wallet = (userData.wallet || 0) + earned;
     userData.lastWork = now;
@@ -122,6 +126,7 @@ export function runWork({ client, guildId, user }) {
     return withEconomyLock(guildId, user.id, async () => {
         const settings = await getEconomySettings(guildId);
         const userData = await getEconomyData(client, guildId, user.id);
+        assertNotJailed(userData);
         const job = activeJob(userData);
 
         if (!job) {
@@ -156,7 +161,7 @@ export function chooseJob({ client, guildId, user, jobId }) {
             await setEconomyData(client, guildId, user.id, userData);
             return shiftView({ guildId, userData, user, job, result, notice: hired });
         } catch (error) {
-            if (error?.context?.cooldownType !== 'work') throw error;
+            if (!['work', 'jail'].includes(error?.context?.cooldownType)) throw error;
             await setEconomyData(client, guildId, user.id, userData);
             return {
                 embeds: [successEmbed(t('💼 Job taken'), `${hired}\n\n${error.userMessage}`)],

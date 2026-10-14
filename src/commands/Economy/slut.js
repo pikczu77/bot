@@ -6,7 +6,8 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
-import { earningMultiplier } from '../../services/economyUpgrades.js';
+import { earningMultiplier, staminaCooldown } from '../../services/economyUpgrades.js';
+import { assertNotJailed } from '../../services/economyJail.js';
 
 const SLUT_ACTIVITIES = [
     { name: t("Cam Stream"), min: 120, max: 450, risk: 0.2 },
@@ -119,8 +120,6 @@ export default {
 
             const economySettings = await getEconomySettings(guildId);
             const settings = economySettings.commands.slut;
-            const SLUT_COOLDOWN = cooldownMs(settings.cooldownMinutes);
-
             const userData = await getEconomyData(client, guildId, userId);
 
             if (!userData) {
@@ -132,6 +131,8 @@ export default {
                 );
             }
 
+            assertNotJailed(userData, now);
+            const SLUT_COOLDOWN = staminaCooldown(userData, cooldownMs(settings.cooldownMinutes));
             const lastSlut = userData.lastSlut || 0;
 
             if (now - lastSlut < SLUT_COOLDOWN) {
@@ -149,7 +150,7 @@ export default {
             const activity = { ...baseActivity, min: Math.floor(baseActivity.min * scale), max: Math.floor(baseActivity.max * scale) };
 
             const outcome = resolveOutcome(activity, userData.wallet || 0);
-            if (outcome.type === 'payout') outcome.delta = scaleEarnings(economySettings, outcome.delta);
+            if (outcome.type === 'payout') outcome.delta = scaleEarnings(economySettings, outcome.delta, userData);
 
             userData.lastSlut = now;
             userData.totalSluts = (userData.totalSluts || 0) + 1;

@@ -5,7 +5,8 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
-import { bankStealPercent, robSuccessBonus } from '../../services/economyUpgrades.js';
+import { bankStealPercent, robSuccessBonus, staminaCooldown } from '../../services/economyUpgrades.js';
+import { assertNotJailed } from '../../services/economyJail.js';
 
 const LOCKPICK_BONUS = 20;
 const MAX_SUCCESS_PERCENT = 95;
@@ -57,8 +58,6 @@ export default {
             }
 
             const { rob } = (await getEconomySettings(guildId)).commands;
-            const ROB_COOLDOWN = cooldownMs(rob.cooldownMinutes);
-
             const robberData = await getEconomyData(client, guildId, robberId);
             const victimData = await getEconomyData(client, guildId, victimUser.id);
 
@@ -71,6 +70,8 @@ export default {
                 );
             }
 
+            assertNotJailed(robberData, now);
+            const ROB_COOLDOWN = staminaCooldown(robberData, cooldownMs(rob.cooldownMinutes));
             const lastRob = robberData.lastRob || 0;
 
             if (now < lastRob + ROB_COOLDOWN) {

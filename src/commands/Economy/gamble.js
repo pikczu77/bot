@@ -30,7 +30,7 @@ export default {
         const round = await playRound({ client, guildId, userId: interaction.user.id, bet: betAmount }, ({ settings, userData, luck }) => {
             const { gamble } = settings.commands;
             const base = gamble.winPercent / 100;
-            const chance = applyLuck(base, luck.total);
+            const chance = applyLuck(base, luck.total, gamble.payoutPercent / 100);
             const win = Math.random() < chance;
             const amountWon = Math.floor(betAmount * gamble.payoutPercent / 100);
             // The bet was at stake, not taken in advance: a win replaces it with the payout.

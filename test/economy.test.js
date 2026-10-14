@@ -13,7 +13,7 @@ import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { getEconomySettings, getShopCatalog, nicePrice, updateEconomySettings } from '../src/services/economySettings.js';
 import { buyUpgrade, getUpgrade, upgradeCost, upgradePrice } from '../src/services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS, pickOffers } from '../src/services/economyJobs.js';
-import { SLOT_BASE_CHANCE, applyLuck, spinRoulette, spinSlots, takeLuck } from '../src/services/casino.js';
+import { SLOT_AVERAGE_PAYOUT, SLOT_BASE_CHANCE, applyLuck, luckPoints, spinRoulette, spinSlots, takeLuck } from '../src/services/casino.js';
 import { dealerOdds, handValue, settle, standOdds, bustChance } from '../src/services/blackjack.js';
 import { purchaseRoom, missingRequirement, getItemById, bestInChain } from '../src/config/shop/items.js';
 
@@ -89,7 +89,9 @@ test('/work: 3 offers for the server level, a job lasts 5 shifts, Overtime allow
   await updateEconomySettings(guild.id, (settings) => { settings.commands.work.cooldownMinutes = 60; settings.earningsPercent = 100; });
 
   const offers = await run('work', worker);
+  assert.match(replyText(offers), /Job offers · level 100/);
   assert.match(replyText(offers), /Your server level: \*\*100\*\*/);
+  assert.match(replyText(offers), /You can get the best jobs/);
   const buttons = offers.replies.at(-1).components[0].toJSON().components;
   assert.equal(buttons.length, 3);
   // The same offers come back until one is taken.
@@ -157,9 +159,15 @@ test('items: tiers need the one before, the best one counts, the Discount upgrad
   assert.equal((await data(buyer)).inventory.lucky_charm, 3);
 });
 
-test('casino: luck multiplies the chance, the shown chance is exact, the footer shows it', async () => {
-  assert.equal(applyLuck(0.4, 25), 0.5);
-  assert.equal(applyLuck(0.9, 50), 0.95);
+test('casino: luck adds points, fewer on big payouts, at most +25; the shown chance is exact', async () => {
+  // Points: 40% with luck +25 is 65%; never above 95%.
+  assert.ok(Math.abs(applyLuck(0.4, 25) - 0.65) < 1e-12);
+  assert.ok(Math.abs(applyLuck(0.4, 3) - 0.43) < 1e-12);
+  assert.equal(applyLuck(0.9, 25), 0.95);
+  // Bets above x2 get (2/payout)^2 of the points, so a roulette number stays a long shot.
+  assert.equal(luckPoints(25, 2), 25);
+  assert.ok(Math.abs(luckPoints(9, 3) - 4) < 1e-12);
+  assert.ok(luckPoints(25, 36) < 0.1);
   const red = spinRoulette('czerwone', null, 0, () => 0);
   assert.equal(red.base, 18 / 37);
   assert.equal(red.win, true);
@@ -167,32 +175,37 @@ test('casino: luck multiplies the chance, the shown chance is exact, the footer 
   const lost = spinRoulette('liczba', 7, 0, () => 0.99);
   assert.equal(lost.win, false);
   assert.notEqual(lost.result, 7);
-  assert.equal(spinRoulette('tuzin1', null, 25, () => 0.5).chance, (12 / 37) * 1.25);
+  assert.ok(Math.abs(spinRoulette('czerwone', null, 10, () => 0.5).chance - (18 / 37 + 0.1)) < 1e-12);
+  assert.ok(Math.abs(spinRoulette('tuzin1', null, 9, () => 0.5).chance - (12 / 37 + 0.04)) < 1e-12);
+  assert.ok(spinRoulette('liczba', 7, 25, () => 0.5).chance < 1 / 37 + 0.001);
 
   const jackpot = spinSlots(0, () => 0);
   assert.deepEqual(jackpot.reels, ['💎', '💎', '💎']);
   const miss = spinSlots(0, () => 0.999);
   assert.equal(miss.outcome, null);
   assert.equal(new Set(miss.reels).size, 3);
-  assert.ok(Math.abs(spinSlots(10).chance - SLOT_BASE_CHANCE * 1.1) < 1e-12);
+  assert.ok(Math.abs(spinSlots(10).chance - (SLOT_BASE_CHANCE + luckPoints(10, SLOT_AVERAGE_PAYOUT) / 100)) < 1e-12);
 
-  // Permanent luck: Luck upgrade 5 (+5%) and the Diamond Clover (+15%, not stacked with gold);
-  // a Lucky Clover adds +10% once.
+  // Luck 5 (+5) and the Diamond Clover (+6, not stacked with gold); a Lucky Clover adds +4 once.
   const luck = takeLuck({ upgrades: { luck: 5 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 2 } });
-  assert.equal(luck.total, 30);
+  assert.equal(luck.total, 15);
   assert.equal(luck.item.id, 'lucky_clover');
+  // Everything at its best: 15 + 6 + 4 = 25, the cap.
+  assert.equal(takeLuck({ upgrades: { luck: 15 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 1 } }).total, 25);
+  assert.equal(takeLuck({ upgrades: { luck: 99 }, inventory: { diamond_clover: 1, lucky_clover: 1 } }).total, 25);
 
   const gambler = newMember('Hazardzista');
   await updateEconomySettings(guild.id, (settings) => { settings.commands.gamble = { cooldownMinutes: 0, winPercent: 40, payoutPercent: 200, maxBet: 0 }; });
   await save(gambler, { wallet: 1000, upgrades: { luck: 10 }, inventory: { golden_clover: 1 } });
   const played = await run('gamble', gambler, { amount: 100 });
-  assert.match(replyText(played), /Your win chance: 48% · base 40% · luck \+20%/);
+  assert.match(replyText(played), /Your win chance: 54% · base 40% · luck \+14%/);
   const wallet = (await data(gambler)).wallet;
   assert.ok(wallet === 900 || wallet === 1100, String(wallet));
 
   const roulette = await run('ruletka', gambler, { stawka: 50, zaklad: 'zielone' });
   assert.match(replyText(roulette), /The ball lands on/);
-  assert.match(replyText(roulette), /Your win chance: 3.2%/);
+  assert.match(replyText(roulette), /Your win chance: 2.7%/);
+  assert.doesNotMatch(replyText(roulette), /luck \+0/);
   await assert.rejects(run('ruletka', gambler, { stawka: 50, zaklad: 'liczba' }), /number missing/);
   assert.match(replyText(await run('slots', gambler, { stawka: 10 })), /🎰/);
   await assert.rejects(run('slots', gambler, { stawka: 10_000_000 }), /Insufficient cash/);

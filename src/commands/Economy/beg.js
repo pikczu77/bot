@@ -6,6 +6,7 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { staminaCooldown } from '../../services/economyUpgrades.js';
+import { assertNotJailed } from '../../services/economyJail.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -33,6 +34,7 @@ export default {
                 );
             }
 
+            assertNotJailed(userData);
             const lastBeg = userData.lastBeg || 0;
             const remainingTime = lastBeg + COOLDOWN - Date.now();
 
@@ -58,7 +60,7 @@ export default {
 
             if (success) {
                 const amountWon = scaleEarnings(settings,
-                    Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min);
+                    Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min, userData);
 
                 newCash += amountWon;
 

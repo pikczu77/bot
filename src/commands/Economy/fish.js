@@ -6,6 +6,7 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
+import { assertNotJailed } from '../../services/economyJail.js';
 import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain } from '../../config/shop/items.js';
 
@@ -49,6 +50,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
             const FISH_COOLDOWN = staminaCooldown(userData, cooldownMs(fish.cooldownMinutes));
             const lastFish = userData.lastFish || 0;
+            assertNotJailed(userData, now);
             await requireTool({ guild: interaction.guild, userData, toolIds: ['fishing_rod', 'carbon_rod', 'golden_rod'], action: 'fish' });
 
             let usedEnergyDrink = false;
@@ -109,8 +111,8 @@ export default {
                 finalEarned *= 2;
                 multiplierMessage += t`\n🕸️ **Fishing Net** used - double catch!`;
             }
-            finalEarned = scaleEarnings(settings, finalEarned);
-            multiplierMessage += earningsLine(settings);
+            finalEarned = scaleEarnings(settings, finalEarned, userData);
+            multiplierMessage += earningsLine(settings, userData);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
