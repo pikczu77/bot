@@ -254,7 +254,7 @@ export const shopItems = [
         emoji: '📋',
         name: t('Insurance'),
         price: 2000,
-        description: t('Pays the fine for you once when `/crime` or `/rob` fails.'),
+        description: t('Pays the fine for you once when `/crime` or `/rob` fails, or the court costs of a lost `/pozwij`.'),
         type: 'consumable',
         maxQuantity: 3,
     },

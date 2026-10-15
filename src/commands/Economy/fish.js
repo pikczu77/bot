@@ -1,28 +1,20 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
+import { createEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { t } from '../../i18n/index.js';
+import { t, tr } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../services/economyJail.js';
+import { FISH_PAY_MULTIPLIERS, addTo, hasAny, indexKey, rarityOf, rollFish } from '../../services/collections.js';
 import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain } from '../../config/shop/items.js';
 
 // A Fishing Rod (or a better rod) is needed to fish; the Carbon Rod adds +50%, the Golden Rod +100%.
-
-const FISH_TYPES = [
-    { name: t('Bass'), emoji: '🐟', rarity: 'common' },
-    { name: t('Salmon'), emoji: '🐟', rarity: 'common' },
-    { name: t('Trout'), emoji: '🐟', rarity: 'common' },
-    { name: t('Tuna'), emoji: '🐠', rarity: 'uncommon' },
-    { name: t('Swordfish'), emoji: '🐠', rarity: 'uncommon' },
-    { name: t('Octopus'), emoji: '🐙', rarity: 'rare' },
-    { name: t('Lobster'), emoji: '🦞', rarity: 'rare' },
-    { name: t('Shark'), emoji: '🦈', rarity: 'epic' },
-    { name: t('Whale'), emoji: '🐋', rarity: 'legendary' },
-];
+// Since 2026-10-15 the fish decides the pay (services/collections.js): its rarity multiplies a
+// base between the server's min and max (common x0.4 ... legendary x8, ≈ x1 on average), a golden
+// fish pays x1.2 and a diamond one x1.6. Every catch is recorded in /index.
 
 const CATCH_MESSAGES = [
     t("You cast your line into the crystal clear waters..."),
@@ -40,7 +32,7 @@ export default {
     execute: withErrorHandling(async (interaction, config, client) => {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
+
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
@@ -72,29 +64,10 @@ export default {
                 );
             }
 
-            const rand = Math.random();
-            let fishCaught;
-            
-            if (rand < 0.5) {
-                
-                fishCaught = FISH_TYPES.filter(f => f.rarity === 'common')[Math.floor(Math.random() * 3)];
-            } else if (rand < 0.75) {
-                
-                fishCaught = FISH_TYPES.filter(f => f.rarity === 'uncommon')[Math.floor(Math.random() * 2)];
-            } else if (rand < 0.9) {
-                
-                fishCaught = FISH_TYPES.filter(f => f.rarity === 'rare')[Math.floor(Math.random() * 2)];
-            } else if (rand < 0.98) {
-                
-                fishCaught = FISH_TYPES.find(f => f.rarity === 'epic');
-            } else {
-                
-                fishCaught = FISH_TYPES.find(f => f.rarity === 'legendary');
-            }
-
-            const baseEarned = Math.floor(
-                Math.random() * (fish.max - fish.min + 1)
-            ) + fish.min;
+            const { fish: caught, variant } = rollFish();
+            const rarity = rarityOf(caught.rarity);
+            const base = Math.floor(Math.random() * (fish.max - fish.min + 1)) + fish.min;
+            const baseEarned = Math.floor(base * FISH_PAY_MULTIPLIERS[caught.rarity] * variant.multiplier);
 
             let finalEarned = baseEarned;
             let multiplierMessage = "";
@@ -114,26 +87,21 @@ export default {
             finalEarned = scaleEarnings(settings, finalEarned, userData);
             multiplierMessage += earningsLine(settings, userData);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
+            if (variant.label) multiplierMessage += t`\n${variant.emoji} **${tr(variant.label)}**: x${variant.multiplier}!`;
+            if (!hasAny(userData.fishIndex, caught.id)) multiplierMessage += t('\n📖 New in your `/index`!');
 
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
 
             userData.wallet += finalEarned;
             userData.lastFish = now;
+            userData.fishIndex = addTo(userData.fishIndex, indexKey(caught.id, variant));
 
             await setEconomyData(client, guildId, userId, userData);
 
-            const rarityColors = {
-                common: '#95A5A6',
-                uncommon: '#2ECC71',
-                rare: '#3498DB',
-                epic: '#9B59B6',
-                legendary: '#F1C40F'
-            };
-
             const embed = createEmbed({
                 title: t('Fishing Success!'),
-                description: t`${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **${money(guildId, finalEarned)}**!${multiplierMessage}`,
-                color: rarityColors[fishCaught.rarity]
+                description: t`${catchMessage}\n\nYou caught a **${variant.emoji || caught.emoji} ${caught.name}**! You sold it for **${money(guildId, finalEarned)}**!${multiplierMessage}`,
+                color: variant.id === 'normal' ? rarity.color : (variant.id === 'golden' ? '#FFD700' : '#5DE2E7'),
             })
                 .addFields(
                     {
@@ -143,7 +111,7 @@ export default {
                     },
                     {
                         name: t("Rarity"),
-                        value: fishCaught.rarity.charAt(0).toUpperCase() + fishCaught.rarity.slice(1),
+                        value: `${rarity.emoji} ${tr(rarity.label)}`,
                         inline: true,
                     }
                 )

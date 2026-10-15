@@ -35,6 +35,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     // bailPrice: leave jail at once for this much (services/economyJail.js), 0 = no bail.
     crime: { cooldownMinutes: 60, jailMinutes: 120, finePercent: 20, payoutPercent: 100, bailPrice: 2000 },
     slut: { cooldownMinutes: 45, payoutPercent: 100 },
+    // /pozwij (commands/Economy/modules/lawsuit.js): a lost case costs courtCostPercent of the amount.
+    sue: { cooldownMinutes: 60, courtCostPercent: 20, minDefendantMoney: 500 },
     rob: {
       cooldownMinutes: toMinutes(base.cooldowns?.rob, 4 * 60 * 60_000),
       successPercent: Math.round((Number(base.robSuccessRate) || 0.4) * 100),
@@ -69,6 +71,7 @@ export const COMMAND_LIMITS = Object.freeze({
   mine: { min: [0, MAX_MONEY], max: [0, MAX_MONEY], cooldownMinutes: [0, MAX_COOLDOWN] },
   crime: { cooldownMinutes: [0, MAX_COOLDOWN], jailMinutes: [0, MAX_COOLDOWN], finePercent: [0, 100], payoutPercent: [1, 10_000], bailPrice: [0, MAX_MONEY] },
   slut: { cooldownMinutes: [0, MAX_COOLDOWN], payoutPercent: [1, 10_000] },
+  sue: { cooldownMinutes: [0, MAX_COOLDOWN], courtCostPercent: [0, 100], minDefendantMoney: [0, MAX_MONEY] },
   rob: { cooldownMinutes: [0, MAX_COOLDOWN], successPercent: [0, 100], stealPercent: [1, 100], finePercent: [0, 100], minVictimCash: [0, MAX_MONEY] },
   gamble: { cooldownMinutes: [0, MAX_COOLDOWN], winPercent: [1, 99], payoutPercent: [101, 10_000], maxBet: [0, MAX_MONEY] },
 });

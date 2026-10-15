@@ -20,6 +20,7 @@ import {
 } from '../../../services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS } from '../../../services/economyJobs.js';
 import { VIDEO_RARITIES } from '../mine.js';
+import { FISH, PACKS, packExpectedValue, packLegendaryChance } from '../../../services/collections.js';
 import { bailPrice } from '../../../services/economyJail.js';
 import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../../services/casino.js';
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
@@ -70,7 +71,7 @@ function start({ guildId, settings }) {
 }
 
 function earn({ guildId, settings, leveling }) {
-  const { work, daily, mine, fish, beg, crime, slut } = settings.commands;
+  const { work, daily, mine, fish, beg, crime, slut, sue } = settings.commands;
   const range = ({ min, max }) => `**${money(guildId, min)} - ${money(guildId, max)}**`;
   const lowest = Math.min(...JOBS.map((job) => job.min));
   const best = JOBS[JOBS.length - 1];
@@ -85,6 +86,7 @@ function earn({ guildId, settings, leveling }) {
       field(t('🙏 /beg'), t`${range(beg)}\n**${beg.successPercent}%** chance\nbreak **${waitMinutes(beg.cooldownMinutes)}**`),
       field(t('🦹 /crime'), t`bigger haul, bigger risk\nbreak **${waitMinutes(crime.cooldownMinutes)}**\ncaught: fine + **${waitMinutes(crime.jailMinutes)}** in jail`),
       field(t('💋 /slut'), t`payout or loss\nbreak **${waitMinutes(slut.cooldownMinutes)}**`),
+      field(t('⚖️ /pozwij @someone'), t`any amount: higher = lower chance\nlost: **${sue.courtCostPercent}%** court costs\nbreak **${waitMinutes(sue.cooldownMinutes)}**`),
       settings.activity.enabled
         ? field(t('💬 Chatting'), t`**${money(guildId, settings.activity.amount)}** a message\nat most every **${wait(settings.activity.cooldownSeconds * 1000)}**`)
         : null,
@@ -184,11 +186,26 @@ function jail({ guildId, settings }) {
     fields: [
       field(t('🚔 Jail'), t`after a failed \`/crime\`: **${waitMinutes(settings.commands.crime.jailMinutes)}**\n${itemLabel(getItemById('insurance'))} pays the fine`
         + (bail ? t`\n🔓 bail: **${money(guildId, bail)}** (button under the jail message)` : '')),
-      field(t('⛔ Locked in jail'), t('`/work` `/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\nand the casino')),
+      field(t('⛔ Locked in jail'), t('`/work` `/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij` `/paczka` and the casino')),
       field(t('✅ Works in jail'), t('`/daily`, the bank, `/pay`\nthe shop and upgrades')),
       field(t('⚡ Stamina'), t`**-${STAMINA_PER_LEVEL}%** of every break a level\nmax **-${STAMINA_PER_LEVEL * stamina.maxLevel}%** (level ${stamina.maxLevel})`),
       field(t('⏱️ Stamina shortens'), t('every earning command and the casino\nnot `/daily`, not jail')),
       field(t('🥤 Skip one break'), t`${itemLabel(getItemById('energy_drink'))}: \`/nagraj\`, \`/fish\`\n${itemLabel(getItemById('extra_work'))}: \`/work\``),
+    ],
+  };
+}
+
+function collection({ guildId }) {
+  return {
+    description: t`Club'o'mony cards cost money, but a legendary one is worth **${money(guildId, 15_000)} - ${money(guildId, 30_000)}**. On average a pack returns less than it costs.`,
+    fields: [
+      ...PACKS.map((pack) => field(
+        `${pack.emoji} ${tr(pack.name)} · ${money(guildId, pack.price)}`,
+        t`**${pack.cards}** {0|card|cards}\nlegendary: **${(packLegendaryChance(pack) * 100).toFixed(1)}%** a pack\nreturn on average: **${Math.round(packExpectedValue(pack) / pack.price * 100)}%**`,
+      )),
+      field(t('🟨 💎 Versions'), t('golden: x1.2 value\ndiamond: x1.6 value\ncards and fish')),
+      field(t('📖 /index'), t`your cards and your fish (${FISH.length} species)\nsell cards or duplicates there`),
+      field(t('💰 Selling'), t('a card sells for its value\nno multiplier, no Fortune')),
     ],
   };
 }
@@ -210,7 +227,8 @@ function commands() {
     description: t('Every economy command in one place.'),
     fields: [
       field(t('💵 Money'), '`/hajs` `/balans`\n`/bank wplac` `/bank wyplac`\n`/pay` `/topkasa`'),
-      field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`'),
+      field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij`'),
+      field(t('🎴 Collection'), '`/paczka` `/index`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
       field(t('💍 Relationships'), '`/randka` `/slub`'),
@@ -228,6 +246,7 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'ulepszenia', emoji: '⚡', name: t('Upgrades'), hint: t('Permanent bonuses and prices'), color: '#FF9F0A', build: upgrades },
   { id: 'sklep', emoji: '🛒', name: t('Shop and items'), hint: t('Tools and one-use items'), color: '#64D2FF', build: shop },
   { id: 'wiezienie', emoji: '🚔', name: t('Jail and breaks'), hint: t('Jail, Stamina, skipping a break'), color: '#FF453A', build: jail },
+  { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
   { id: 'zwiazki', emoji: '💍', name: t('Dates and marriage'), hint: t('/randka and /slub'), color: '#FF375F', build: love },
   { id: 'komendy', emoji: '📋', name: t('All commands'), hint: t('The full list'), color: '#8E8E93', build: commands },
 ]);

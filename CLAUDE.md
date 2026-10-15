@@ -37,6 +37,13 @@ change you make, so the next session knows what was done and why.
 - Jobs of `/work`: `src/services/economyJobs.js`, `src/commands/Economy/modules/work_shift.js`.
 - Shop items and tiers: `src/config/shop/items.js`. Items with `retired: true` are not sold but
   members keep them, and they count as their `sameAs` item (`ownsItem`, `takeConsumable`).
+- Collections: `src/services/collections.js` (rarities, golden/diamond versions, the 20 fish, the
+  21 Club'o'mony cards, the 3 packs and their odds). `/paczka` and `/index`:
+  `src/commands/Economy/modules/collection_view.js`, buttons `paczka:*` / `index:*` in
+  `src/interactions/buttons/economy/collection.js`, sell menu `src/interactions/selectMenus/economy/index.js`.
+  Member data: `cards` and `fishIndex` maps, key `<id>` / `<id>:golden` / `<id>:diamond`.
+- `/pozwij`: `src/commands/Economy/modules/lawsuit.js` (`sueChance`), buttons `pozew:*` in
+  `src/interactions/buttons/economy/lawsuit.js`, settings `commands.sue`.
 - `/nagraj` (YouTuber job, was `/mine`): `src/commands/Economy/mine.js` (`VIDEO_RARITIES`,
   `rollVideo`). Internally it is still "mine": `settings.commands.mine`, `lastMine`, the `mine`
   upgrade and item chain, the `mine` cooldown type. Do not rename those ids: stored data uses them.
@@ -66,6 +73,12 @@ change you make, so the next session knows what was done and why.
 - `/nagraj` works like `/fish`: each video has a rarity and a view count; common pays little,
   legendary a lot. Items: Computer (needed), Internet +50%, Better Internet +100%. `/work` items:
   Pen +50%, Suit +100%. What members bought before stays with them and counts as the new item.
+- Club'o'mony packs (`/paczka`): Starter 1,500 (1 card), Collector 5,000 (2), Legend 10,000 (3).
+  A common card is worth about $2, a legendary 15,000-30,000. Legendary chance: highest in the
+  Legend pack, tiny but real in the Starter pack. Packs must stay "not too OP": on average a pack
+  returns less than it costs. Golden x1.2, diamond x1.6 (cards and fish).
+- `/pozwij`: any amount; the higher it is, the lower the chance (shown before the case starts,
+  with buttons to raise or lower the amount). "Street smarts" (upgrade id `crime`) counts for it.
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -121,3 +134,30 @@ change you make, so the next session knows what was done and why.
     old ids are ignored; the new items start at the default prices.
   - The "Mining" upgrade is now "YouTube" (🎬), same id, levels kept. Guide, `/ulepszenia` and the
     panel (pikczu.pl/bot, Ekonomia > Zarobki: card "/nagraj") updated. Tests: `test/nagraj.test.js`.
+- **2026-10-15 ~07:20** (owner, three messages: a card collection job where you spend to earn,
+  "Club'o'mony", 3 packs from weak to best, 1/2/3 cards, common $2, legendary 15-30k, starter pack
+  1,500, best 10,000, not too OP but a chance to get rich; then "niech będzie /index", fish collected
+  there too, more fish, golden x1.2, diamond x1.6; then `/pozwij`). Live after the owner restarts the bot:
+  - `/paczka [rodzaj]`: buys and opens a pack (cash first, then bank; blocked in jail). Without a
+    choice it lists the packs with odds. After opening: "Sell these cards", "Your index", and a
+    button per pack. Packs and card names are mine: Starter (📦 1,500, 1 card), Collector (🎁 5,000,
+    2), Legend (👑 10,000, 3). 21 cards (parody names, e.g. Bulwazaur, Iwi, Czaryzard, Król Pikczu
+    30,000). Average return 84% / 88% / 92%; a legendary in 0.6% / 3.4% / 11% of packs (my numbers,
+    checked by `test/collections.test.js`). Card values are fixed: no multiplier, Fortune or Discount.
+  - Golden (5%, x1.2) and diamond (1%, x1.6) versions for cards and fish (the owner said "etc.";
+    I applied it to both).
+  - `/index [osoba] [zakladka]`: cards tab (X/21, value, ❔ ??? for missing ones, sell menu for one
+    card, "Sell duplicates" keeps one of each version, pack buttons) and fish tab (X/20 species).
+    Someone else's index can only be looked at.
+  - `/fish`: 20 species (was 9). My change: the fish now sets the pay like `/nagraj` videos
+    (common x0.4 ... legendary x8 of the server's min-max, average ≈ x1); before, the rarity was
+    only a label. The owner's earlier message assumed fish already worked that way.
+  - `/pozwij osoba kwota`: private preview with the chance and buttons -50% / -10% / +10% / +50%,
+    "Sue (X%)" and "Cancel"; the result is posted in the channel. Chance = 60% x (1 - amount /
+    defendant's cash+bank)^2, at least 1%; the amount can never be more than they have. Won: the
+    defendant pays (cash first, then bank), the plaintiff gets the amount + Street smarts bonus.
+    Lost: 20% court costs to the defendant (Insurance pays them once). Break 60 min (Stamina
+    shortens it), defendant needs at least 500, no spouse, blocked in jail. Settings
+    `commands.sue` (panel card "/pozwij", shown only when the bot returns it). My decisions: no
+    jail for a lost case, no Fortune or server multiplier on the payout.
+  - 74 commands now (was 71).

@@ -30,7 +30,7 @@ export const UPGRADES = Object.freeze([
   // id "mine" = /nagraj (renamed from /mine on 2026-10-15; levels bought before still count).
   { id: 'mine', emoji: '🎬', name: t('YouTube'), description: t('Higher `/nagraj` earnings.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
   { id: 'fish', emoji: '🎣', name: t('Fishing'), description: t('Higher `/fish` earnings.'), maxLevel: 10, basePrice: 2_000, growth: 1.3, step: 10 },
-  { id: 'crime', emoji: '🦹', name: t('Street smarts'), description: t('Higher `/crime` and `/slut` payouts.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
+  { id: 'crime', emoji: '🦹', name: t('Street smarts'), description: t('Higher `/crime`, `/slut` and `/pozwij` payouts.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
   { id: 'daily', emoji: '📅', name: t('Daily bonus'), description: t('Bigger `/daily` reward.'), maxLevel: 10, basePrice: 800, growth: 1.3, step: 25 },
   { id: 'luck', emoji: '🍀', name: t('Luck'), description: t('+1% win chance in every casino game per level.'), maxLevel: 15, basePrice: 1_500, growth: 1.3 },
   { id: 'stamina', emoji: '⚡', name: t('Stamina'), description: t('Shorter breaks after every earning command and casino game (not /daily, not jail).'), maxLevel: 10, basePrice: 3_000, growth: 1.35 },
@@ -102,7 +102,7 @@ export function describeUpgradeEffect(upgrade, level, guildId) {
     case 'work': return t`+${level * upgrade.step}% /work pay`;
     case 'mine': return t`+${level * upgrade.step}% from /nagraj`;
     case 'fish': return t`+${level * upgrade.step}% from /fish`;
-    case 'crime': return t`+${level * upgrade.step}% from /crime and /slut`;
+    case 'crime': return t`+${level * upgrade.step}% from /crime, /slut and /pozwij`;
     case 'daily': return t`+${level * upgrade.step}% /daily reward`;
     case 'overtime': return t`${level + 1} {0|shift|shifts} in a row`;
     case 'discount': return t`-${level * DISCOUNT_PER_LEVEL}% prices`;
