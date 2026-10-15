@@ -3,6 +3,9 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import economyDashboard from './modules/economy_dashboard.js';
 import shopConfigSetrole from './modules/shop_config_setrole.js';
 import economyGuide from './modules/economy_guide.js';
+import { buildAdminView } from './modules/economy_admin.js';
+import { warningEmbed } from '../../utils/embeds.js';
+import { t } from '../../i18n/index.js';
 
 export default {
     slashOnly: true,
@@ -24,6 +27,17 @@ export default {
                     option
                         .setName('rola')
                         .setDescription('The role to grant for Premium Role purchases.')
+                        .setRequired(true),
+                ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('gracz')
+                .setDescription("One member's economy: reset money, free from jail, remove upgrades")
+                .addUserOption(option =>
+                    option
+                        .setName('osoba')
+                        .setDescription('The member')
                         .setRequired(true),
                 ),
         )
@@ -59,6 +73,13 @@ export default {
 
         if (subcommand === 'dashboard') {
             await economyDashboard.execute(interaction, config, client);
+        }
+        if (subcommand === 'gracz') {
+            const user = interaction.options.getUser('osoba');
+            const view = user.bot
+                ? { embeds: [warningEmbed(t('Economy'), t("Bots don't have an economy balance."))] }
+                : await buildAdminView({ client, guildId: interaction.guildId, user });
+            await InteractionHelper.safeEditReply(interaction, view);
         }
     }
 };

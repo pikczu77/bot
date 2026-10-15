@@ -9,6 +9,7 @@ import { createEmbed } from '../../../utils/embeds.js';
 import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
 import { UPGRADES, describeUpgradeEffect, discountPercent, discountedPrice, getUpgradeLevel, upgradeCost } from '../../../services/economyUpgrades.js';
 import { ITEM_CHAINS, bestInChain, nextInChain } from '../../../config/shop/items.js';
+import { CARDS, FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, cardsCollected, fishCollected } from '../../../services/collections.js';
 import { itemLabel } from './buy.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -74,7 +75,20 @@ function skillsFolder({ guildId, userData, ownerId, funds }) {
       .setDisabled(price === null || funds < price);
   });
 
+  fields.push({ name: t('📖 Collections'), value: collectionLines(userData), inline: false });
+
   return { fields, buttons, intro: t('Permanent upgrades: bought once, they stay forever. You pay with cash first, then from the bank.') };
+}
+
+/** The two collection bonuses with progress (services/collections.js). */
+export function collectionLines(userData) {
+  const fish = fishCollected(userData);
+  const cards = cardsCollected(userData);
+  return [
+    t`${fish === FISH.length ? '✅' : '🔒'} 🎣 Full fish deck **${fish}/${FISH.length}**: **+${FULL_FISH_BONUS_PERCENT}%** from \`/fish\``,
+    t`${cards === CARDS.length ? '✅' : '🔒'} 🎴 All Club'o'mony cards **${cards}/${CARDS.length}**: **+${FULL_CARDS_BONUS_PERCENT}%** from every job (not \`/daily\`)`,
+    t('-# Progress in `/index`. Selling the last copy of a card ends the card bonus.'),
+  ].join('\n');
 }
 
 function itemsFolder({ guildId, userData, ownerId, funds, prices }) {

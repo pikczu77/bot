@@ -20,7 +20,7 @@ import {
 } from '../../../services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS } from '../../../services/economyJobs.js';
 import { VIDEO_RARITIES } from '../mine.js';
-import { FISH, PACKS, packExpectedValue, packLegendaryChance } from '../../../services/collections.js';
+import { FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, PACKS, packExpectedValue, packLegendaryChance } from '../../../services/collections.js';
 import { bailPrice } from '../../../services/economyJail.js';
 import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../../services/casino.js';
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
@@ -206,6 +206,7 @@ function collection({ guildId }) {
       field(t('🟨 💎 Versions'), t('golden: x1.2 value\ndiamond: x1.6 value\ncards and fish')),
       field(t('📖 /index'), t`your cards and your fish (${FISH.length} species)\nsell cards or duplicates there`),
       field(t('💰 Selling'), t('a card sells for its value\nno multiplier, no Fortune')),
+      field(t('🏆 Full collections'), t`every fish: **+${FULL_FISH_BONUS_PERCENT}%** from \`/fish\`\nevery card: **+${FULL_CARDS_BONUS_PERCENT}%** from every job`),
     ],
   };
 }

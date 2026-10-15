@@ -176,3 +176,30 @@ export const versionsOf = (map, id) => VARIANTS
 
 /** True when the member has `id` in any version. */
 export const hasAny = (map, id) => versionsOf(map, id).length > 0;
+
+// ---------------------------------------------------------------- collection bonuses (owner, 2026-10-15)
+// Every fish species caught once (any version): +50% on /fish. Every card held (at least one copy
+// of each, any version): +20% on every job - /work, /nagraj, /fish, /beg, /crime, /slut, /pozwij,
+// not /daily. Selling the last copy of a card ends the card bonus; the fish record never shrinks.
+// Read through earningMultiplier() in economyUpgrades.js, shown in /ulepszenia and /index.
+
+export const FULL_FISH_BONUS_PERCENT = 50;
+export const FULL_CARDS_BONUS_PERCENT = 20;
+export const fishCollected = (userData) => FISH.filter((fish) => hasAny(userData?.fishIndex, fish.id)).length;
+export const cardsCollected = (userData) => CARDS.filter((card) => hasAny(userData?.cards, card.id)).length;
+export const hasAllFish = (userData) => fishCollected(userData) === FISH.length;
+export const hasAllCards = (userData) => cardsCollected(userData) === CARDS.length;
+
+/** Extra percent of pay from complete collections for an earning `kind` (an upgrade id: work, mine, fish, crime, beg). */
+export function collectionBonusPercent(userData, kind) {
+  if (kind === 'daily') return 0;
+  return (hasAllCards(userData) ? FULL_CARDS_BONUS_PERCENT : 0) + (kind === 'fish' && hasAllFish(userData) ? FULL_FISH_BONUS_PERCENT : 0);
+}
+
+/** "\n📖 **Full fish deck:** +50% · **All cards:** +20%" for a result message, '' without a bonus. */
+export function collectionBonusLine(userData, kind) {
+  const parts = [];
+  if (kind === 'fish' && hasAllFish(userData)) parts.push(t`**Full fish deck:** +${FULL_FISH_BONUS_PERCENT}%`);
+  if (kind !== 'daily' && hasAllCards(userData)) parts.push(t`**All Club'o'mony cards:** +${FULL_CARDS_BONUS_PERCENT}%`);
+  return parts.length ? `\n📖 ${parts.join(' · ')}` : '';
+}

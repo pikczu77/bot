@@ -60,7 +60,8 @@ change you make, so the next session knows what was done and why.
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
   10 points off the bank share, down to 10%.
 - Luck adds percentage points to the win chance (40% with luck +3 is 43%). Luck upgrade:
-  +1 point per level, 15 levels. All luck sources together give at most +25.
+  +1 point per level, 15 levels. All luck sources together give at most +25 (cap). Since
+  2026-10-15 the Diamond Clover gives +5 (owner), so the real best is 15 + 5 + 4 = 24.
   Bets that pay more than x2 get fewer points, `(2 / payout)^2` of them; the owner wanted big
   payouts (roulette number x36) to get "an even smaller chance".
 - Fortune: 5 levels, +10% of every payout per level (max +50%), expensive (25,000 doubling to
@@ -161,3 +162,20 @@ change you make, so the next session knows what was done and why.
     `commands.sue` (panel card "/pozwij", shown only when the bot returns it). My decisions: no
     jail for a lost case, no Fortune or server multiplier on the payout.
   - 74 commands now (was 71).
+- **2026-10-15 ~16:00** (owner, three Discord messages: admin option to reset one member's
+  money, get someone out of jail or remove upgrades one by one or all; Diamond Clover 5%; in
+  the upgrades show that the full fish deck gives +50% fishing money and all cards +20% from
+  all jobs). Live after the owner restarts the bot:
+  - `/economy gracz osoba` (Manage Server): private view with cash, bank, jail, upgrades; buttons
+    "Reset money" (asks first; cash/bank = the server's starting amounts, the member's own account
+    only - items, cards, fish and upgrades stay), "Free from jail", "Remove every upgrade" (asks
+    first), menu "Remove one upgrade". Code: `modules/economy_admin.js`, custom ids `ekoadmin:*`.
+  - Diamond Clover +6 -> +5 (luck best 24 now, under the cap 25).
+  - Collection bonuses (`services/collections.js`, read in `earningMultiplier`): every fish species
+    caught once = +50% on `/fish`; at least one copy of every card = +20% on `/work`, `/nagraj`,
+    `/fish`, `/beg`, `/crime`, `/slut`, `/pozwij` (not `/daily`, my reading of "all jobs").
+    Added to the upgrade bonus, not multiplied. Shown in `/ulepszenia` (field "📖 Kolekcje"),
+    `/index` and the guide; the sell menu warns before the last copy of a card goes. My decision:
+    the card bonus needs the cards held now, the fish bonus counts every catch ever.
+    `/beg` now also uses `earningMultiplier(userData, 'beg')` (only the card bonus applies there).
+  - Tests: `test/admin-bonus.test.js`.

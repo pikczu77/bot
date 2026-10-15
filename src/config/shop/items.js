@@ -165,10 +165,10 @@ export const shopItems = [
         emoji: '💠',
         name: t('Diamond Clover'),
         price: 50000,
-        description: t('For good: +6% win chance in every casino game.'),
+        description: t('For good: +5% win chance in every casino game.'),
         type: 'tool',
         chain: 'luck',
-        bonusPercent: 6,
+        bonusPercent: 5,
         requires: 'golden_clover',
     },
     {

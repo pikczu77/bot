@@ -13,8 +13,8 @@ import { getEconomySettings, money } from '../../../services/economySettings.js'
 import { spendMoney, withEconomyLock } from '../../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../../services/economyJail.js';
 import {
-  CARDS, FISH, PACKS, RARITIES, addTo, cardValue, getCard, getPack, hasAny, indexKey,
-  packExpectedValue, packLegendaryChance, parseIndexKey, rarityOf, rollCard, variantOf, versionsOf,
+  CARDS, FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, PACKS, RARITIES, addTo, cardValue, getCard, getPack,
+  hasAllCards, hasAny, indexKey, packExpectedValue, packLegendaryChance, parseIndexKey, rarityOf, rollCard, variantOf, versionsOf,
 } from '../../../services/collections.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -187,7 +187,10 @@ export function buildIndexView({ guildId, user, viewerId, userData, tab = 'karty
     const caught = FISH.filter((fish) => hasAny(fishIndex, fish.id)).length;
     embed = createEmbed({
       title: t`📖 Index · ${user.username ?? user.tag}`,
-      description: (notice ? `${notice}\n\n` : '') + t`🎣 Fish: **${caught}/${FISH.length}** species caught with \`/fish\`.\n-# 🟨 golden fish pays x1.2 · 💎 diamond fish x1.6`,
+      description: (notice ? `${notice}\n\n` : '') + t`🎣 Fish: **${caught}/${FISH.length}** species caught with \`/fish\`.\n-# 🟨 golden fish pays x1.2 · 💎 diamond fish x1.6` +
+        (caught === FISH.length
+          ? t`\n✅ Full deck: **+${FULL_FISH_BONUS_PERCENT}%** from \`/fish\``
+          : t`\n🔒 Full deck (all ${FISH.length}) = **+${FULL_FISH_BONUS_PERCENT}%** from \`/fish\``),
       fields: RARITIES.map((rarity) => ({
         name: `${rarity.emoji} ${tr(rarity.label)}`,
         value: FISH.filter((fish) => fish.rarity === rarity.id).map((fish) => fishLine(fishIndex, fish)).join('\n'),
@@ -199,7 +202,10 @@ export function buildIndexView({ guildId, user, viewerId, userData, tab = 'karty
     const collected = CARDS.filter((card) => hasAny(cards, card.id)).length;
     embed = createEmbed({
       title: t`📖 Index · ${user.username ?? user.tag}`,
-      description: (notice ? `${notice}\n\n` : '') + t`🎴 Club'o'mony: **${collected}/${CARDS.length}** cards · worth **${money(guildId, collectionValue(cards))}**\n-# 🟨 golden version x1.2 · 💎 diamond version x1.6 · new cards: \`/paczka\``,
+      description: (notice ? `${notice}\n\n` : '') + t`🎴 Club'o'mony: **${collected}/${CARDS.length}** cards · worth **${money(guildId, collectionValue(cards))}**\n-# 🟨 golden version x1.2 · 💎 diamond version x1.6 · new cards: \`/paczka\`` +
+        (collected === CARDS.length
+          ? t`\n✅ All cards: **+${FULL_CARDS_BONUS_PERCENT}%** from every job`
+          : t`\n🔒 All ${CARDS.length} cards = **+${FULL_CARDS_BONUS_PERCENT}%** from every job (keep one of each)`),
       fields: RARITIES.map((rarity) => ({
         name: `${rarity.emoji} ${tr(rarity.label)}`,
         value: CARDS.filter((card) => card.rarity === rarity.id).map((card) => cardLine(guildId, cards, card)).join('\n'),
@@ -218,6 +224,7 @@ export function buildIndexView({ guildId, user, viewerId, userData, tab = 'karty
   const components = [tabs];
 
   if (own && tab === 'karty') {
+    const complete = hasAllCards(userData);
     const owned = Object.entries(cards)
       .filter(([key, count]) => count > 0 && getCard(parseIndexKey(key).id))
       .sort(([a], [b]) => keyValue(b) - keyValue(a))
@@ -231,7 +238,9 @@ export function buildIndexView({ guildId, user, viewerId, userData, tab = 'karty
           const card = getCard(id);
           return {
             label: `${card.name}${variant.label ? ` (${tr(variant.label)})` : ''} ×${count}`.slice(0, 100),
-            description: t`sell 1 for ${money(guildId, cardValue(card, variant))}`.slice(0, 100),
+            description: (complete && versionsOf(cards, id).reduce((sum, entry) => sum + entry.count, 0) === 1
+              ? t`sell 1 for ${money(guildId, cardValue(card, variant))} · ⚠️ ends the +${FULL_CARDS_BONUS_PERCENT}% bonus`
+              : t`sell 1 for ${money(guildId, cardValue(card, variant))}`).slice(0, 100),
             value: encodeKey(key),
             emoji: variant.emoji || card.emoji,
           };

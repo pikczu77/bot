@@ -5,7 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
-import { staminaCooldown } from '../../services/economyUpgrades.js';
+import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../services/economyJail.js';
 
 export default {
@@ -59,8 +59,9 @@ export default {
             let newCash = userData.wallet;
 
             if (success) {
+                // earningMultiplier: no begging upgrade, but the full card collection counts (+20%).
                 const amountWon = scaleEarnings(settings,
-                    Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min, userData);
+                    Math.floor((Math.floor(Math.random() * (beg.max - beg.min + 1)) + beg.min) * earningMultiplier(userData, 'beg')), userData);
 
                 newCash += amountWon;
 
@@ -75,7 +76,7 @@ export default {
                     t('Begging Successful'),
                     successMessages[
                         Math.floor(Math.random() * successMessages.length)
-                    ]
+                    ] + upgradeBonusLine(userData, 'beg', guildId)
                 );
             } else {
                 const failMessages = [

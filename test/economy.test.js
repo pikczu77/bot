@@ -187,13 +187,13 @@ test('casino: luck adds points, fewer on big payouts, at most +25; the shown cha
   assert.equal(new Set(miss.reels).size, 3);
   assert.ok(Math.abs(spinSlots(10).chance - (SLOT_BASE_CHANCE + luckPoints(10, SLOT_AVERAGE_PAYOUT) / 100)) < 1e-12);
 
-  // Luck 5 (+5) and the Diamond Clover (+6, not stacked with gold); a Lucky Clover adds +4 once.
+  // Luck 5 (+5) and the Diamond Clover (+5 since 2026-10-15, not stacked with gold); a Lucky Clover adds +4 once.
   const luck = takeLuck({ upgrades: { luck: 5 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 2 } });
-  assert.equal(luck.total, 15);
+  assert.equal(luck.total, 14);
   assert.equal(luck.item.id, 'lucky_clover');
-  // Everything at its best: 15 + 6 + 4 = 25, the cap.
-  assert.equal(takeLuck({ upgrades: { luck: 15 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 1 } }).total, 25);
-  assert.equal(takeLuck({ upgrades: { luck: 99 }, inventory: { diamond_clover: 1, lucky_clover: 1 } }).total, 25);
+  // Everything at its best: 15 + 5 + 4 = 24, under the cap of 25.
+  assert.equal(takeLuck({ upgrades: { luck: 15 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 1 } }).total, 24);
+  assert.equal(takeLuck({ upgrades: { luck: 99 }, inventory: { diamond_clover: 1, lucky_clover: 1, lucky_charm: 3 } }).total, 24);
 
   const gambler = newMember('Hazardzista');
   await updateEconomySettings(guild.id, (settings) => { settings.commands.gamble = { cooldownMinutes: 0, winPercent: 40, payoutPercent: 200, maxBet: 0 }; });

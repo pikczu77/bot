@@ -10,6 +10,7 @@
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { Mutex } from '../utils/mutex.js';
 import { FORTUNE_MAX_LEVEL, FORTUNE_PERCENT_PER_LEVEL, money } from './economySettings.js';
+import { collectionBonusLine, collectionBonusPercent } from './collections.js';
 import { t } from '../i18n/index.js';
 
 /** Share of the victim's bank a successful /rob takes: 50% minus 10 points per security level, never below 10%. */
@@ -70,7 +71,9 @@ export function upgradeCost(upgrade, level, userData) {
 }
 
 // Bonuses read by the commands.
-export const earningMultiplier = (userData, id) => 1 + getUpgradeLevel(userData, id) * (BY_ID.get(id)?.step ?? 10) / 100;
+// The upgrade of `id` plus the collection bonuses (services/collections.js), added together.
+export const earningMultiplier = (userData, id) =>
+  1 + (getUpgradeLevel(userData, id) * (BY_ID.get(id)?.step ?? 10) + collectionBonusPercent(userData, id)) / 100;
 export const bankStealPercent = (userData) =>
   Math.max(BANK_STEAL_MIN_PERCENT, BANK_STEAL_BASE_PERCENT - getUpgradeLevel(userData, 'bank_security') * BANK_STEAL_STEP_PERCENT);
 export const extraBankCapacity = (userData) => getUpgradeLevel(userData, 'bank_capacity') * BANK_CAPACITY_PER_LEVEL;
@@ -85,8 +88,9 @@ export const workShiftsInARow = (userData) => 1 + getUpgradeLevel(userData, 'ove
 export function upgradeBonusLine(userData, id, guildId = null) {
   const upgrade = BY_ID.get(id);
   const level = getUpgradeLevel(userData, id);
-  if (!upgrade || level === 0) return '';
-  return `\n${upgrade.emoji} **${t(upgrade.name)} ${level}/${upgrade.maxLevel}:** ${describeUpgradeEffect(upgrade, level, guildId)}`;
+  const collection = collectionBonusLine(userData, id);
+  if (!upgrade || level === 0) return collection;
+  return `\n${upgrade.emoji} **${t(upgrade.name)} ${level}/${upgrade.maxLevel}:** ${describeUpgradeEffect(upgrade, level, guildId)}${collection}`;
 }
 
 /** What the upgrade does at `level`, e.g. "+30% pay". */
