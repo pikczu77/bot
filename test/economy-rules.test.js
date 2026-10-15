@@ -5,12 +5,13 @@ import './helpers/env.js';
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { Collection, MessageFlags } from 'discord.js';
-import { mockChannel, mockGuild, mockInteraction, mockMember, mockUser, replyText } from './helpers/mock.js';
+import { mockChannel, mockGuild, mockInteraction, mockMember, mockUser, replyText, snowflake } from './helpers/mock.js';
+import { handleInteractionError } from '../src/utils/errorHandler.js';
 import { runWithLocale } from '../src/i18n/index.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
-import { earningsLine, scaleEarnings, updateEconomySettings } from '../src/services/economySettings.js';
+import { earningsLine, getEconomySettings, scaleEarnings, updateEconomySettings } from '../src/services/economySettings.js';
 import { getUpgrade, staminaCooldown, upgradePrice } from '../src/services/economyUpgrades.js';
 import { GUIDE_TOPICS } from '../src/commands/Economy/modules/economy_guide.js';
 
@@ -108,6 +109,87 @@ test('jail: no work, earning or casino; /daily still works; Stamina does not sho
 
   await save(prisoner, { jailedUntil: Date.now() - 1000 });
   await run('beg', prisoner);
+});
+
+test('bail: 2,000 by default, button under every jail message, cash first then bank, 0 turns it off', async () => {
+  const bailButton = (await import('../src/interactions/buttons/economy/jail.js')).default;
+  const press = (member, message = null) => {
+    const calls = { reply: [], update: [] };
+    return {
+      calls, id: snowflake(), client, guild, guildId: guild.id, channel, channelId: channel.id, member, user: member.user,
+      customId: 'wiezienie:wykup', message, createdTimestamp: Date.now(),
+      reply: async (payload) => { calls.reply.push(payload); },
+      update: async (payload) => { calls.update.push(payload); },
+    };
+  };
+  const click = (interaction) => runWithLocale('en', () => bailButton.execute(interaction, client, ['wykup']));
+  const buttonIds = (payload) => (payload.components ?? []).flatMap((row) => (row.toJSON ? row.toJSON() : row).components.map((b) => b.custom_id));
+
+  assert.equal((await getEconomySettings(guild.id)).commands.crime.bailPrice, 2000);
+  await updateEconomySettings(guild.id, (settings) => { settings.commands.crime.jailMinutes = 120; });
+
+  // A failed /crime offers bail right away.
+  const thief = newMember('Zlodziej');
+  await save(thief, { wallet: 100 });
+  const random = Math.random;
+  Math.random = () => 0;
+  let caught;
+  try { caught = await run('crime', thief, { type: 'pickpocketing' }); } finally { Math.random = random; }
+  assert.match(replyText(caught), /Crime Failed[\s\S]*bail costs \*\*\$2,000\*\*/);
+  assert.deepEqual(buttonIds(caught.replies.at(-1)), ['wiezienie:wykup']);
+  assert.ok((await data(thief)).jailedUntil > Date.now(), 'in jail after the failed crime');
+
+  // Every jail message carries the button; the error handler sends it with the embed.
+  const prisoner = newMember('Kaucja');
+  await save(prisoner, { wallet: 500, bank: 1000, inventory: { pickaxe: 1 }, jailedUntil: Date.now() + 60 * 60_000 });
+  let jailError;
+  await assert.rejects(run('mine', prisoner), (error) => { jailError = error; return true; });
+  assert.match(jailError.userMessage, /bail costs \*\*\$2,000\*\*/);
+  assert.deepEqual(buttonIds(jailError.context), ['wiezienie:wykup']);
+  const shown = mockInteraction({ client, guild, channel, member: prisoner, commandName: 'mine' });
+  await runWithLocale('en', () => handleInteractionError(shown, jailError));
+  assert.deepEqual(buttonIds(shown.replies.at(-1)), ['wiezienie:wykup']);
+
+  // 1,500 is not enough: nothing is taken.
+  const poor = press(prisoner);
+  await click(poor);
+  assert.match(text(poor.calls.reply[0]), /Bail costs \*\*\$2,000\*\* - you do not have that much/);
+  assert.equal(poor.calls.reply[0].flags, MessageFlags.Ephemeral);
+  assert.equal((await data(prisoner)).wallet, 500);
+
+  // Cash first, then the bank. On the prisoner's own message the button is replaced.
+  await save(prisoner, { bank: 1600 });
+  const own = press(prisoner, { interactionMetadata: { user: { id: prisoner.id } } });
+  await click(own);
+  assert.match(text(own.calls.update[0]), /You paid \*\*\$2,000\*\* bail/);
+  assert.deepEqual(own.calls.update[0].components, []);
+  const free = await data(prisoner);
+  assert.equal(free.wallet, 0);
+  assert.equal(free.bank, 100);
+  assert.equal(free.jailedUntil, 0);
+  await run('mine', prisoner);
+
+  // Someone who is not in jail gets a private note.
+  const bystander = press(newMember('Gap'));
+  await click(bystander);
+  assert.match(text(bystander.calls.reply[0]), /You are not in jail/);
+
+  // The thief from the failed /crime pays with the button too (bail is a fixed price, no multiplier).
+  await updateEconomySettings(guild.id, (settings) => { settings.earningsPercent = 300; });
+  await save(thief, { wallet: 2500 });
+  await click(press(thief));
+  assert.equal((await data(thief)).wallet, 500);
+  await updateEconomySettings(guild.id, (settings) => { settings.earningsPercent = 100; });
+
+  // bailPrice 0: no offer, no button, the button refuses.
+  await updateEconomySettings(guild.id, (settings) => { settings.commands.crime.bailPrice = 0; });
+  await save(prisoner, { wallet: 5000, jailedUntil: Date.now() + 60 * 60_000 });
+  await assert.rejects(run('mine', prisoner), (error) => !/bail/i.test(error.userMessage) && buttonIds(error.context).length === 0);
+  const off = press(prisoner);
+  await click(off);
+  assert.match(text(off.calls.reply[0]), /Bail is turned off/);
+  assert.equal((await data(prisoner)).wallet, 5000);
+  await updateEconomySettings(guild.id, (settings) => { settings.commands.crime.bailPrice = 2000; });
 });
 
 test('/economy poradnik posts one message with a topic menu; old guide messages are replaced', async () => {

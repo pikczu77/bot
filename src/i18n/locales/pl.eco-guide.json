@@ -161,5 +161,13 @@
   "+{0}% from /mine": "+{0}% z /mine",
   "+{0}% from /fish": "+{0}% z /fish",
   "+{0}% from /crime and /slut": "+{0}% z /crime i /slut",
-  "+{0}% /daily reward": "+{0}% do /daily"
+  "+{0}% /daily reward": "+{0}% do /daily",
+  "Pay bail ({0})": "Wykup się ({0})",
+  "\n🔓 You can get out right away: bail costs **{0}** (cash first, then bank).": "\n🔓 Możesz wyjść od razu: wykup kosztuje **{0}** (najpierw gotówka, potem bank).",
+  "🔓 Out of jail": "🔓 Na wolności",
+  "You paid **{0}** bail and you are free. You can work and play again.": "Wykup opłacony: **{0}**. Jesteś na wolności - możesz znowu pracować i grać.",
+  "You are not in jail.": "Nie siedzisz w więzieniu.",
+  "Bail is turned off on this server. Wait until your time is up.": "Wykup jest wyłączony na tym serwerze. Poczekaj, aż minie twój czas.",
+  "❌ Bail costs **{0}** - you do not have that much (cash and bank).": "❌ Wykup kosztuje **{0}** - nie masz tyle (gotówka i bank).",
+  "\n🔓 bail: **{0}** (button under the jail message)": "\n🔓 wykup: **{0}** (przycisk pod wiadomością o więzieniu)"
 }

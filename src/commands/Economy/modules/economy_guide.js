@@ -19,6 +19,7 @@ import {
   UPGRADES, describeUpgradeEffect, getUpgrade, upgradePrice,
 } from '../../../services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS } from '../../../services/economyJobs.js';
+import { bailPrice } from '../../../services/economyJail.js';
 import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../../services/casino.js';
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
 import { getLevelingConfig } from '../../../services/leveling/leveling.js';
@@ -174,12 +175,14 @@ function shop({ guildId, settings, guild }) {
   };
 }
 
-function jail({ settings }) {
+function jail({ guildId, settings }) {
   const stamina = getUpgrade('stamina');
+  const bail = bailPrice(settings);
   return {
     description: t('Breaks and jail decide how often you can earn.'),
     fields: [
-      field(t('🚔 Jail'), t`after a failed \`/crime\`: **${waitMinutes(settings.commands.crime.jailMinutes)}**\n${itemLabel(getItemById('insurance'))} pays the fine`),
+      field(t('🚔 Jail'), t`after a failed \`/crime\`: **${waitMinutes(settings.commands.crime.jailMinutes)}**\n${itemLabel(getItemById('insurance'))} pays the fine`
+        + (bail ? t`\n🔓 bail: **${money(guildId, bail)}** (button under the jail message)` : '')),
       field(t('⛔ Locked in jail'), t('`/work` `/mine` `/fish` `/beg`\n`/crime` `/slut` `/rob`\nand the casino')),
       field(t('✅ Works in jail'), t('`/daily`, the bank, `/pay`\nthe shop and upgrades')),
       field(t('⚡ Stamina'), t`**-${STAMINA_PER_LEVEL}%** of every break a level\nmax **-${STAMINA_PER_LEVEL * stamina.maxLevel}%** (level ${stamina.maxLevel})`),

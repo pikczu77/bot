@@ -5,7 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
-import { assertNotJailed } from '../../services/economyJail.js';
+import { assertNotJailed, bailOffer } from '../../services/economyJail.js';
 import { t } from '../../i18n/index.js';
 
 const BALACLAVA_BONUS = 0.15;
@@ -50,7 +50,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
             const CRIME_COOLDOWN = staminaCooldown(userData, cooldownMs(settings.cooldownMinutes));
             const lastCrime = userData.cooldowns?.crime || 0;
-            assertNotJailed(userData, now);
+            assertNotJailed(userData, now, { settings: economySettings, guildId });
 
             if (now < lastCrime + CRIME_COOLDOWN) {
                 const timeLeft = Math.ceil((lastCrime + CRIME_COOLDOWN - now) / (1000 * 60));
@@ -108,16 +108,18 @@ export default {
                 userData.jailedUntil = JAIL_TIME > 0 ? now + JAIL_TIME : 0;
                 
                 await setEconomyData(client, guildId, userId, userData);
-                
+
+                const bail = JAIL_TIME > 0 ? bailOffer(economySettings, guildId) : { text: '', components: [] };
                 const embed = warningEmbed(
                     t("🚔 Crime Failed!"),
                     t`You were caught while attempting ${crime.name} and have been sent to jail! ` +
                     (insured
                         ? t`Your **Insurance** paid the fine of ${money(guildId, fine)}. You will be in jail for ${formatDuration(JAIL_TIME)}.`
                         : t`You were fined ${money(guildId, fine)} and will be in jail for ${formatDuration(JAIL_TIME)}.`)
+                    + bail.text
                 );
-                
-                await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+
+                await InteractionHelper.safeEditReply(interaction, { embeds: [embed], components: bail.components });
             }
     }, { command: 'crime' })
 };

@@ -70,7 +70,7 @@ export default {
                 );
             }
 
-            assertNotJailed(robberData, now);
+            assertNotJailed(robberData, now, { settings: await getEconomySettings(guildId), guildId });
             const ROB_COOLDOWN = staminaCooldown(robberData, cooldownMs(rob.cooldownMinutes));
             const lastRob = robberData.lastRob || 0;
 

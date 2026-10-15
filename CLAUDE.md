@@ -30,7 +30,10 @@ change you make, so the next session knows what was done and why.
 - Payout scaling: `scaleEarnings(settings, amount, userData)` in `src/services/economySettings.js`.
   It applies the server multiplier and the Fortune upgrade. Pass `userData` at every payout.
 - Casino and luck: `src/services/casino.js` (`applyLuck`, `luckPoints`, `takeLuck`, `checkBet`).
-- Jail: `src/services/economyJail.js` (`assertNotJailed`).
+- Jail: `src/services/economyJail.js` (`assertNotJailed`, bail: `bailOffer`, `payBail`), bail button
+  `src/interactions/buttons/economy/jail.js` (custom id `wiezienie:wykup`). Pass `{ settings, guildId }`
+  to `assertNotJailed` so the jail message offers bail. A user error can carry buttons in
+  `context.components`; `handleInteractionError` sends them with the embed.
 - Jobs of `/work`: `src/services/economyJobs.js`, `src/commands/Economy/modules/work_shift.js`.
 - Shop items and tiers: `src/config/shop/items.js`.
 - Guide for the info channel: `src/commands/Economy/modules/economy_guide.js` (`/economy poradnik`),
@@ -55,6 +58,7 @@ change you make, so the next session knows what was done and why.
   and the casino. Not `/daily`, not jail.
 - Jail (after a failed `/crime`) blocks `/work`, `/mine`, `/fish`, `/beg`, `/crime`, `/slut`,
   `/rob` and the casino. `/daily`, bank, `/pay`, shop and upgrades still work.
+- Bail: leave jail at once for 2,000 (owner: "wykupic sie z wiezienia za 2000").
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -82,3 +86,13 @@ change you make, so the next session knows what was done and why.
   - Breaks read "1 h 30 min" / "24 h" instead of "1d".
   - Upgrade effects name their command ("+30% /work pay" instead of "+30% earnings"), also in
     `/ulepszenia` and the earning messages.
+- **2026-10-15** (owner: "zrob zeby mozna bylo wykupic sie z wiezienia za 2000"; live after the
+  owner restarts the bot):
+  - Bail: every jail message (the failed `/crime` and each blocked command) shows
+    "🔓 Wykup się ($2,000)". Pressing it pays from cash first, then bank, and ends jail at once.
+  - New setting `commands.crime.bailPrice` (default 2000, 0 = no bail). The panel shows the field
+    "Wykup z więzienia" under /crime only when the bot returns it, so an older bot never gets it.
+  - My decisions: no new command (the button is enough and keeps the command count); whoever
+    presses the button pays their own bail (no owner id in the custom id, because the jail check
+    does not know the member's id everywhere); the price is fixed (no server multiplier, no
+    Discount upgrade, no Fortune); the guide's jail topic shows the price.

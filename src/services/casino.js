@@ -79,7 +79,7 @@ export function luckLines(luck) {
 /** Throw a user error when `bet` is not allowed right now. */
 export function checkBet({ settings, userData, bet, guildId, now = Date.now() }) {
   const { gamble } = settings.commands;
-  assertNotJailed(userData, now);
+  assertNotJailed(userData, now, { settings, guildId });
   if (gamble.maxBet > 0 && bet > gamble.maxBet) {
     throw createError("Bet above the limit", ErrorTypes.VALIDATION,
       t`The highest bet on this server is ${money(guildId, gamble.maxBet)}.`, { bet, maxBet: gamble.maxBet, expected: true });

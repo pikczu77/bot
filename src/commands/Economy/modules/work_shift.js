@@ -57,7 +57,7 @@ function offersView({ guildId, settings, userData, user, level, offers }) {
  * @returns {{ earned: number, extras: string, ended: boolean, nextAt: number|null, inARowLeft: number }}
  */
 export function workShift({ settings, userData, job, guildId, now = Date.now(), random = Math.random }) {
-    assertNotJailed(userData, now);
+    assertNotJailed(userData, now, { settings, guildId });
     const cooldown = staminaCooldown(userData, cooldownMs(settings.commands.work.cooldownMinutes));
     const allowed = workShiftsInARow(userData);
     const lastWork = userData.lastWork || 0;
@@ -126,7 +126,7 @@ export function runWork({ client, guildId, user }) {
     return withEconomyLock(guildId, user.id, async () => {
         const settings = await getEconomySettings(guildId);
         const userData = await getEconomyData(client, guildId, user.id);
-        assertNotJailed(userData);
+        assertNotJailed(userData, Date.now(), { settings, guildId });
         const job = activeJob(userData);
 
         if (!job) {
@@ -165,7 +165,7 @@ export function chooseJob({ client, guildId, user, jobId }) {
             await setEconomyData(client, guildId, user.id, userData);
             return {
                 embeds: [successEmbed(t('💼 Job taken'), `${hired}\n\n${error.userMessage}`)],
-                components: [],
+                components: error.context?.components ?? [],
             };
         }
     });

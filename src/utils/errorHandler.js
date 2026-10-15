@@ -410,6 +410,7 @@ async function sendErrorResponse(interaction, embed, context = {}) {
         }
 
         const errorMessage = { embeds: [embed] };
+        if (context.components?.length) errorMessage.components = context.components;
 
         if (interaction._isPrefixCommand) {
             if (coordinator?.hasResponded()) {
@@ -519,7 +520,9 @@ export async function handleInteractionError(interaction, error, context = {}) {
         : t`${userMessage}\n\n-# Ref: \`${buildErrorReference(resolvedErrorCode, traceId)}\``;
 
     const embed = buildUserErrorEmbed(errorType, description);
-    await sendErrorResponse(interaction, embed, { ...context, traceId });
+    // A user error may carry buttons for the way out (e.g. bail in services/economyJail.js).
+    const components = isUserError && Array.isArray(normalizedError?.context?.components) ? normalizedError.context.components : null;
+    await sendErrorResponse(interaction, embed, { ...context, traceId, components });
 }
 
 /**

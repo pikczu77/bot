@@ -34,7 +34,7 @@ export default {
                 );
             }
 
-            assertNotJailed(userData);
+            assertNotJailed(userData, Date.now(), { settings, guildId });
             const lastBeg = userData.lastBeg || 0;
             const remainingTime = lastBeg + COOLDOWN - Date.now();
 

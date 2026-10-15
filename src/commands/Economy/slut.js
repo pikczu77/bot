@@ -131,7 +131,7 @@ export default {
                 );
             }
 
-            assertNotJailed(userData, now);
+            assertNotJailed(userData, now, { settings: economySettings, guildId });
             const SLUT_COOLDOWN = staminaCooldown(userData, cooldownMs(settings.cooldownMinutes));
             const lastSlut = userData.lastSlut || 0;
 

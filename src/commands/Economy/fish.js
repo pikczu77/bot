@@ -50,7 +50,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
             const FISH_COOLDOWN = staminaCooldown(userData, cooldownMs(fish.cooldownMinutes));
             const lastFish = userData.lastFish || 0;
-            assertNotJailed(userData, now);
+            assertNotJailed(userData, now, { settings, guildId });
             await requireTool({ guild: interaction.guild, userData, toolIds: ['fishing_rod', 'carbon_rod', 'golden_rod'], action: 'fish' });
 
             let usedEnergyDrink = false;

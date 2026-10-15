@@ -38,7 +38,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
             const MINE_COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
             const lastMine = userData.lastMine || 0;
-            assertNotJailed(userData, now);
+            assertNotJailed(userData, now, { settings, guildId });
             await requireTool({ guild: interaction.guild, userData, toolIds: ['pickaxe', 'steel_pickaxe', 'diamond_pickaxe'], action: 'mine' });
 
             let usedEnergyDrink = false;
