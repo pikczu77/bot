@@ -8,6 +8,10 @@ export const commandAliases = {
     'balance': 'balans',
     'money': 'hajs',
     'cash': 'hajs',
+    // /mine became the YouTuber job /nagraj on 2026-10-15.
+    'mine': 'nagraj',
+    'yt': 'nagraj',
+    'youtube': 'nagraj',
 
     'dep': 'deposit',
     'with': 'withdraw',

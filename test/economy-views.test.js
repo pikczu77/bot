@@ -42,7 +42,7 @@ test('shop and upgrade views fit Discord limits in Polish and English', async ()
   const member = mockMember(guild, mockUser('Ogladacz'));
   await setEconomyData(client, guild.id, member.id, {
     ...(await getEconomyData(client, guild.id, member.id)),
-    wallet: 5_000_000, bank: 10, upgrades: { discount: 3, luck: 4 }, inventory: { fishing_rod: 1, golden_rod: 1, laptop: 1 },
+    wallet: 5_000_000, bank: 10, upgrades: { discount: 3, luck: 4 }, inventory: { fishing_rod: 1, golden_rod: 1, laptop: 1, steel_pickaxe: 1, dynamite: 2 },
   });
   const userData = await getEconomyData(client, guild.id, member.id);
 

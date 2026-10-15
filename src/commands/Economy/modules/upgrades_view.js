@@ -103,7 +103,7 @@ function itemsFolder({ guildId, userData, ownerId, funds, prices }) {
       .setDisabled(!forSale || funds < price);
   });
 
-  return { fields, buttons, intro: t('Items: every tool has 2 upgrades - the first gives +50%, the second +100%. The rod and the pickaxe are needed for `/fish` and `/mine`.') };
+  return { fields, buttons, intro: t('Items: every tool has 2 upgrades - the first gives +50%, the second +100%. The rod and the computer are needed for `/fish` and `/nagraj`.') };
 }
 
 /**

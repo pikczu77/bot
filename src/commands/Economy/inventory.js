@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embeds.js';
-import { bestInChain, shopItems } from '../../config/shop/items.js';
+import { bestInChain, getItemById, shopItems } from '../../config/shop/items.js';
 import { JOB_SHIFTS, activeJob } from '../../services/economyJobs.js';
 import { getEconomyData } from '../../utils/economy.js';
 import { getEconomySettings } from '../../services/economySettings.js';
@@ -24,12 +24,14 @@ export default {
         const inventory = userData.inventory || {};
 
         // Of each tier line only the best owned item is shown - it is the one that works.
+        // Retired items (pickaxes, laptop, ...) stay and say which new item they count as.
+        const countsAs = (item) => (item.retired && getItemById(item.sameAs) ? t` → works as ${itemLabel(getItemById(item.sameAs))}` : '');
         const items = shopItems
             .filter((item) => (inventory[item.id] || 0) > 0)
             .filter((item) => !item.chain || bestInChain(userData, item.chain)?.id === item.id)
             .map((item) => (item.type === 'tool' && !item.stackable
-                ? `**${itemLabel(item)}**${item.bonusPercent ? ` · +${item.bonusPercent}%` : ''}`
-                : `**${itemLabel(item)}:** ${inventory[item.id]}x`));
+                ? `**${itemLabel(item)}**${item.bonusPercent ? ` · +${item.bonusPercent}%` : ''}${countsAs(item)}`
+                : `**${itemLabel(item)}:** ${inventory[item.id]}x${countsAs(item)}`));
         const job = activeJob(userData);
 
         const upgrades = UPGRADES

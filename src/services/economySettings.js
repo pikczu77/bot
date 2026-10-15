@@ -29,6 +29,7 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     work: { min: Number(base.workMin) || 10, max: Number(base.workMax) || 100, cooldownMinutes: toMinutes(base.cooldowns?.work, 30 * 60_000) },
     beg: { min: Number(base.begMin) || 50, max: Number(base.begMax) || 200, cooldownMinutes: 30, successPercent: 70 },
     fish: { min: 300, max: 900, cooldownMinutes: 45 },
+    // mine = /nagraj (YouTube videos): min-max is the pay before the video's rarity multiplier.
     mine: { min: 400, max: 1200, cooldownMinutes: 60 },
     // payoutPercent scales the built-in payout tables (100 = unchanged).
     // bailPrice: leave jail at once for this much (services/economyJail.js), 0 = no bail.
@@ -243,7 +244,7 @@ export const shopRoleItemId = (roleId) => `role_${roleId}`;
 
 /** Every shop item with this guild's price: built-in items plus roles for sale. */
 export function getShopCatalog(settings, guild = null) {
-  const builtIn = shopItems.map((item) => {
+  const builtIn = shopItems.filter((item) => !item.retired).map((item) => {
     const override = settings.shop.items[item.id] ?? {};
     const defaultPrice = item.priceFrom ? payoutPrice(settings, item.priceFrom) : item.price;
     return {

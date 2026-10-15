@@ -35,7 +35,11 @@ change you make, so the next session knows what was done and why.
   to `assertNotJailed` so the jail message offers bail. A user error can carry buttons in
   `context.components`; `handleInteractionError` sends them with the embed.
 - Jobs of `/work`: `src/services/economyJobs.js`, `src/commands/Economy/modules/work_shift.js`.
-- Shop items and tiers: `src/config/shop/items.js`.
+- Shop items and tiers: `src/config/shop/items.js`. Items with `retired: true` are not sold but
+  members keep them, and they count as their `sameAs` item (`ownsItem`, `takeConsumable`).
+- `/nagraj` (YouTuber job, was `/mine`): `src/commands/Economy/mine.js` (`VIDEO_RARITIES`,
+  `rollVideo`). Internally it is still "mine": `settings.commands.mine`, `lastMine`, the `mine`
+  upgrade and item chain, the `mine` cooldown type. Do not rename those ids: stored data uses them.
 - Guide for the info channel: `src/commands/Economy/modules/economy_guide.js` (`/economy poradnik`),
   menu handler `src/interactions/selectMenus/economy/guide.js` (custom ids `poradnik:pokaz`,
   `poradnik:zmien`). The channel gets one short message with a topic menu; each topic opens as a
@@ -59,6 +63,9 @@ change you make, so the next session knows what was done and why.
 - Jail (after a failed `/crime`) blocks `/work`, `/mine`, `/fish`, `/beg`, `/crime`, `/slut`,
   `/rob` and the casino. `/daily`, bank, `/pay`, shop and upgrades still work.
 - Bail: leave jail at once for 2,000 (owner: "wykupic sie z wiezienia za 2000").
+- `/nagraj` works like `/fish`: each video has a rarity and a view count; common pays little,
+  legendary a lot. Items: Computer (needed), Internet +50%, Better Internet +100%. `/work` items:
+  Pen +50%, Suit +100%. What members bought before stays with them and counts as the new item.
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -96,3 +103,21 @@ change you make, so the next session knows what was done and why.
     presses the button pays their own bail (no owner id in the custom id, because the jail check
     does not know the member's id everywhere); the price is fixed (no server multiplier, no
     Discount upgrade, no Fortune); the guide's jail topic shows the price.
+- **2026-10-15 ~07:00** (owner: change the miner job to a YouTuber job, keep what members bought,
+  sell computer, internet and better internet; `/work` items become pen and suit; like fishing,
+  show the views, legendary pays a lot, common little). Live after the owner restarts the bot:
+  - `/mine` is now `/nagraj` (owner picked the name). Prefix `!mine`, `!yt`, `!youtube` still work.
+    Same file `mine.js`, same internal id "mine" (settings, cooldown, upgrade, item chain).
+  - Rarity chances 50/25/15/8/2% (common, uncommon, rare, epic, legendary), pay multipliers
+    x0.4 / x0.8 / x1.5 / x3 / x8 of a base between the server's min and max (average ≈ x1.03, so
+    the economy stays where it was). Views: 50-2,000 / 2k-25k / 25k-250k / 250k-1M / 1M-10M.
+    Within a rarity more views also pay more (one random position drives both). My numbers.
+  - New items: `pc` Computer 2,500 (needed), `internet` 18,000 (+50%), `fiber_internet` Better
+    Internet 50,000 (+100%); `pen` 8,000 (+50% /work), `suit` 25,000 (+100% /work, needs the pen);
+    `clickbait` Clickbait Thumbnail (next video: double views and pay, priced like the old dynamite).
+  - Retired (not sold, kept, owner chose "count as the new ones"): pickaxe = pc, steel pickaxe =
+    internet, diamond pickaxe = better internet, laptop = pen, gaming computer (`computer`) = suit,
+    dynamite = clickbait. `/ekwipunek` shows "→ works as ...". Shop price overrides stored for the
+    old ids are ignored; the new items start at the default prices.
+  - The "Mining" upgrade is now "YouTube" (🎬), same id, levels kept. Guide, `/ulepszenia` and the
+    panel (pikczu.pl/bot, Ekonomia > Zarobki: card "/nagraj") updated. Tests: `test/nagraj.test.js`.

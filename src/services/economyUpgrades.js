@@ -5,7 +5,7 @@
 //
 // Balance (2026-10-14): every next level costs little more than the one before (growth 1.3
 // for ten-level upgrades), so a step takes hours, while maxing everything is well over a
-// million — months of play at payouts like /mine 300-800.
+// million — months of play at payouts like /nagraj (internal id "mine") 300-800.
 
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { Mutex } from '../utils/mutex.js';
@@ -24,10 +24,11 @@ export const STAMINA_PER_LEVEL = 5;
 
 // price of level N+1 = basePrice * growth^N, rounded to 100. `step` = earnings percent per level.
 export const UPGRADES = Object.freeze([
-  { id: 'fortune', emoji: '💰', name: t('Fortune'), description: t('Every payout is bigger: work, mining, fishing, crime, begging, /daily, chat and level-up money.'), maxLevel: FORTUNE_MAX_LEVEL, basePrice: 25_000, growth: 2, step: FORTUNE_PERCENT_PER_LEVEL },
+  { id: 'fortune', emoji: '💰', name: t('Fortune'), description: t('Every payout is bigger: work, videos, fishing, crime, begging, /daily, chat and level-up money.'), maxLevel: FORTUNE_MAX_LEVEL, basePrice: 25_000, growth: 2, step: FORTUNE_PERCENT_PER_LEVEL },
   { id: 'work', emoji: '💼', name: t('Career'), description: t('Higher `/work` pay.'), maxLevel: 10, basePrice: 2_000, growth: 1.3, step: 10 },
   { id: 'overtime', emoji: '⏰', name: t('Overtime'), description: t('Work several times in a row before the break.'), maxLevel: 4, basePrice: 5_000, growth: 1.8 },
-  { id: 'mine', emoji: '⛏️', name: t('Mining'), description: t('Higher `/mine` earnings.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
+  // id "mine" = /nagraj (renamed from /mine on 2026-10-15; levels bought before still count).
+  { id: 'mine', emoji: '🎬', name: t('YouTube'), description: t('Higher `/nagraj` earnings.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
   { id: 'fish', emoji: '🎣', name: t('Fishing'), description: t('Higher `/fish` earnings.'), maxLevel: 10, basePrice: 2_000, growth: 1.3, step: 10 },
   { id: 'crime', emoji: '🦹', name: t('Street smarts'), description: t('Higher `/crime` and `/slut` payouts.'), maxLevel: 10, basePrice: 2_500, growth: 1.3, step: 10 },
   { id: 'daily', emoji: '📅', name: t('Daily bonus'), description: t('Bigger `/daily` reward.'), maxLevel: 10, basePrice: 800, growth: 1.3, step: 25 },
@@ -99,7 +100,7 @@ export function describeUpgradeEffect(upgrade, level, guildId) {
     case 'stamina': return t`-${level * STAMINA_PER_LEVEL}% break time`;
     case 'fortune': return t`+${level * FORTUNE_PERCENT_PER_LEVEL}% all earnings`;
     case 'work': return t`+${level * upgrade.step}% /work pay`;
-    case 'mine': return t`+${level * upgrade.step}% from /mine`;
+    case 'mine': return t`+${level * upgrade.step}% from /nagraj`;
     case 'fish': return t`+${level * upgrade.step}% from /fish`;
     case 'crime': return t`+${level * upgrade.step}% from /crime and /slut`;
     case 'daily': return t`+${level * upgrade.step}% /daily reward`;

@@ -57,22 +57,23 @@ const text = (payload) => replyText({ replies: [payload] });
 test('prices: earnings multiplier, payout-based consumables, old price overrides dropped once', async () => {
   const other = mockGuild(client, 'Stare ceny');
   await client.db.set(`guild:${other.id}:economy-settings`, {
-    shop: { items: { pickaxe: { price: 45000 }, laptop: { enabled: false, price: 20000 } } },
+    shop: { items: { pc: { price: 45000 }, pen: { enabled: false, price: 20000 } } },
     commands: { mine: { min: 300, max: 800 }, fish: { min: 200, max: 400 } },
   });
   const settings = await getEconomySettings(other.id);
   const catalog = new Map(getShopCatalog(settings).map((item) => [item.id, item]));
-  assert.equal(catalog.get('pickaxe').price, 2500, 'the 45,000 override is gone');
-  assert.equal(catalog.get('laptop').enabled, false, 'switched-off items stay off');
-  // The user's example: /mine 300-800 -> Energy Drink 500.
+  assert.equal(catalog.get('pc').price, 2500, 'the 45,000 override is gone');
+  assert.equal(catalog.get('pen').enabled, false, 'switched-off items stay off');
+  assert.ok(!catalog.has('pickaxe') && !catalog.has('laptop') && !catalog.has('dynamite'), 'retired items are not sold');
+  // The user's example: /mine (now /nagraj) 300-800 -> Energy Drink 500.
   assert.equal(catalog.get('energy_drink').price, 500);
-  assert.equal(catalog.get('dynamite').price, 550);
+  assert.equal(catalog.get('clickbait').price, 550);
   assert.equal(catalog.get('fishing_net').price, 300);
 
-  const saved = await updateEconomySettings(other.id, (data) => { data.earningsPercent = 200; data.shop.items.pickaxe = { price: 9999 }; });
+  const saved = await updateEconomySettings(other.id, (data) => { data.earningsPercent = 200; data.shop.items.pc = { price: 9999 }; });
   assert.equal(saved.balanceVersion, 2);
   const after = new Map(getShopCatalog(await getEconomySettings(other.id)).map((item) => [item.id, item]));
-  assert.equal(after.get('pickaxe').price, 9999, 'overrides set after the update stay');
+  assert.equal(after.get('pc').price, 9999, 'overrides set after the update stay');
   assert.equal(after.get('energy_drink').price, 1000, 'x2 earnings doubles payout-based prices');
   assert.deepEqual([40, 449, 1234, 12_300].map(nicePrice), [50, 450, 1200, 12_500]);
 });
@@ -151,7 +152,7 @@ test('items: tiers need the one before, the best one counts, the Discount upgrad
   account = await data(buyer);
   assert.equal(upgradeCost(getUpgrade('work'), 0, account), 1800);
   const before = account.wallet;
-  await run('sklep', buyer, { kup: 'laptop' });
+  await run('sklep', buyer, { kup: 'pen' });
   assert.equal((await data(buyer)).wallet, before - 7200);
 
   // Lucky Charm: one purchase = 3 uses.

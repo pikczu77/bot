@@ -1,7 +1,7 @@
 // economyJail.js — jail after a failed /crime.
 //
 // `jailedUntil` in a member's economy data. While it is in the future the member cannot
-// earn or play: /work, /mine, /fish, /beg, /crime, /slut, /rob and the casino games all
+// earn or play: /work, /nagraj, /fish, /beg, /crime, /slut, /rob and the casino games all
 // call assertNotJailed. /daily, the bank, /pay, the shop and the upgrades still work.
 // The Stamina upgrade does not shorten jail.
 //

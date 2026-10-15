@@ -19,6 +19,7 @@ import {
   UPGRADES, describeUpgradeEffect, getUpgrade, upgradePrice,
 } from '../../../services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS } from '../../../services/economyJobs.js';
+import { VIDEO_RARITIES } from '../mine.js';
 import { bailPrice } from '../../../services/economyJail.js';
 import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../../services/casino.js';
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
@@ -79,7 +80,7 @@ function earn({ guildId, settings, leveling }) {
     fields: [
       field(t('💼 /work'), t`**${money(guildId, lowest)} - ${money(guildId, best.max)}** a shift\njobs for your server level\n${JOB_SHIFTS} shifts per contract\nbreak **${waitMinutes(work.cooldownMinutes)}**`),
       field(t('📅 /daily'), t`**${money(guildId, daily.amount)}**\nonce every **${waitMinutes(daily.cooldownMinutes)}**`),
-      field(t('⛏️ /mine'), t`${range(mine)}\nbreak **${waitMinutes(mine.cooldownMinutes)}**\nneeds a pickaxe`),
+      field(t('🎬 /nagraj'), t`YouTube: views decide the pay\ncommon **x${VIDEO_RARITIES[0].multiplier}** · legendary **x${VIDEO_RARITIES.at(-1).multiplier}** of ${range(mine)}\nbreak **${waitMinutes(mine.cooldownMinutes)}**\nneeds a computer`),
       field(t('🎣 /fish'), t`${range(fish)}\nbreak **${waitMinutes(fish.cooldownMinutes)}**\nneeds a fishing rod`),
       field(t('🙏 /beg'), t`${range(beg)}\n**${beg.successPercent}%** chance\nbreak **${waitMinutes(beg.cooldownMinutes)}**`),
       field(t('🦹 /crime'), t`bigger haul, bigger risk\nbreak **${waitMinutes(crime.cooldownMinutes)}**\ncaught: fine + **${waitMinutes(crime.jailMinutes)}** in jail`),
@@ -183,11 +184,11 @@ function jail({ guildId, settings }) {
     fields: [
       field(t('🚔 Jail'), t`after a failed \`/crime\`: **${waitMinutes(settings.commands.crime.jailMinutes)}**\n${itemLabel(getItemById('insurance'))} pays the fine`
         + (bail ? t`\n🔓 bail: **${money(guildId, bail)}** (button under the jail message)` : '')),
-      field(t('⛔ Locked in jail'), t('`/work` `/mine` `/fish` `/beg`\n`/crime` `/slut` `/rob`\nand the casino')),
+      field(t('⛔ Locked in jail'), t('`/work` `/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\nand the casino')),
       field(t('✅ Works in jail'), t('`/daily`, the bank, `/pay`\nthe shop and upgrades')),
       field(t('⚡ Stamina'), t`**-${STAMINA_PER_LEVEL}%** of every break a level\nmax **-${STAMINA_PER_LEVEL * stamina.maxLevel}%** (level ${stamina.maxLevel})`),
       field(t('⏱️ Stamina shortens'), t('every earning command and the casino\nnot `/daily`, not jail')),
-      field(t('🥤 Skip one break'), t`${itemLabel(getItemById('energy_drink'))}: \`/mine\`, \`/fish\`\n${itemLabel(getItemById('extra_work'))}: \`/work\``),
+      field(t('🥤 Skip one break'), t`${itemLabel(getItemById('energy_drink'))}: \`/nagraj\`, \`/fish\`\n${itemLabel(getItemById('extra_work'))}: \`/work\``),
     ],
   };
 }
@@ -209,7 +210,7 @@ function commands() {
     description: t('Every economy command in one place.'),
     fields: [
       field(t('💵 Money'), '`/hajs` `/balans`\n`/bank wplac` `/bank wyplac`\n`/pay` `/topkasa`'),
-      field(t('💼 Earning'), '`/work` `/daily`\n`/mine` `/fish` `/beg`\n`/crime` `/slut` `/rob`'),
+      field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
       field(t('💍 Relationships'), '`/randka` `/slub`'),
@@ -220,7 +221,7 @@ function commands() {
 
 export const GUIDE_TOPICS = Object.freeze([
   { id: 'start', emoji: '🚀', name: t('First steps'), hint: t('Where to begin'), color: '#30D158', build: start },
-  { id: 'zarabianie', emoji: '💼', name: t('Earning'), hint: t('Work, mining, fishing, crime'), color: '#FFD60A', build: earn },
+  { id: 'zarabianie', emoji: '💼', name: t('Earning'), hint: t('Work, videos, fishing, crime'), color: '#FFD60A', build: earn },
   { id: 'bank', emoji: '🏦', name: t('Bank and robberies'), hint: t("Keep your money, take others'"), color: '#0A84FF', build: bank },
   { id: 'kasyno', emoji: '🎰', name: t('Casino'), hint: t('Games, payouts and chances'), color: '#BF5AF2', build: casino },
   { id: 'szczescie', emoji: '🍀', name: t('Luck'), hint: t('How luck raises your chance'), color: '#32D74B', build: luck },

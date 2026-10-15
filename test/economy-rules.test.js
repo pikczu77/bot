@@ -59,9 +59,12 @@ test('Fortune: 5 expensive levels, +10% of every payout each, on top of the serv
   const miner = newMember('Gornik');
   await updateEconomySettings(guild.id, (settings) => { settings.commands.mine = { min: 100, max: 100, cooldownMinutes: 60 }; });
   await save(miner, { wallet: 0, inventory: { pickaxe: 1 }, upgrades: { fortune: 2 } });
-  const mined = await run('mine', miner);
+  const random = Math.random;
+  Math.random = () => 0.6; // uncommon video: x0.8
+  let mined;
+  try { mined = await run('nagraj', miner); } finally { Math.random = random; }
   assert.match(replyText(mined), /Fortune 2\/5/);
-  assert.equal((await data(miner)).wallet, 120);
+  assert.equal((await data(miner)).wallet, 96);
 });
 
 test('Stamina: -5% a level, -50% at 10, on /crime, /slut, /rob and the casino too', async () => {
@@ -101,7 +104,7 @@ test('Stamina: -5% a level, -50% at 10, on /crime, /slut, /rob and the casino to
 test('jail: no work, earning or casino; /daily still works; Stamina does not shorten it', async () => {
   const prisoner = newMember('Wiezien');
   await save(prisoner, { wallet: 5000, inventory: { pickaxe: 1, fishing_rod: 1 }, upgrades: { stamina: 10 }, jailedUntil: Date.now() + 60 * 60_000 });
-  for (const [command, options] of [['work', {}], ['mine', {}], ['fish', {}], ['beg', {}], ['crime', { type: 'pickpocketing' }], ['slut', {}], ['gamble', { amount: 10 }], ['slots', { stawka: 10 }]]) {
+  for (const [command, options] of [['work', {}], ['nagraj', {}], ['fish', {}], ['beg', {}], ['crime', { type: 'pickpocketing' }], ['slut', {}], ['gamble', { amount: 10 }], ['slots', { stawka: 10 }]]) {
     await assert.rejects(run(command, prisoner, options), /jail/i, command);
   }
   const daily = await run('daily', prisoner);
@@ -143,10 +146,10 @@ test('bail: 2,000 by default, button under every jail message, cash first then b
   const prisoner = newMember('Kaucja');
   await save(prisoner, { wallet: 500, bank: 1000, inventory: { pickaxe: 1 }, jailedUntil: Date.now() + 60 * 60_000 });
   let jailError;
-  await assert.rejects(run('mine', prisoner), (error) => { jailError = error; return true; });
+  await assert.rejects(run('nagraj', prisoner), (error) => { jailError = error; return true; });
   assert.match(jailError.userMessage, /bail costs \*\*\$2,000\*\*/);
   assert.deepEqual(buttonIds(jailError.context), ['wiezienie:wykup']);
-  const shown = mockInteraction({ client, guild, channel, member: prisoner, commandName: 'mine' });
+  const shown = mockInteraction({ client, guild, channel, member: prisoner, commandName: 'nagraj' });
   await runWithLocale('en', () => handleInteractionError(shown, jailError));
   assert.deepEqual(buttonIds(shown.replies.at(-1)), ['wiezienie:wykup']);
 
@@ -167,7 +170,7 @@ test('bail: 2,000 by default, button under every jail message, cash first then b
   assert.equal(free.wallet, 0);
   assert.equal(free.bank, 100);
   assert.equal(free.jailedUntil, 0);
-  await run('mine', prisoner);
+  await run('nagraj', prisoner);
 
   // Someone who is not in jail gets a private note.
   const bystander = press(newMember('Gap'));
@@ -184,7 +187,7 @@ test('bail: 2,000 by default, button under every jail message, cash first then b
   // bailPrice 0: no offer, no button, the button refuses.
   await updateEconomySettings(guild.id, (settings) => { settings.commands.crime.bailPrice = 0; });
   await save(prisoner, { wallet: 5000, jailedUntil: Date.now() + 60 * 60_000 });
-  await assert.rejects(run('mine', prisoner), (error) => !/bail/i.test(error.userMessage) && buttonIds(error.context).length === 0);
+  await assert.rejects(run('nagraj', prisoner), (error) => !/bail/i.test(error.userMessage) && buttonIds(error.context).length === 0);
   const off = press(prisoner);
   await click(off);
   assert.match(text(off.calls.reply[0]), /Bail is turned off/);
@@ -258,7 +261,7 @@ test('guide menu: every topic opens privately, fits Discord limits and the menu 
   }
 
   const all = everything.join('\n');
-  for (const command of ['/work', '/daily', '/mine', '/fish', '/beg', '/crime', '/slut', '/rob', '/gamble', '/ruletka', '/slots', '/blackjack', '/sklep', '/ulepszenia', '/hajs', '/bank wplac', '/pay', '/topkasa', '/ekwipunek', '/randka', '/slub']) {
+  for (const command of ['/work', '/daily', '/nagraj', '/fish', '/beg', '/crime', '/slut', '/rob', '/gamble', '/ruletka', '/slots', '/blackjack', '/sklep', '/ulepszenia', '/hajs', '/bank wplac', '/pay', '/topkasa', '/ekwipunek', '/randka', '/slub']) {
     assert.ok(all.includes(command), command);
   }
   assert.match(all, /Fortune/);

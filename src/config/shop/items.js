@@ -8,7 +8,8 @@ import { t } from '../../i18n/index.js';
 // best tier a member owns counts. `bonusPercent` is what that tier adds to the chain's command.
 // `priceFrom` ties a default price to the server's payouts (economySettings.js payoutPrice),
 // so a consumable bought for one command can earn or lose money.
-// Prices balanced on 2026-10-14 for payouts like /mine 300-800 and /fish 200-400.
+// `retired` items are no longer sold; members keep them and they count as `sameAs`.
+// Prices balanced on 2026-10-14 for payouts like /mine (now /nagraj) 300-800 and /fish 200-400.
 // Permanent levelled upgrades live in src/services/economyUpgrades.js (/ulepszenia).
 export const shopItems = [
     {
@@ -43,42 +44,43 @@ export const shopItems = [
         bonusPercent: 100,
         requires: 'carbon_rod',
     },
+    // YouTube (`/nagraj`, internal command id "mine" since the 2026-10-15 rename from /mine).
     {
-        id: 'pickaxe',
-        emoji: '⛏️',
-        name: t('⛏️ Pickaxe'),
+        id: 'pc',
+        emoji: '🖥️',
+        name: t('🖥️ Computer'),
         price: 2500,
-        description: t('Needed for `/mine`.'),
+        description: t('Needed for `/nagraj`.'),
         type: 'tool',
         chain: 'mine',
         bonusPercent: 0,
     },
     {
-        id: 'steel_pickaxe',
-        emoji: '⚒️',
-        name: t('Steel Pickaxe'),
+        id: 'internet',
+        emoji: '📶',
+        name: t('Internet'),
         price: 18000,
-        description: t('Works as a pickaxe. +50% on `/mine`.'),
+        description: t('+50% on `/nagraj`.'),
         type: 'tool',
         chain: 'mine',
         bonusPercent: 50,
-        requires: 'pickaxe',
+        requires: 'pc',
     },
     {
-        id: 'diamond_pickaxe',
-        emoji: '💎',
-        name: t('Diamond Pickaxe'),
+        id: 'fiber_internet',
+        emoji: '🚀',
+        name: t('Better Internet'),
         price: 50000,
-        description: t('Works as a pickaxe. +100% on `/mine`.'),
+        description: t('+100% on `/nagraj`.'),
         type: 'tool',
         chain: 'mine',
         bonusPercent: 100,
-        requires: 'steel_pickaxe',
+        requires: 'internet',
     },
     {
-        id: 'laptop',
-        emoji: '💻',
-        name: t('💻 Laptop'),
+        id: 'pen',
+        emoji: '🖊️',
+        name: t('🖊️ Pen'),
         price: 8000,
         description: t('+50% on `/work`.'),
         type: 'tool',
@@ -86,15 +88,67 @@ export const shopItems = [
         bonusPercent: 50,
     },
     {
-        id: 'computer',
-        emoji: '🖥️',
-        name: t('Gaming Computer'),
+        id: 'suit',
+        emoji: '🤵',
+        name: t('Suit'),
         price: 25000,
         description: t('+100% on `/work`.'),
         type: 'tool',
         chain: 'work',
         bonusPercent: 100,
-        requires: 'laptop',
+        requires: 'pen',
+    },
+    // Retired on 2026-10-15 (owner: what members bought stays with them). Not sold any more;
+    // a member who owns one counts as owning `sameAs` (getShopCatalog skips retired items).
+    {
+        id: 'pickaxe',
+        emoji: '⛏️',
+        name: t('⛏️ Pickaxe'),
+        price: 2500,
+        description: t('Old item: works as a computer for `/nagraj`.'),
+        type: 'tool',
+        retired: true,
+        sameAs: 'pc',
+    },
+    {
+        id: 'steel_pickaxe',
+        emoji: '⚒️',
+        name: t('Steel Pickaxe'),
+        price: 18000,
+        description: t('Old item: works as Internet for `/nagraj`.'),
+        type: 'tool',
+        retired: true,
+        sameAs: 'internet',
+    },
+    {
+        id: 'diamond_pickaxe',
+        emoji: '💎',
+        name: t('Diamond Pickaxe'),
+        price: 50000,
+        description: t('Old item: works as Better Internet for `/nagraj`.'),
+        type: 'tool',
+        retired: true,
+        sameAs: 'fiber_internet',
+    },
+    {
+        id: 'laptop',
+        emoji: '💻',
+        name: t('💻 Laptop'),
+        price: 8000,
+        description: t('Old item: works as a pen for `/work`.'),
+        type: 'tool',
+        retired: true,
+        sameAs: 'pen',
+    },
+    {
+        id: 'computer',
+        emoji: '🖥️',
+        name: t('Gaming Computer'),
+        price: 25000,
+        description: t('Old item: works as a suit for `/work`.'),
+        type: 'tool',
+        retired: true,
+        sameAs: 'suit',
     },
     {
         id: 'golden_clover',
@@ -142,7 +196,17 @@ export const shopItems = [
         name: t('Energy Drink'),
         price: 500,
         priceFrom: { commands: ['mine'], factor: 0.9 },
-        description: t('Skips the break of `/mine` or `/fish` once.'),
+        description: t('Skips the break of `/nagraj` or `/fish` once.'),
+        type: 'consumable',
+        maxQuantity: 5,
+    },
+    {
+        id: 'clickbait',
+        emoji: '🖼️',
+        name: t('Clickbait Thumbnail'),
+        price: 550,
+        priceFrom: { commands: ['mine'], factor: 1 },
+        description: t('Your next `/nagraj`: double views and double pay.'),
         type: 'consumable',
         maxQuantity: 5,
     },
@@ -151,10 +215,11 @@ export const shopItems = [
         emoji: '🧨',
         name: t('Dynamite'),
         price: 550,
-        priceFrom: { commands: ['mine'], factor: 1 },
-        description: t('Your next `/mine` pays double.'),
+        description: t('Old item: works as a clickbait thumbnail on `/nagraj`.'),
         type: 'consumable',
         maxQuantity: 5,
+        retired: true,
+        sameAs: 'clickbait',
     },
     {
         id: 'fishing_net',
@@ -238,8 +303,8 @@ export const shopItems = [
 /** Tier lines of the "Items" folder: the tools of each chain, cheapest first. */
 export const ITEM_CHAINS = [
     { id: 'fish', emoji: '🎣', name: t('Fishing rod'), command: 'fish' },
-    { id: 'mine', emoji: '⛏️', name: t('Pickaxe'), command: 'mine' },
-    { id: 'work', emoji: '🖥️', name: t('Computer'), command: 'work' },
+    { id: 'mine', emoji: '🖥️', name: t('YouTube setup'), command: 'mine' },
+    { id: 'work', emoji: '🤵', name: t('Office outfit'), command: 'work' },
     { id: 'luck', emoji: '🍀', name: t('Clover'), command: null },
 ].map((chain) => ({ ...chain, items: shopItems.filter((item) => item.chain === chain.id) }));
 
@@ -258,7 +323,27 @@ export function getItemPrice(itemId) {
 
 export const getChain = (chainId) => ITEM_CHAINS.find((chain) => chain.id === chainId) ?? null;
 
-const owns = (userData, itemId) => (userData?.inventory?.[itemId] || 0) > 0;
+/** Retired items that count as `itemId` (pickaxe -> pc, laptop -> pen, ...). */
+export const legacyItemsOf = (itemId) => shopItems.filter((item) => item.retired && item.sameAs === itemId);
+
+/** True when the member owns `itemId` or a retired item that counts as it. */
+export const ownsItem = (userData, itemId) => (userData?.inventory?.[itemId] || 0) > 0
+    || legacyItemsOf(itemId).some((item) => (userData?.inventory?.[item.id] || 0) > 0);
+const owns = ownsItem;
+
+/**
+ * Use up one `itemId` (or a retired item that counts as it). Mutates `userData`.
+ * @returns the item that was used, or null when the member has none.
+ */
+export function takeConsumable(userData, itemId) {
+    for (const item of [getItemById(itemId), ...legacyItemsOf(itemId)]) {
+        if (item && (userData.inventory?.[item.id] || 0) > 0) {
+            userData.inventory = { ...userData.inventory, [item.id]: userData.inventory[item.id] - 1 };
+            return item;
+        }
+    }
+    return null;
+}
 // Position of an item in its chain, by id: shop entries are copies with the server's price.
 const tierOf = (chain, itemId) => chain.items.findIndex((entry) => entry.id === itemId);
 

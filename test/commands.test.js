@@ -148,7 +148,7 @@ test('economy commands follow the server settings: payouts, currency, tax, shop,
     settings.startingWallet = 1000;
     settings.payTaxPercent = 10;
     settings.commands.daily = { amount: 7777, cooldownMinutes: 60 };
-    settings.shop.items.laptop = { enabled: false };
+    settings.shop.items.pen = { enabled: false };
     settings.shop.roles = [{ roleId: vip.id, price: 500, description: 'Kolor' }];
     settings.channels = { mode: 'allow', list: [casino.id] };
   });
@@ -162,7 +162,7 @@ test('economy commands follow the server settings: payouts, currency, tax, shop,
   assert.equal((await getEconomyData(client, guild.id, regular.id)).wallet, 7777);
   assert.equal((await getEconomyData(client, guild.id, admin.id)).wallet, 1900);
 
-  await assert.rejects(run('sklep', { member: regular, options: { kup: 'laptop' } }), /not found/);
+  await assert.rejects(run('sklep', { member: regular, options: { kup: 'pen' } }), /not found/);
   const bought = await run('sklep', { member: regular, options: { kup: `role_${vip.id}` } });
   assert.match(replyText(bought), /500 zł/);
   assert.ok(regular.roles.cache.has(vip.id));
@@ -273,22 +273,22 @@ test('economy: /sklep picks items from a list, /ulepszenia upgrades stay and pay
   const offers = await inTown('work', { member: player });
   assert.match(replyText(offers), /Job offers/);
 
-  // /mine and /fish need a tool from the shop.
-  await assert.rejects(inTown('mine', { member: player, locale: 'pl' }), (error) => {
+  // /nagraj and /fish need a tool from the shop.
+  await assert.rejects(inTown('nagraj', { member: player, locale: 'pl' }), (error) => {
     assert.match(error.message, /Missing tool for mine/);
-    assert.match(error.userMessage, /Kilof.*2 500 zł/);
+    assert.match(error.userMessage, /Komputer.*2 500 zł/);
     return true;
   });
   await assert.rejects(inTown('fish', { member: player }), /Missing tool for fish/);
   await save(player, { inventory: { ...(await data(player)).inventory, pickaxe: 1, fishing_rod: 1 } });
   assert.match(replyText(await inTown('fish', { member: player })), /zł/);
 
-  // /mine on a break: the Energy Drink skips it once.
-  await inTown('mine', { member: player });
-  const again = await inTown('mine', { member: player });
+  // /nagraj on a break: the Energy Drink skips it once. An old pickaxe counts as the computer.
+  await inTown('nagraj', { member: player });
+  const again = await inTown('nagraj', { member: player });
   assert.match(replyText(again), /Energy Drink/);
   assert.equal((await data(player)).inventory.energy_drink, 0);
-  await assert.rejects(inTown('mine', { member: player }), /cooldown/i);
+  await assert.rejects(inTown('nagraj', { member: player }), /cooldown/i);
 
   // /rob: 80% of the cash and 50% of an unprotected bank.
   await save(victim, { wallet: 1000, bank: 10_000 });

@@ -1,34 +1,82 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
+import { createEmbed, formatDuration } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { t } from '../../i18n/index.js';
+import { t, tr } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../services/economyJail.js';
 import { itemLabel, requireTool } from './modules/buy.js';
-import { bestInChain } from '../../config/shop/items.js';
+import { bestInChain, takeConsumable } from '../../config/shop/items.js';
 
-// A Pickaxe (or a better one) is needed to mine; the Steel Pickaxe adds +50%, the Diamond Pickaxe +100%.
+// /nagraj — the YouTuber job (was /mine until 2026-10-15; the internal id stays "mine":
+// settings.commands.mine, lastMine, the "mine" upgrade and item chain, so nothing was lost).
+// A Computer (or an old pickaxe) is needed; Internet adds +50%, Better Internet +100%.
+// Like /fish, every video gets a rarity. The rarity sets the views and multiplies the
+// base pay (a random amount between the server's min and max): common pays little,
+// legendary a lot. Average over many videos ≈ the base pay.
 
-const MINE_LOCATIONS = [
-    t("abandoned gold mine"),
-    t("dark, damp cave"),
-    t("backyard rock quarry"),
-    t("volcanic obsidian vent"),
-    t("deep-sea mineral trench"),
+export const VIDEO_RARITIES = [
+    { id: 'common', label: t('Common'), chance: 0.50, multiplier: 0.4, views: [50, 2_000], color: '#95A5A6' },
+    { id: 'uncommon', label: t('Uncommon'), chance: 0.25, multiplier: 0.8, views: [2_000, 25_000], color: '#2ECC71' },
+    { id: 'rare', label: t('Rare'), chance: 0.15, multiplier: 1.5, views: [25_000, 250_000], color: '#3498DB' },
+    { id: 'epic', label: t('Epic'), chance: 0.08, multiplier: 3, views: [250_000, 1_000_000], color: '#9B59B6' },
+    { id: 'legendary', label: t('Legendary'), chance: 0.02, multiplier: 8, views: [1_000_000, 10_000_000], color: '#F1C40F' },
 ];
+
+const VIDEOS = {
+    common: [
+        { emoji: '📹', title: t('Room vlog') },
+        { emoji: '🧦', title: t('Sock unboxing') },
+        { emoji: '🎮', title: t('Minecraft without commentary') },
+    ],
+    uncommon: [
+        { emoji: '🛠️', title: t('Minecraft tutorial') },
+        { emoji: '😂', title: t('Reacting to memes') },
+    ],
+    rare: [
+        { emoji: '🏫', title: t('24 hours in school') },
+        { emoji: '⏱️', title: t('Minecraft speedrun') },
+    ],
+    epic: [
+        { emoji: '📅', title: t('100 days challenge') },
+        { emoji: '🚗', title: t('I bought the cheapest car') },
+    ],
+    legendary: [
+        { emoji: '🏆', title: t('#1 on Trending') },
+    ],
+};
+
+const pick = (list, random) => list[Math.floor(random() * list.length) % list.length];
+
+/**
+ * Roll one video. `base` is the pay before the rarity; `random` is injectable for tests.
+ * @returns {{ rarity, video, views: number, pay: number }}
+ */
+export function rollVideo({ min, max }, random = Math.random) {
+    const roll = random();
+    let total = 0;
+    const rarity = VIDEO_RARITIES.find((entry) => (total += entry.chance) > roll) ?? VIDEO_RARITIES[0];
+    // One position inside the rarity: more views = more pay, also within the same rarity.
+    const position = random();
+    const [low, high] = rarity.views;
+    const views = Math.round(low * (high / low) ** position);
+    const base = min + Math.floor(position * (Math.max(min, max) - min + 1));
+    return { rarity, video: pick(VIDEOS[rarity.id], random), views, pay: Math.floor(Math.min(base, Math.max(min, max)) * rarity.multiplier) };
+}
+
+const formatViews = (views) => String(Math.floor(views)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('mine')
-        .setDescription('Go mining to earn money'),
+        .setName('nagraj')
+        .setDescription('Record a YouTube video and earn from its views'),
 
     execute: withErrorHandling(async (interaction, config, client) => {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
+
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
@@ -36,76 +84,64 @@ export default {
             const settings = await getEconomySettings(guildId);
             const { mine } = settings.commands;
             const userData = await getEconomyData(client, guildId, userId);
-            const MINE_COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
-            const lastMine = userData.lastMine || 0;
+            const COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
+            const lastVideo = userData.lastMine || 0;
             assertNotJailed(userData, now, { settings, guildId });
-            await requireTool({ guild: interaction.guild, userData, toolIds: ['pickaxe', 'steel_pickaxe', 'diamond_pickaxe'], action: 'mine' });
+            await requireTool({ guild: interaction.guild, userData, toolIds: ['pc', 'internet', 'fiber_internet'], action: 'mine' });
 
             let usedEnergyDrink = false;
-            if (now < lastMine + MINE_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
+            if (now < lastVideo + COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
                 userData.inventory["energy_drink"] -= 1;
                 usedEnergyDrink = true;
-            } else if (now < lastMine + MINE_COOLDOWN) {
-                const remaining = lastMine + MINE_COOLDOWN - now;
-                const hours = Math.floor(remaining / (1000 * 60 * 60));
-                const minutes = Math.floor(
-                    (remaining % (1000 * 60 * 60)) / (1000 * 60),
-                );
-
+            } else if (now < lastVideo + COOLDOWN) {
+                const remaining = lastVideo + COOLDOWN - now;
                 throw createError(
-                    "Mining cooldown active",
+                    "Recording cooldown active",
                     ErrorTypes.RATE_LIMIT,
-                    t`Your pickaxe is cooling down. Wait for **${hours}h ${minutes}m** before mining again.`,
+                    t`You are still editing your last video. Record the next one in **${formatDuration(remaining)}**.`,
                     { remaining, cooldownType: 'mine' }
                 );
             }
 
-            const baseEarned =
-                Math.floor(
-                    Math.random() * (mine.max - mine.min + 1),
-                ) + mine.min;
-
-            let finalEarned = baseEarned;
+            const { rarity, video, views: baseViews, pay } = rollVideo(mine);
+            let views = baseViews;
+            let finalEarned = pay;
             let multiplierMessage = "";
 
-            const pickaxe = bestInChain(userData, 'mine');
-            if (pickaxe?.bonusPercent) {
-                finalEarned = Math.floor(baseEarned * (1 + pickaxe.bonusPercent / 100));
-                multiplierMessage = `\n${itemLabel(pickaxe)}: **+${pickaxe.bonusPercent}%**`;
+            const gear = bestInChain(userData, 'mine');
+            if (gear?.bonusPercent) {
+                finalEarned = Math.floor(finalEarned * (1 + gear.bonusPercent / 100));
+                multiplierMessage = `\n${itemLabel(gear)}: **+${gear.bonusPercent}%**`;
             }
 
             finalEarned = Math.floor(finalEarned * earningMultiplier(userData, 'mine'));
             multiplierMessage += upgradeBonusLine(userData, 'mine', guildId);
-            if ((userData.inventory["dynamite"] || 0) > 0) {
-                userData.inventory["dynamite"] -= 1;
+            const thumbnail = takeConsumable(userData, 'clickbait');
+            if (thumbnail) {
                 finalEarned *= 2;
-                multiplierMessage += t`\n🧨 **Dynamite** used - double find!`;
+                views *= 2;
+                multiplierMessage += t`\n**${itemLabel(thumbnail)}** used - double views and pay!`;
             }
             finalEarned = scaleEarnings(settings, finalEarned, userData);
             multiplierMessage += earningsLine(settings, userData);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
-            const location =
-                MINE_LOCATIONS[
-                    Math.floor(Math.random() * MINE_LOCATIONS.length)
-                ];
-
             userData.wallet += finalEarned;
-userData.lastMine = now;
+            userData.lastMine = now;
 
             await setEconomyData(client, guildId, userId, userData);
 
-            const embed = successEmbed(
-                t("💰 Mining Expedition Successful!"),
-                t`You explored a **${location}** and managed to find minerals worth **${money(guildId, finalEarned)}**!${multiplierMessage}`,
-            )
-                .addFields({
-                    name: t("New Cash Balance"),
-                    value: `${money(guildId, userData.wallet)}`,
-                    inline: true,
-                })
-                .setFooter({ text: t`Next mine available in ${formatDuration(MINE_COOLDOWN)}.` });
+            const embed = createEmbed({
+                title: t('🎬 Video published!'),
+                description: t`${video.emoji} **${video.title}** got **${formatViews(views)}** views.\nYou earned **${money(guildId, finalEarned)}**!${multiplierMessage}`,
+                color: rarity.color,
+            })
+                .addFields(
+                    { name: t("New Cash Balance"), value: `${money(guildId, userData.wallet)}`, inline: true },
+                    { name: t("Video"), value: tr(rarity.label), inline: true },
+                )
+                .setFooter({ text: t`Next video in ${formatDuration(COOLDOWN)}.` });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-    }, { command: 'mine' })
+    }, { command: 'nagraj' })
 };

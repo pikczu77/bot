@@ -228,7 +228,7 @@ test('economy settings, shop and balances are changed from the panel', async () 
   const overview = await call('GET', `/guilds/${guild.id}`);
   assert.equal(overview.json.modules.economy.currency.symbol, '$');
   assert.equal(overview.json.modules.economy.commands.work.max, 100);
-  assert.ok(overview.json.modules.economy.shop.items.some((item) => item.id === 'laptop' && item.price === item.defaultPrice && item.enabled));
+  assert.ok(overview.json.modules.economy.shop.items.some((item) => item.id === 'pen' && item.price === item.defaultPrice && item.enabled));
 
   const saved = await call('PATCH', path, {
     body: {
@@ -243,14 +243,14 @@ test('economy settings, shop and balances are changed from the panel', async () 
       shop: {
         premiumRoleId: role.id,
         // energy_drink at its default (/mine 300-800 x1.5 -> 750): no override is stored.
-        items: { laptop: { price: 999 }, lucky_clover: { enabled: false }, energy_drink: { price: 750, enabled: true } },
+        items: { pen: { price: 999 }, lucky_clover: { enabled: false }, energy_drink: { price: 750, enabled: true } },
         roles: [{ roleId: role.id, price: 4000, description: 'Kolorowy nick' }],
       },
     },
   });
   assert.equal(saved.status, 200, JSON.stringify(saved.json));
   assert.equal(saved.json.shop.premiumRoleId, role.id);
-  assert.equal(saved.json.shop.items.find((item) => item.id === 'laptop').price, 999);
+  assert.equal(saved.json.shop.items.find((item) => item.id === 'pen').price, 999);
   assert.deepEqual(saved.json.shop.roles, [{ roleId: role.id, price: 4000, description: 'Kolorowy nick' }]);
 
   const settings = await getEconomySettings(guild.id);

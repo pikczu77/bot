@@ -8,7 +8,7 @@ import { createError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { t, tr } from '../../../i18n/index.js';
 import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
 import { discountPercent, discountedPrice, spendMoney, withEconomyLock } from '../../../services/economyUpgrades.js';
-import { missingRequirement, purchaseRoom } from '../../../config/shop/items.js';
+import { missingRequirement, ownsItem, purchaseRoom } from '../../../config/shop/items.js';
 
 /** "💻 Laptop" — the item's emoji in front unless its name already starts with an emoji. */
 export function itemLabel(item) {
@@ -29,11 +29,12 @@ export function findShopItem(items, query) {
 }
 
 /**
- * Stop a gathering command (/fish, /mine) when the member owns none of `toolIds`.
+ * Stop a gathering command (/fish, /nagraj) when the member owns none of `toolIds`
+ * (retired items count as the item they replaced, see config/shop/items.js).
  * When the server took every one of those tools out of the shop, the command works without one.
  */
 export async function requireTool({ guild, userData, toolIds, action }) {
-    if (toolIds.some((id) => (userData.inventory?.[id] || 0) > 0)) return;
+    if (toolIds.some((id) => ownsItem(userData, id))) return;
     const items = getShopItems(await getEconomySettings(guild.id), guild);
     const forSale = items.filter((item) => toolIds.includes(item.id));
     if (forSale.length === 0) return;
