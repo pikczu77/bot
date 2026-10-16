@@ -9,8 +9,10 @@ import { checkYoutubeFeeds } from './notifications/youtube.js';
 import { refreshMinecraftServers } from './minecraftService.js';
 import { liftExpiredBans } from './moderation/tempbanService.js';
 import { awardVoiceXp } from './leveling/voiceXp.js';
+import { applyNightChannels } from './nightChannel.js';
 
 const JOBS = [
+  { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
   { name: 'youtube_check', schedule: '*/5 * * * *', run: checkYoutubeFeeds },
   { name: 'minecraft_status', schedule: '*/2 * * * *', run: refreshMinecraftServers },
   { name: 'tempban_expiry', schedule: '* * * * *', run: liftExpiredBans },

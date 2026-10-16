@@ -32,6 +32,21 @@ export const PRESET_WORDS = [
   'lachociag*', 'chwdp',
 ];
 
+/**
+ * Slurs: racist and homophobic words the owner never allows, also at night and on channels
+ * where swearing is free (2026-10-15: "na nigger, cwel i tego typu podobne słownictwo nie
+ * pozwalam nawet po 22"). Checked by the automod "slurs" rule after digits and symbols are
+ * read as letters (n1gg3r, c\/\/el).
+ */
+export const PRESET_SLURS = [
+  // racist
+  // (words with an innocent meaning - asfalt, bambus - are left out on purpose)
+  'nigg*', 'nigga*', 'niga', 'neger*', 'negr', 'negro', 'czarnuch*',
+  // homophobic and transphobic
+  'cwel*', 'faggot*', 'fagot*', 'fag', 'fags', 'pedal', 'pedale', 'pedaly', 'pedalem', 'pedalski*',
+  'pedzio*', 'pedziu*', 'ciota', 'cioty', 'cioto', 'ciote', 'ciotami', 'ciotowat*', 'tranny', 'trannies',
+];
+
 /** GIF sites and YouTube. Subdomains are allowed too (media.tenor.com, m.youtube.com). */
 export const PRESET_LINKS = [
   'youtube.com',

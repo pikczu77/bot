@@ -68,7 +68,8 @@ import {
 } from '../services/leveling/leveling.js';
 import { getUserLevelPrefix } from '../utils/database/keys.js';
 import { ACTIONS, RULES, getAutomodConfig, updateAutomodConfig } from '../services/automodService.js';
-import { PRESET_LINKS, PRESET_WORDS } from '../config/automodPresets.js';
+import { PRESET_LINKS, PRESET_SLURS, PRESET_WORDS } from '../config/automodPresets.js';
+import { applyNightChannel } from '../services/nightChannel.js';
 import { EVENT_TYPES, getIgnoreList } from '../services/loggingService.js';
 import { cacheGuildInvites, getInviteConfig, updateInviteConfig } from '../services/inviteService.js';
 import { addFeed, fetchVideos, getFeeds, removeFeed, resolveChannel, sendTestNotification, updateFeed } from '../services/notifications/youtube.js';
@@ -211,8 +212,9 @@ function automodView(config) {
     rules: config.rules,
     strikes: config.strikes,
     raid: config.raid,
+    nightChannel: config.nightChannel,
     // Ready-made lists for the panel's "insert list" buttons; not part of the settings.
-    presets: { words: PRESET_WORDS, links: PRESET_LINKS },
+    presets: { words: PRESET_WORDS, links: PRESET_LINKS, slurs: PRESET_SLURS },
   };
 }
 
@@ -278,7 +280,8 @@ async function applyAutomod(guild, body) {
       if ('limit' in patch && 'limit' in rule) rule.limit = integer(patch.limit, `rules.${name}.limit`, 2, 100);
       if ('seconds' in patch && name === 'spam') rule.seconds = integer(patch.seconds, 'rules.spam.seconds', 2, 60);
       if ('percent' in patch && name === 'caps') rule.percent = integer(patch.percent, 'rules.caps.percent', 30, 100);
-      if ('list' in patch && name === 'words') rule.list = stringList(patch.list, 'rules.words.list', { max: 300, itemMax: 40 });
+      if ('list' in patch && (name === 'words' || name === 'slurs')) rule.list = stringList(patch.list, `rules.${name}.list`, { max: 300, itemMax: 40 });
+      if ('freeChannels' in patch && name === 'words') rule.freeChannels = stringList(patch.freeChannels, 'rules.words.freeChannels', { max: 25, itemMax: 20, pattern: SNOWFLAKE_RE });
       if ('freeHours' in patch && name === 'words') rule.freeHours = boolean(patch.freeHours, 'rules.words.freeHours');
       if ('freeFrom' in patch && name === 'words') rule.freeFrom = integer(patch.freeFrom, 'rules.words.freeFrom', 0, 23);
       if ('freeTo' in patch && name === 'words') rule.freeTo = integer(patch.freeTo, 'rules.words.freeTo', 0, 23);
@@ -296,7 +299,18 @@ async function applyAutomod(guild, body) {
       }
       if ('minAccountAgeDays' in raid) data.raid.minAccountAgeDays = integer(raid.minAccountAgeDays, 'raid.minAccountAgeDays', 0, 365);
     }
+
+    if (body.nightChannel && typeof body.nightChannel === 'object') {
+      const night = body.nightChannel;
+      if ('enabled' in night) data.nightChannel.enabled = boolean(night.enabled, 'nightChannel.enabled');
+      if ('channelId' in night) data.nightChannel.channelId = requireTextChannel(guild, night.channelId, 'nightChannel.channelId');
+      if ('from' in night) data.nightChannel.from = integer(night.from, 'nightChannel.from', 0, 23);
+      if ('to' in night) data.nightChannel.to = integer(night.to, 'nightChannel.to', 0, 23);
+      if (data.nightChannel.enabled && !data.nightChannel.channelId) throw new ApiError(400, 'nightChannel.channelId: choose a channel before turning the night channel on');
+    }
   });
+  // Open or close the night channel right away instead of at the next minute.
+  await applyNightChannel(guild).catch(() => {});
   return automodView(config);
 }
 

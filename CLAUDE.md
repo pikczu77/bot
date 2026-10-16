@@ -81,6 +81,16 @@ change you make, so the next session knows what was done and why.
 - `/pozwij`: any amount; the higher it is, the lower the chance (shown before the case starts,
   with buttons to raise or lower the amount). "Street smarts" (upgrade id `crime`) counts for it.
 
+## Automod map
+- `src/services/automodService.js` (`checkMessage`, rules, free hours), lists in `src/config/automodPresets.js`.
+- Rule `slurs` (owner: slurs like the n-word or "cwel" are never allowed, "nawet po 22"): on by
+  default, checked before every other rule, ignores the words rule's free hours and free channels,
+  reads digits/symbols as letters (`findSlur`). Keep it that way.
+- `rules.words.freeChannels`: channels where swearing is allowed (the owner's #wulgarny-chat).
+- Night channel: `src/services/nightChannel.js`, settings `nightChannel` in the automod config,
+  job `night_channel` every minute (`src/services/features.js`), also run after a panel save.
+  Remembers who could see the channel before closing (store `night-channel`) and restores it.
+
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
   - Luck model changed from a relative multiplier to percentage points (owner's request).
@@ -179,3 +189,17 @@ change you make, so the next session knows what was done and why.
     the card bonus needs the cards held now, the fish bonus counts every catch ever.
     `/beg` now also uses `earningMultiplier(userData, 'beg')` (only the card bonus applies there).
   - Tests: `test/admin-bonus.test.js`.
+- **2026-10-16 morning** (owner, Discord messages: "na nigger, cwel i tego typu podobne słownictwo
+  nie pozwalam nawet po 22"; #wulgarny-chat visible only 22:00-6:00 with swearing allowed there).
+  Live after the owner restarts the bot; the web panel part is deployed:
+  - New automod rule "Wyzwiska" (`slurs`), on by default with `PRESET_SLURS` (racist and
+    homophobic words; asfalt/bambus left out because they are normal words), action "delete +
+    warning". Works also in the free hours and on free channels. Exempt roles/channels and
+    Manage Messages still skip automod as before.
+  - Words rule: "Kanały, gdzie wolno przeklinać" (`freeChannels`).
+  - Panel Automoderacja: card "Wyzwiska" (list + ready list), free-channel chips in "Zakazane
+    słowa", tab "Noc" (channel, opens at, closes at). The owner still has to pick #wulgarny-chat
+    there twice: as the night channel and as a free channel (my split: one is visibility, the
+    other swearing). I did not set it on the live server myself.
+  - My decisions: closing denies View Channel to @everyone and every overwrite that allowed it,
+    the bot keeps itself an allow; Administrators always see every channel (Discord rule).

@@ -1,7 +1,8 @@
 // automodService.js — automatic moderation of messages and joins.
 //
-// Rules: invite links, other links, banned words, message spam, mass mentions,
-// excessive caps, repeated messages and emoji floods, plus anti-raid on joins.
+// Rules: slurs (never allowed), invite links, other links, banned words, message spam, mass
+// mentions, excessive caps, repeated messages and emoji floods, plus anti-raid on joins.
+// The night channel (visible only at night) lives in services/nightChannel.js; its settings are here.
 // Detection is pure (checkMessage) so it can be tested without Discord.
 
 import { PermissionFlagsBits } from 'discord.js';
@@ -9,8 +10,9 @@ import { createEmbed } from '../utils/embeds.js';
 import { guildStore, truncate } from '../utils/featureKit.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n/index.js';
+import { PRESET_SLURS } from '../config/automodPresets.js';
 
-export const RULES = ['invites', 'links', 'words', 'spam', 'mentions', 'caps', 'duplicates', 'emojis'];
+export const RULES = ['slurs', 'invites', 'links', 'words', 'spam', 'mentions', 'caps', 'duplicates', 'emojis'];
 export const ACTIONS = ['delete', 'warn', 'timeout'];
 
 const DEFAULT_CONFIG = {
@@ -20,10 +22,14 @@ const DEFAULT_CONFIG = {
   exemptChannels: [],
   timeoutMinutes: 10,
   rules: {
+    // Slurs (2026-10-15, owner): on by default, also during the words rule's free hours and on its
+    // free channels. Digits and symbols count as letters (n1gg3r). Exempt roles/channels still apply.
+    slurs: { enabled: true, action: 'warn', list: [...PRESET_SLURS] },
     invites: { enabled: false, action: 'delete' },
     links: { enabled: false, action: 'delete', allow: [] },
     // freeHours: words are allowed from freeFrom:00 until freeTo:00 (Polish time), e.g. 22 → 6.
-    words: { enabled: false, action: 'delete', list: [], freeHours: false, freeFrom: 22, freeTo: 6 },
+    // freeChannels: channels (or categories) where the words are always allowed (a "vulgar chat").
+    words: { enabled: false, action: 'delete', list: [], freeHours: false, freeFrom: 22, freeTo: 6, freeChannels: [] },
     spam: { enabled: false, action: 'timeout', limit: 6, seconds: 6 },
     mentions: { enabled: false, action: 'timeout', limit: 6 },
     caps: { enabled: false, action: 'delete', percent: 75, minLength: 12 },
@@ -33,6 +39,8 @@ const DEFAULT_CONFIG = {
   // Repeat offenders: this many violations inside the window earns a longer timeout.
   strikes: { limit: 3, windowMinutes: 30, timeoutMinutes: 60 },
   raid: { enabled: false, joins: 8, seconds: 10, action: 'alert', minAccountAgeDays: 0, lockMinutes: 10 },
+  // A channel everyone sees only from `from`:00 to `to`:00 Polish time (services/nightChannel.js).
+  nightChannel: { enabled: false, channelId: null, from: 22, to: 6 },
 };
 
 const store = guildStore('automod', DEFAULT_CONFIG);
@@ -45,6 +53,7 @@ function withDefaults(config) {
   for (const rule of RULES) merged.rules[rule] = { ...DEFAULT_CONFIG.rules[rule], ...(config.rules?.[rule] ?? {}) };
   merged.strikes = { ...DEFAULT_CONFIG.strikes, ...(config.strikes ?? {}) };
   merged.raid = { ...DEFAULT_CONFIG.raid, ...(config.raid ?? {}) };
+  merged.nightChannel = { ...DEFAULT_CONFIG.nightChannel, ...(config.nightChannel ?? {}) };
   return merged;
 }
 
@@ -91,6 +100,17 @@ export function findBannedWord(text, words) {
   return null;
 }
 
+// Digits and symbols people use instead of letters, read as letters for the slurs rule.
+const LOOKALIKES = { 0: 'o', 1: 'i', '!': 'i', '|': 'i', 3: 'e', 4: 'a', '@': 'a', 5: 's', $: 's', 7: 't' };
+
+/** Does `text` contain a slur? Like findBannedWord, but n1gg3r counts as nigger. */
+export function findSlur(text, words) {
+  const plain = findBannedWord(text, words);
+  if (plain) return plain;
+  const read = normalize(text).replace(/[0-9!|@$]/g, (char) => LOOKALIKES[char] ?? char);
+  return findBannedWord(read, words);
+}
+
 const TIME_ZONE = 'Europe/Warsaw';
 let hourFormat = null;
 
@@ -134,6 +154,11 @@ export function checkMessage(config, message, history, now = Date.now()) {
   const { rules } = config;
   const content = String(message.content ?? '');
 
+  if (rules.slurs?.enabled && rules.slurs.list?.length > 0) {
+    const slur = findSlur(content, rules.slurs.list);
+    if (slur) return { rule: 'slurs', detail: slur };
+  }
+
   if (rules.invites.enabled && INVITE_RE.test(content)) {
     return { rule: 'invites', detail: content.match(INVITE_RE)[0] };
   }
@@ -145,7 +170,8 @@ export function checkMessage(config, message, history, now = Date.now()) {
     }
   }
 
-  if (rules.words.enabled && rules.words.list.length > 0 && !wordsAllowedNow(rules.words, now)) {
+  const freeChannel = (rules.words.freeChannels ?? []).some((id) => id && (id === message.channelId || id === message.parentId));
+  if (rules.words.enabled && rules.words.list.length > 0 && !freeChannel && !wordsAllowedNow(rules.words, now)) {
     const word = findBannedWord(content, rules.words.list);
     if (word) return { rule: 'words', detail: word };
   }
@@ -206,6 +232,7 @@ function sweep(now) {
 
 export function ruleLabel(rule) {
   return {
+    slurs: t('Slurs'),
     invites: t('Invite links'),
     links: t('Links'),
     words: t('Banned words'),
@@ -285,6 +312,8 @@ export async function runAutomod(message) {
 
   const violation = checkMessage(config, {
     content: message.content,
+    channelId: message.channelId,
+    parentId: message.channel?.parentId ?? null,
     mentionCount: message.mentions.users.size + message.mentions.roles.size + (message.mentions.everyone ? config.rules.mentions.limit : 0),
   }, histories.get(key), now);
   if (!violation) return false;
@@ -334,6 +363,7 @@ export async function runAutomod(message) {
         violation.rule === 'words' && rule.freeHours && rule.freeFrom !== rule.freeTo
           ? t`Swearing is allowed from ${hourLabel(rule.freeFrom)} to ${hourLabel(rule.freeTo)}.`
           : null,
+        violation.rule === 'slurs' ? t('These words are never allowed - not at night and not on any channel.') : null,
         timedOut ? t`You are timed out for ${timeoutMinutes} {1|minute|minutes}.` : null,
       ].filter(Boolean).join('\n'),
       color: 'warning',
