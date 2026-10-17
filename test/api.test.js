@@ -99,7 +99,20 @@ test('language and automod changes are validated and saved', async () => {
     [true, 22, 6, ['brzydkie', 'spam*']],
   );
 
+  // Hour-limited channels (2026-10-17): the whole list is replaced; the mock channel has no overwrites, so nothing is applied.
+  const hours = await call('PATCH', `/guilds/${guild.id}/automod`, { body: { nightChannels: [{ channelId: channel.id, from: 22, to: 6 }] } });
+  assert.equal(hours.status, 200);
+  assert.deepEqual(hours.json.nightChannels, [{ channelId: channel.id, from: 22, to: 6 }]);
+  assert.equal(hours.json.nightChannel, undefined);
+  assert.deepEqual((await getAutomodConfig(guild.id, { fresh: true })).nightChannels, [{ channelId: channel.id, from: 22, to: 6 }]);
+  assert.deepEqual((await call('PATCH', `/guilds/${guild.id}/automod`, { body: { nightChannels: [] } })).json.nightChannels, []);
+
   for (const body of [
+    { nightChannels: [{ channelId: channel.id, from: 22, to: 6 }, { channelId: channel.id, from: 20, to: 2 }] },
+    { nightChannels: [{ channelId: channel.id, from: 22, to: 22 }] },
+    { nightChannels: [{ channelId: channel.id, from: 22, to: 24 }] },
+    { nightChannels: [{ channelId: '123456789012345678', from: 22, to: 6 }] },
+    { nightChannels: { channelId: channel.id } },
     { rules: { words: { freeFrom: 24 } } },
     { rules: { words: { freeHours: 'yes' } } },
     { rules: { nope: { enabled: true } } },

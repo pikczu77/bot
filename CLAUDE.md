@@ -87,9 +87,10 @@ change you make, so the next session knows what was done and why.
   default, checked before every other rule, ignores the words rule's free hours and free channels,
   reads digits/symbols as letters (`findSlur`). Keep it that way.
 - `rules.words.freeChannels`: channels where swearing is allowed (the owner's #wulgarny-chat).
-- Night channel: `src/services/nightChannel.js`, settings `nightChannel` in the automod config,
-  job `night_channel` every minute (`src/services/features.js`), also run after a panel save.
-  Remembers who could see the channel before closing (store `night-channel`) and restores it.
+- Night channels: `src/services/nightChannel.js`, settings `nightChannels: [{ channelId, from, to }]`
+  (max 10, text or voice) in the automod config, job `night_channel` every minute
+  (`src/services/features.js`), also run after a panel save. Remembers who could see each channel
+  before closing (store `night-channel`, `{ channels: { [id]: state } }`) and restores it.
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -222,3 +223,14 @@ change you make, so the next session knows what was done and why.
     Shift could skip the break (then the label shows how many). It replaces the message; only the
     owner can press it, a break or jail answers privately. `/fish` and `/nagraj` now run inside
     `withEconomyLock` (`runFish`, `runRecord`), so a double click cannot use one break twice.
+- **2026-10-17** (owner: channel 1560399575481589822 must appear at 22:00 and disappear daily;
+  "niech bedzie w automoderacji jako kanaly do ustawienia z godzinami na stronie"). Live after the
+  owner restarts the bot; panel deployed:
+  - The single `nightChannel` became a list `nightChannels` (each channel its own hours). An old
+    stored `nightChannel` and its closed state are read as the first list entry.
+  - Panel Automoderacja, tab "Godziny": rows channel / od / do, "+ Dodaj kanał", "Usuń". An older
+    bot still gets the old "Noc" card.
+  - My decisions: closing remembers permissions before editing and retries if it fails half-way;
+    one run per guild at a time; voice channels allowed; same from/to rejected.
+  - Not done: the channel itself is not set on the live server (the panel key on disk did not
+    match the host). The owner picks it in the panel; disappear hour default 6:00 (my guess).

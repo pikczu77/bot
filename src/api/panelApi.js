@@ -67,7 +67,7 @@ import {
   saveUserLevelData,
 } from '../services/leveling/leveling.js';
 import { getUserLevelPrefix } from '../utils/database/keys.js';
-import { ACTIONS, RULES, getAutomodConfig, updateAutomodConfig } from '../services/automodService.js';
+import { ACTIONS, MAX_NIGHT_CHANNELS, RULES, getAutomodConfig, updateAutomodConfig } from '../services/automodService.js';
 import { PRESET_LINKS, PRESET_SLURS, PRESET_WORDS } from '../config/automodPresets.js';
 import { applyNightChannel } from '../services/nightChannel.js';
 import { EVENT_TYPES, getIgnoreList } from '../services/loggingService.js';
@@ -108,6 +108,26 @@ function requireChannelOfType(guild, channelId, field, type, label) {
   const channel = SNOWFLAKE_RE.test(String(channelId)) ? guild.channels.cache.get(String(channelId)) : null;
   if (!channel || channel.type !== type) throw new ApiError(400, `${field}: not a ${label} of this server`);
   return channel.id;
+}
+
+// Channels that can be hidden outside their hours (automod `nightChannels`): text and voice kinds.
+const NIGHT_CHANNEL_TYPES = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum, ChannelType.GuildVoice, ChannelType.GuildStageVoice]);
+
+function nightChannelList(guild, list) {
+  if (!Array.isArray(list) || list.length > MAX_NIGHT_CHANNELS) throw new ApiError(400, `nightChannels: a list of at most ${MAX_NIGHT_CHANNELS} channels expected`);
+  const seen = new Set();
+  return list.map((entry, index) => {
+    const field = `nightChannels[${index}]`;
+    if (!entry || typeof entry !== 'object') throw new ApiError(400, `${field}: object expected`);
+    const channel = SNOWFLAKE_RE.test(String(entry.channelId)) ? guild.channels.cache.get(String(entry.channelId)) : null;
+    if (!channel || !NIGHT_CHANNEL_TYPES.has(channel.type)) throw new ApiError(400, `${field}.channelId: not a text or voice channel of this server`);
+    if (seen.has(channel.id)) throw new ApiError(400, `${field}.channelId: this channel is already on the list`);
+    seen.add(channel.id);
+    const from = integer(entry.from, `${field}.from`, 0, 23);
+    const to = integer(entry.to, `${field}.to`, 0, 23);
+    if (from === to) throw new ApiError(400, `${field}: the channel must appear and disappear at different hours`);
+    return { channelId: channel.id, from, to };
+  });
 }
 
 function requireRole(guild, roleId, field) {
@@ -212,7 +232,7 @@ function automodView(config) {
     rules: config.rules,
     strikes: config.strikes,
     raid: config.raid,
-    nightChannel: config.nightChannel,
+    nightChannels: config.nightChannels,
     // Ready-made lists for the panel's "insert list" buttons; not part of the settings.
     presets: { words: PRESET_WORDS, links: PRESET_LINKS, slurs: PRESET_SLURS },
   };
@@ -300,16 +320,10 @@ async function applyAutomod(guild, body) {
       if ('minAccountAgeDays' in raid) data.raid.minAccountAgeDays = integer(raid.minAccountAgeDays, 'raid.minAccountAgeDays', 0, 365);
     }
 
-    if (body.nightChannel && typeof body.nightChannel === 'object') {
-      const night = body.nightChannel;
-      if ('enabled' in night) data.nightChannel.enabled = boolean(night.enabled, 'nightChannel.enabled');
-      if ('channelId' in night) data.nightChannel.channelId = requireTextChannel(guild, night.channelId, 'nightChannel.channelId');
-      if ('from' in night) data.nightChannel.from = integer(night.from, 'nightChannel.from', 0, 23);
-      if ('to' in night) data.nightChannel.to = integer(night.to, 'nightChannel.to', 0, 23);
-      if (data.nightChannel.enabled && !data.nightChannel.channelId) throw new ApiError(400, 'nightChannel.channelId: choose a channel before turning the night channel on');
-    }
+    // Channels visible only in their hours: the panel sends the whole list.
+    if ('nightChannels' in body) data.nightChannels = nightChannelList(guild, body.nightChannels);
   });
-  // Open or close the night channel right away instead of at the next minute.
+  // Open or close the night channels right away instead of at the next minute.
   await applyNightChannel(guild).catch(() => {});
   return automodView(config);
 }

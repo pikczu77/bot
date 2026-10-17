@@ -2,7 +2,7 @@
 //
 // Rules: slurs (never allowed), invite links, other links, banned words, message spam, mass
 // mentions, excessive caps, repeated messages and emoji floods, plus anti-raid on joins.
-// The night channel (visible only at night) lives in services/nightChannel.js; its settings are here.
+// Night channels (visible only in chosen hours) live in services/nightChannel.js; their settings are here.
 // Detection is pure (checkMessage) so it can be tested without Discord.
 
 import { PermissionFlagsBits } from 'discord.js';
@@ -39,9 +39,20 @@ const DEFAULT_CONFIG = {
   // Repeat offenders: this many violations inside the window earns a longer timeout.
   strikes: { limit: 3, windowMinutes: 30, timeoutMinutes: 60 },
   raid: { enabled: false, joins: 8, seconds: 10, action: 'alert', minAccountAgeDays: 0, lockMinutes: 10 },
-  // A channel everyone sees only from `from`:00 to `to`:00 Polish time (services/nightChannel.js).
-  nightChannel: { enabled: false, channelId: null, from: 22, to: 6 },
+  // Channels everyone sees only from `from`:00 to `to`:00 Polish time (services/nightChannel.js):
+  // [{ channelId, from, to }]. Until 2026-10-17 this was one `nightChannel`; see nightChannelList.
+  nightChannels: [],
 };
+
+export const MAX_NIGHT_CHANNELS = 10;
+
+/** The list of hour-limited channels; a stored single `nightChannel` (before 2026-10-17) becomes its first entry. */
+// The store fills in the default empty list, so an old `nightChannel` wins over an empty list.
+function nightChannelList(config) {
+  const old = config.nightChannel;
+  if (old && !config.nightChannels?.length) return old.enabled && old.channelId ? [{ channelId: old.channelId, from: old.from ?? 22, to: old.to ?? 6 }] : [];
+  return (Array.isArray(config.nightChannels) ? config.nightChannels : []).map((entry) => ({ from: 22, to: 6, ...entry }));
+}
 
 const store = guildStore('automod', DEFAULT_CONFIG);
 const configCache = new Map(); // guildId -> { at, config }
@@ -53,7 +64,8 @@ function withDefaults(config) {
   for (const rule of RULES) merged.rules[rule] = { ...DEFAULT_CONFIG.rules[rule], ...(config.rules?.[rule] ?? {}) };
   merged.strikes = { ...DEFAULT_CONFIG.strikes, ...(config.strikes ?? {}) };
   merged.raid = { ...DEFAULT_CONFIG.raid, ...(config.raid ?? {}) };
-  merged.nightChannel = { ...DEFAULT_CONFIG.nightChannel, ...(config.nightChannel ?? {}) };
+  merged.nightChannels = nightChannelList(config);
+  delete merged.nightChannel;
   return merged;
 }
 

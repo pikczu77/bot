@@ -44,61 +44,132 @@ test('free hours and the vulgar chat allow swearing, never slurs', () => {
   assert.equal(checkMessage(config, vulgar('n1gger'), null, at(2))?.rule, 'slurs', 'slurs on the vulgar chat');
 });
 
-/** A channel whose permission overwrites behave like discord.js's, enough for nightChannel.js. */
-function mockGuildWithChannel() {
+/** Channels whose permission overwrites behave like discord.js's, enough for nightChannel.js. */
+function mockGuildWithChannels(guildId, channelIds) {
   const everyoneId = '600000000000000000';
   const botId = '600000000000000099';
   const memberRole = '600000000000000001';
-  const cache = new Collection();
-  const set = (id, type, change) => {
-    const current = cache.get(id) ?? { id, type, allow: new PermissionsBitField(), deny: new PermissionsBitField() };
-    const allow = new PermissionsBitField(current.allow);
-    const deny = new PermissionsBitField(current.deny);
-    for (const [name, value] of Object.entries(change)) {
-      const flag = PermissionFlagsBits[name];
-      allow.remove(flag); deny.remove(flag);
-      if (value === true) allow.add(flag);
-      if (value === false) deny.add(flag);
-    }
-    cache.set(id, { id, type, allow, deny });
-  };
-  // As the admins set it up: @everyone nothing, the member role may see the channel.
-  set(memberRole, OverwriteType.Role, { ViewChannel: true, SendMessages: true });
-  const channel = {
-    id: '700000000000000001', name: 'wulgarny-chat', client: { user: { id: botId } },
-    permissionOverwrites: { cache, edit: async (id, change, { type }) => set(id, type, change) },
-  };
   const guild = {
-    id: '800000000000000001',
+    id: guildId,
     roles: { everyone: { id: everyoneId } },
     members: { me: { id: botId } },
-    channels: { cache: new Collection([[channel.id, channel]]) },
+    channels: { cache: new Collection() },
   };
-  channel.guild = guild;
-  const sees = (id) => cache.get(id)?.allow.has(PermissionFlagsBits.ViewChannel) ?? null;
-  const hidden = (id) => cache.get(id)?.deny.has(PermissionFlagsBits.ViewChannel) ?? false;
-  return { guild, channel, everyoneId, botId, memberRole, sees, hidden };
+  const views = {};
+  for (const id of channelIds) {
+    const cache = new Collection();
+    const set = (target, type, change) => {
+      const current = cache.get(target) ?? { id: target, type, allow: new PermissionsBitField(), deny: new PermissionsBitField() };
+      const allow = new PermissionsBitField(current.allow);
+      const deny = new PermissionsBitField(current.deny);
+      for (const [name, value] of Object.entries(change)) {
+        const flag = PermissionFlagsBits[name];
+        allow.remove(flag); deny.remove(flag);
+        if (value === true) allow.add(flag);
+        if (value === false) deny.add(flag);
+      }
+      cache.set(target, { id: target, type, allow, deny });
+    };
+    // As the admins set it up: @everyone nothing, the member role may see the channel.
+    set(memberRole, OverwriteType.Role, { ViewChannel: true, SendMessages: true });
+    const channel = {
+      id, name: `kanal-${id.slice(-2)}`, guild, client: { user: { id: botId } },
+      permissionOverwrites: { cache, edit: async (target, change, { type }) => set(target, type, change) },
+    };
+    guild.channels.cache.set(id, channel);
+    views[id] = {
+      sees: (target) => cache.get(target)?.allow.has(PermissionFlagsBits.ViewChannel) ?? null,
+      hidden: (target) => cache.get(target)?.deny.has(PermissionFlagsBits.ViewChannel) ?? false,
+    };
+  }
+  return { guild, everyoneId, botId, memberRole, views };
 }
 
-test('night channel: hidden for everyone 6-22, the admins\' setup comes back at 22', async () => {
-  const { guild, everyoneId, botId, memberRole, sees, hidden } = mockGuildWithChannel();
-  await updateAutomodConfig(guild.id, (config) => { config.nightChannel = { enabled: true, channelId: '700000000000000001', from: 22, to: 6 }; });
+const VULGAR = '700000000000000001';
+const EVENING = '700000000000000002';
 
-  assert.equal(await applyNightChannel(guild, at(23)), null, 'night: stays open');
-  assert.equal(await applyNightChannel(guild, at(6)), 'closed');
+test('night channel: hidden for everyone 6-22, the admins\' setup comes back at 22', async () => {
+  const { guild, everyoneId, botId, memberRole, views } = mockGuildWithChannels('800000000000000001', [VULGAR]);
+  const { sees, hidden } = views[VULGAR];
+  await updateAutomodConfig(guild.id, (config) => { config.nightChannels = [{ channelId: VULGAR, from: 22, to: 6 }]; });
+
+  assert.deepEqual(await applyNightChannel(guild, at(23)), {}, 'night: stays open');
+  assert.deepEqual(await applyNightChannel(guild, at(6)), { [VULGAR]: 'closed' });
   assert.ok(hidden(everyoneId) && hidden(memberRole), 'nobody sees it');
   assert.equal(sees(botId), true, 'the bot keeps access');
-  assert.equal(await applyNightChannel(guild, at(14)), null, 'already closed');
+  assert.deepEqual(await applyNightChannel(guild, at(14)), {}, 'already closed');
 
-  assert.equal(await applyNightChannel(guild, at(22)), 'opened');
+  assert.deepEqual(await applyNightChannel(guild, at(22)), { [VULGAR]: 'opened' });
   assert.equal(sees(memberRole), true, 'the member role sees it again');
   assert.equal(hidden(everyoneId), false, '@everyone back to how it was');
 
-  // Turned off during the day: opened once and left alone.
+  // Taken off the list during the day: opened once and left alone.
   await applyNightChannel(guild, at(7));
   assert.ok(hidden(memberRole));
-  await updateAutomodConfig(guild.id, (config) => { config.nightChannel.enabled = false; });
-  assert.equal(await applyNightChannel(guild, at(8)), 'opened');
+  await updateAutomodConfig(guild.id, (config) => { config.nightChannels = []; });
+  assert.deepEqual(await applyNightChannel(guild, at(8)), { [VULGAR]: 'opened' });
   assert.equal(sees(memberRole), true);
-  assert.equal(await applyNightChannel(guild, at(9)), null);
+  assert.deepEqual(await applyNightChannel(guild, at(9)), {});
+});
+
+test('several channels, each with its own hours; parallel runs remember the setup once', async () => {
+  const { guild, everyoneId, memberRole, views } = mockGuildWithChannels('800000000000000002', [VULGAR, EVENING]);
+  await updateAutomodConfig(guild.id, (config) => {
+    config.nightChannels = [{ channelId: VULGAR, from: 22, to: 6 }, { channelId: EVENING, from: 18, to: 23 }];
+  });
+
+  // The minute job and a panel save at the same moment: one closes, the other finds it closed.
+  const [first, second] = await Promise.all([applyNightChannel(guild, at(12)), applyNightChannel(guild, at(12))]);
+  assert.deepEqual(first, { [VULGAR]: 'closed', [EVENING]: 'closed' });
+  assert.deepEqual(second, {});
+
+  assert.deepEqual(await applyNightChannel(guild, at(19)), { [EVENING]: 'opened' });
+  assert.equal(views[EVENING].sees(memberRole), true);
+  assert.ok(views[VULGAR].hidden(memberRole), 'the night channel is still closed at 19');
+
+  assert.deepEqual(await applyNightChannel(guild, at(22)), { [VULGAR]: 'opened' });
+  assert.deepEqual(await applyNightChannel(guild, at(23)), { [EVENING]: 'closed' });
+  assert.equal(views[VULGAR].sees(memberRole), true);
+  assert.equal(views[VULGAR].hidden(everyoneId), false);
+  assert.ok(views[EVENING].hidden(everyoneId) && views[EVENING].hidden(memberRole));
+});
+
+test('the single night channel saved before 2026-10-17 becomes the first list entry and opens as before', async () => {
+  const { guild, memberRole, views } = mockGuildWithChannels('800000000000000003', [VULGAR]);
+  const { guildStore } = await import('../src/utils/featureKit.js');
+  // Stored by the old code while the channel was closed during the day.
+  await guildStore('automod', {}).set(guild.id, { enabled: false, nightChannel: { enabled: true, channelId: VULGAR, from: 22, to: 6 } });
+  await guildStore('night-channel', {}).set(guild.id, { channelId: VULGAR, closed: true, everyone: null, allowed: [{ id: memberRole, type: OverwriteType.Role }] });
+  await guild.channels.cache.get(VULGAR).permissionOverwrites.edit(memberRole, { ViewChannel: false }, { type: OverwriteType.Role });
+
+  const config = await getAutomodConfig(guild.id, { fresh: true });
+  assert.deepEqual(config.nightChannels, [{ channelId: VULGAR, from: 22, to: 6 }]);
+  assert.equal(config.nightChannel, undefined);
+  assert.deepEqual(await applyNightChannel(guild, at(14)), {}, 'already closed by the old code');
+  assert.deepEqual(await applyNightChannel(guild, at(22)), { [VULGAR]: 'opened' });
+  assert.equal(views[VULGAR].sees(memberRole), true, 'the role remembered by the old code sees it again');
+
+  // A turned-off old night channel is not carried over.
+  await guildStore('automod', {}).set('800000000000000004', { nightChannel: { enabled: false, channelId: VULGAR, from: 22, to: 6 } });
+  assert.deepEqual((await getAutomodConfig('800000000000000004', { fresh: true })).nightChannels, []);
+});
+
+test('closing that fails half-way keeps what was remembered and is retried', async () => {
+  const { guild, everyoneId, memberRole, views } = mockGuildWithChannels('800000000000000005', [VULGAR]);
+  const channel = guild.channels.cache.get(VULGAR);
+  const edit = channel.permissionOverwrites.edit;
+  let fail = true;
+  channel.permissionOverwrites.edit = async (target, change, options) => {
+    if (fail && target === memberRole) throw new Error('Missing Permissions');
+    return edit(target, change, options);
+  };
+  await updateAutomodConfig(guild.id, (config) => { config.nightChannels = [{ channelId: VULGAR, from: 22, to: 6 }]; });
+
+  assert.deepEqual(await applyNightChannel(guild, at(10)), {}, 'the failure is logged, not thrown');
+  assert.ok(views[VULGAR].hidden(everyoneId));
+  fail = false;
+  assert.deepEqual(await applyNightChannel(guild, at(10)), { [VULGAR]: 'closed' }, 'retried a minute later');
+  assert.ok(views[VULGAR].hidden(memberRole));
+  assert.deepEqual(await applyNightChannel(guild, at(22)), { [VULGAR]: 'opened' });
+  assert.equal(views[VULGAR].sees(memberRole), true, 'the member role was remembered before the failure');
 });
