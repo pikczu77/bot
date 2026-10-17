@@ -203,3 +203,22 @@ change you make, so the next session knows what was done and why.
     other swearing). I did not set it on the live server myself.
   - My decisions: closing denies View Channel to @everyone and every overwrite that allowed it,
     the bot keeps itself an allow; Administrators always see every channel (Discord rule).
+- **2026-10-16 ~06:20, finished 2026-10-17** (owner: "więcej haczyków i więcej kamer, żeby można
+  było kilka razy pod rząd używać fish i nagrywaj, tak samo jak work"; "jak masz dalej użycia, to po
+  użyciu jednym daj guzik pracuj ponownie"). One session wrote the code on 2026-10-16 and stopped
+  before testing; the next session added the Polish text, `test/hooks.test.js` and pushed it.
+  Live after the owner restarts the bot:
+  - Two new item chains in `src/config/shop/items.js` (field `inARow` = uses before the break):
+    hooks for `/fish` - Spare Hook 6,000 (2), Hook Set 15,000 (3), Tackle Box 35,000 (4); cameras
+    for `/nagraj` - Second Camera 8,000 (2), Camera Kit 20,000 (3), Recording Studio 45,000 (4).
+    Names and prices are mine. They appear in `/sklep`, `/ulepszenia` (Items folder), the guide
+    and the panel's shop list (the panel reads the catalog, no panel change needed).
+  - `takeUseInARow` in `src/services/economyUpgrades.js` works like the `/work` Overtime row:
+    stored `fishStreak` / `mineStreak` next to `lastFish` / `lastMine`; after the row an Energy
+    Drink skips the break. Members who used the command before rows existed count as 1 use.
+  - Button "Pracuj / Łów / Nagrywaj ponownie (N)" (`modules/again_button.js`, handler
+    `src/interactions/buttons/economy/again.js`, custom id `ponownie:<work|fish|nagraj>:<ownerId>`)
+    under `/work`, `/fish` and `/nagraj` while uses are left, or while an Energy Drink / Extra Work
+    Shift could skip the break (then the label shows how many). It replaces the message; only the
+    owner can press it, a break or jail answers privately. `/fish` and `/nagraj` now run inside
+    `withEconomyLock` (`runFish`, `runRecord`), so a double click cannot use one break twice.

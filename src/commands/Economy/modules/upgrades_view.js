@@ -8,7 +8,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../../utils/embeds.js';
 import { getEconomySettings, getShopItems, money } from '../../../services/economySettings.js';
 import { UPGRADES, describeUpgradeEffect, discountPercent, discountedPrice, getUpgradeLevel, upgradeCost } from '../../../services/economyUpgrades.js';
-import { ITEM_CHAINS, bestInChain, nextInChain } from '../../../config/shop/items.js';
+import { ITEM_CHAINS, bestInChain, nextInChain, tierEffect } from '../../../config/shop/items.js';
 import { CARDS, FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, cardsCollected, fishCollected } from '../../../services/collections.js';
 import { itemLabel } from './buy.js';
 import { t, tr } from '../../../i18n/index.js';
@@ -96,7 +96,7 @@ function itemsFolder({ guildId, userData, ownerId, funds, prices }) {
     const best = bestInChain(userData, chain.id);
     const steps = chain.items.map((item) => {
       const mark = best && chain.items.indexOf(item) <= chain.items.indexOf(best) ? '✅' : item === nextInChain(userData, chain.id) ? '➡️' : '🔒';
-      const effect = item.bonusPercent ? ` (+${item.bonusPercent}%)` : '';
+      const effect = tierEffect(item);
       const cost = mark === '✅' ? '' : ` · ${money(guildId, discountedPrice(prices.get(item.id) ?? item.price, userData))}`;
       return `${mark} ${itemLabel(item)}${effect}${cost}`;
     });
@@ -117,7 +117,7 @@ function itemsFolder({ guildId, userData, ownerId, funds, prices }) {
       .setDisabled(!forSale || funds < price);
   });
 
-  return { fields, buttons, intro: t('Items: every tool has 2 upgrades - the first gives +50%, the second +100%. The rod and the computer are needed for `/fish` and `/nagraj`.') };
+  return { fields, buttons, intro: t('Items: every tool has 2 upgrades - the first gives +50%, the second +100%. The rod and the computer are needed for `/fish` and `/nagraj`; hooks and cameras let you use them 2-4 times in a row.') };
 }
 
 /**

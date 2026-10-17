@@ -98,6 +98,72 @@ export const shopItems = [
         bonusPercent: 100,
         requires: 'pen',
     },
+    // More uses in a row before the break (2026-10-16, owner: "więcej haczyków i więcej kamer, żeby
+    // można było kilka razy pod rząd używać fish i nagrywaj, tak samo jak work"). `inARow` = uses.
+    {
+        id: 'spare_hook',
+        emoji: '🪝',
+        name: t('Spare Hook'),
+        price: 6000,
+        description: t('`/fish` 2 times in a row before the break.'),
+        type: 'tool',
+        chain: 'hooks',
+        inARow: 2,
+    },
+    {
+        id: 'hook_set',
+        emoji: '🪝',
+        name: t('Hook Set'),
+        price: 15000,
+        description: t('`/fish` 3 times in a row before the break.'),
+        type: 'tool',
+        chain: 'hooks',
+        inARow: 3,
+        requires: 'spare_hook',
+    },
+    {
+        id: 'tackle_box',
+        emoji: '🧰',
+        name: t('Tackle Box'),
+        price: 35000,
+        description: t('`/fish` 4 times in a row before the break.'),
+        type: 'tool',
+        chain: 'hooks',
+        inARow: 4,
+        requires: 'hook_set',
+    },
+    {
+        id: 'second_camera',
+        emoji: '📷',
+        name: t('Second Camera'),
+        price: 8000,
+        description: t('`/nagraj` 2 times in a row before the break.'),
+        type: 'tool',
+        chain: 'cameras',
+        inARow: 2,
+    },
+    {
+        id: 'camera_kit',
+        emoji: '🎥',
+        name: t('Camera Kit'),
+        price: 20000,
+        description: t('`/nagraj` 3 times in a row before the break.'),
+        type: 'tool',
+        chain: 'cameras',
+        inARow: 3,
+        requires: 'second_camera',
+    },
+    {
+        id: 'studio',
+        emoji: '🎬',
+        name: t('Recording Studio'),
+        price: 45000,
+        description: t('`/nagraj` 4 times in a row before the break.'),
+        type: 'tool',
+        chain: 'cameras',
+        inARow: 4,
+        requires: 'camera_kit',
+    },
     // Retired on 2026-10-15 (owner: what members bought stays with them). Not sold any more;
     // a member who owns one counts as owning `sameAs` (getShopCatalog skips retired items).
     {
@@ -305,6 +371,8 @@ export const ITEM_CHAINS = [
     { id: 'fish', emoji: '🎣', name: t('Fishing rod'), command: 'fish' },
     { id: 'mine', emoji: '🖥️', name: t('YouTube setup'), command: 'mine' },
     { id: 'work', emoji: '🤵', name: t('Office outfit'), command: 'work' },
+    { id: 'hooks', emoji: '🪝', name: t('Hooks'), command: 'fish' },
+    { id: 'cameras', emoji: '📷', name: t('Cameras'), command: 'mine' },
     { id: 'luck', emoji: '🍀', name: t('Clover'), command: null },
 ].map((chain) => ({ ...chain, items: shopItems.filter((item) => item.chain === chain.id) }));
 
@@ -356,6 +424,12 @@ export function bestInChain(userData, chainId) {
     }
     return null;
 }
+
+/** Uses in a row before the break that the member's hooks/cameras give (1 without any). */
+export const usesInARow = (userData, chainId) => bestInChain(userData, chainId)?.inARow ?? 1;
+
+/** "(+50%)" or "(3× in a row)" after an item tier's name; '' for the base tier. */
+export const tierEffect = (item) => (item.bonusPercent ? ` (+${item.bonusPercent}%)` : item.inARow ? t` (${item.inARow}× in a row)` : '');
 
 /** Percent the member's best tool adds to `chainId` (0 without one). */
 export const chainBonusPercent = (userData, chainId) => bestInChain(userData, chainId)?.bonusPercent ?? 0;

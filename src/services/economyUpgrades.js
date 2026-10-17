@@ -81,6 +81,29 @@ export const interestPercent = (userData) => getUpgradeLevel(userData, 'interest
 export const robSuccessBonus = (userData) => getUpgradeLevel(userData, 'thief') * 5;
 /** Break of an earning command or casino game after the Stamina upgrade (-5% a level, -50% at 10). */
 export const staminaCooldown = (userData, ms) => Math.round(ms * (1 - getUpgradeLevel(userData, 'stamina') * STAMINA_PER_LEVEL / 100));
+/**
+ * Take one use of /fish or /nagraj: `allowed` uses fit in a row (hooks, cameras), then the break.
+ * With the row used up, one `skipItem` (Energy Drink) skips the break. Mutates `userData`.
+ * @returns {{ blocked: true, remaining: number } | { blocked: false, usedItem: boolean, inARowLeft: number, nextAt: number|null }}
+ */
+export function takeUseInARow(userData, { lastKey, streakKey, cooldown, allowed, skipItem, now = Date.now() }) {
+  const last = userData[lastKey] || 0;
+  // Uses since the last full break; members who used it before rows existed count as 1.
+  let streak = now >= last + cooldown ? 0 : (Number.isInteger(userData[streakKey]) ? userData[streakKey] : 1);
+  let usedItem = false;
+  if (streak >= allowed) {
+    if ((userData.inventory?.[skipItem] || 0) <= 0) return { blocked: true, remaining: last + cooldown - now };
+    userData.inventory = { ...userData.inventory, [skipItem]: userData.inventory[skipItem] - 1 };
+    usedItem = true;
+  } else {
+    streak += 1;
+  }
+  userData[lastKey] = now;
+  userData[streakKey] = streak;
+  const inARowLeft = Math.max(0, allowed - streak);
+  return { blocked: false, usedItem, inARowLeft, nextAt: inARowLeft > 0 ? null : now + cooldown };
+}
+
 /** How many `/work` shifts fit in a row before the break: 1, or up to 5 with Overtime. */
 export const workShiftsInARow = (userData) => 1 + getUpgradeLevel(userData, 'overtime');
 

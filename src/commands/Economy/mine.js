@@ -5,10 +5,11 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t, tr } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
-import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
+import { earningMultiplier, staminaCooldown, takeUseInARow, upgradeBonusLine, withEconomyLock } from '../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../services/economyJail.js';
 import { itemLabel, requireTool } from './modules/buy.js';
-import { bestInChain, takeConsumable } from '../../config/shop/items.js';
+import { bestInChain, takeConsumable, usesInARow } from '../../config/shop/items.js';
+import { againComponents } from './modules/again_button.js';
 
 // /nagraj — the YouTuber job (was /mine until 2026-10-15; the internal id stays "mine":
 // settings.commands.mine, lastMine, the "mine" upgrade and item chain, so nothing was lost).
@@ -16,6 +17,8 @@ import { bestInChain, takeConsumable } from '../../config/shop/items.js';
 // Like /fish, every video gets a rarity. The rarity sets the views and multiplies the
 // base pay (a random amount between the server's min and max): common pays little,
 // legendary a lot. Average over many videos ≈ the base pay.
+// Cameras (second camera, camera kit, studio) give 2-4 videos in a row before the break; while
+// some are left the result has a "Record again" button (modules/again_button.js).
 
 export const VIDEO_RARITIES = [
     { id: 'common', label: t('Common'), chance: 0.50, multiplier: 0.4, views: [50, 2_000], color: '#95A5A6' },
@@ -76,25 +79,28 @@ export default {
     execute: withErrorHandling(async (interaction, config, client) => {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
+        await InteractionHelper.safeEditReply(interaction, await runRecord({ client, guild: interaction.guild, user: interaction.user }));
+    }, { command: 'nagraj' })
+};
 
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
+/** One /nagraj for `user`. Returns the reply payload; throws a user error on a break or in jail. */
+export function runRecord({ client, guild, user }) {
+    return withEconomyLock(guild.id, user.id, async () => {
+            const userId = user.id;
+            const guildId = guild.id;
             const now = Date.now();
 
             const settings = await getEconomySettings(guildId);
             const { mine } = settings.commands;
             const userData = await getEconomyData(client, guildId, userId);
             const COOLDOWN = staminaCooldown(userData, cooldownMs(mine.cooldownMinutes));
-            const lastVideo = userData.lastMine || 0;
             assertNotJailed(userData, now, { settings, guildId });
-            await requireTool({ guild: interaction.guild, userData, toolIds: ['pc', 'internet', 'fiber_internet'], action: 'mine' });
+            await requireTool({ guild, userData, toolIds: ['pc', 'internet', 'fiber_internet'], action: 'mine' });
 
-            let usedEnergyDrink = false;
-            if (now < lastVideo + COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
-                userData.inventory["energy_drink"] -= 1;
-                usedEnergyDrink = true;
-            } else if (now < lastVideo + COOLDOWN) {
-                const remaining = lastVideo + COOLDOWN - now;
+            const use = takeUseInARow(userData, { lastKey: 'lastMine', streakKey: 'mineStreak', cooldown: COOLDOWN, allowed: usesInARow(userData, 'cameras'), skipItem: 'energy_drink', now });
+            const usedEnergyDrink = !use.blocked && use.usedItem;
+            if (use.blocked) {
+                const remaining = use.remaining;
                 throw createError(
                     "Recording cooldown active",
                     ErrorTypes.RATE_LIMIT,
@@ -127,7 +133,6 @@ export default {
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             userData.wallet += finalEarned;
-            userData.lastMine = now;
 
             await setEconomyData(client, guildId, userId, userData);
 
@@ -140,8 +145,10 @@ export default {
                     { name: t("New Cash Balance"), value: `${money(guildId, userData.wallet)}`, inline: true },
                     { name: t("Video"), value: tr(rarity.label), inline: true },
                 )
-                .setFooter({ text: t`Next video in ${formatDuration(COOLDOWN)}.` });
+                .setFooter({ text: use.inARowLeft > 0
+                    ? t`${use.inARowLeft} more in a row now, then a break of ${formatDuration(COOLDOWN)}.`
+                    : t`Next video in ${formatDuration(COOLDOWN)}.` });
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-    }, { command: 'nagraj' })
-};
+            return { embeds: [embed], components: againComponents('nagraj', userId, use.inARowLeft, userData) };
+    });
+}

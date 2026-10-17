@@ -25,7 +25,7 @@ import { bailPrice } from '../../../services/economyJail.js';
 import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../../services/casino.js';
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
 import { getLevelingConfig } from '../../../services/leveling/leveling.js';
-import { ITEM_CHAINS, getItemById } from '../../../config/shop/items.js';
+import { ITEM_CHAINS, getItemById, tierEffect } from '../../../config/shop/items.js';
 import { itemLabel } from './buy.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -162,7 +162,7 @@ function shop({ guildId, settings, guild }) {
   const tiers = ITEM_CHAINS.map((chain) => field(
     `${chain.emoji} ${tr(chain.name)}`,
     chain.items.filter((item) => prices.has(item.id))
-      .map((item) => `${itemLabel(item)}\n**${money(guildId, prices.get(item.id))}**${item.bonusPercent ? ` · +${item.bonusPercent}%` : ''}`)
+      .map((item) => `${itemLabel(item)}\n**${money(guildId, prices.get(item.id))}**${tierEffect(item).replace(/^ \((.*)\)$/, ' · $1')}`)
       .join('\n') || t('not for sale'),
   ));
   const consumables = items.filter((item) => item.type === 'consumable')

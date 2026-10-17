@@ -1,0 +1,23 @@
+{
+  "{0} more in a row now, then a break of {1}.": "Jeszcze {0} pod rząd, potem przerwa {1}.",
+  "Work again": "Pracuj ponownie",
+  "Fish again": "Łów ponownie",
+  "Record again": "Nagrywaj ponownie",
+  "Items: every tool has 2 upgrades - the first gives +50%, the second +100%. The rod and the computer are needed for `/fish` and `/nagraj`; hooks and cameras let you use them 2-4 times in a row.": "Przedmioty: każde narzędzie ma 2 ulepszenia - pierwsze daje +50%, drugie +100%. Wędka i komputer są potrzebne do `/fish` i `/nagraj`; haczyki i kamery pozwalają używać ich 2-4 razy pod rząd.",
+  "Spare Hook": "Zapasowy haczyk",
+  "`/fish` 2 times in a row before the break.": "`/fish` 2 razy pod rząd przed przerwą.",
+  "Hook Set": "Zestaw haczyków",
+  "`/fish` 3 times in a row before the break.": "`/fish` 3 razy pod rząd przed przerwą.",
+  "Tackle Box": "Skrzynka wędkarska",
+  "`/fish` 4 times in a row before the break.": "`/fish` 4 razy pod rząd przed przerwą.",
+  "Second Camera": "Druga kamera",
+  "`/nagraj` 2 times in a row before the break.": "`/nagraj` 2 razy pod rząd przed przerwą.",
+  "Camera Kit": "Zestaw kamer",
+  "`/nagraj` 3 times in a row before the break.": "`/nagraj` 3 razy pod rząd przed przerwą.",
+  "Recording Studio": "Studio nagraniowe",
+  "`/nagraj` 4 times in a row before the break.": "`/nagraj` 4 razy pod rząd przed przerwą.",
+  "Hooks": "Haczyki",
+  "Cameras": "Kamery",
+  " ({0}× in a row)": " ({0}× pod rząd)",
+  "This button is for someone else. Use the command yourself.": "Ten przycisk jest dla kogoś innego. Użyj komendy sam."
+}

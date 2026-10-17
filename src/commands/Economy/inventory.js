@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embeds.js';
-import { bestInChain, getItemById, shopItems } from '../../config/shop/items.js';
+import { bestInChain, getItemById, shopItems, tierEffect } from '../../config/shop/items.js';
 import { JOB_SHIFTS, activeJob } from '../../services/economyJobs.js';
 import { getEconomyData } from '../../utils/economy.js';
 import { getEconomySettings } from '../../services/economySettings.js';
@@ -30,7 +30,7 @@ export default {
             .filter((item) => (inventory[item.id] || 0) > 0)
             .filter((item) => !item.chain || bestInChain(userData, item.chain)?.id === item.id)
             .map((item) => (item.type === 'tool' && !item.stackable
-                ? `**${itemLabel(item)}**${item.bonusPercent ? ` · +${item.bonusPercent}%` : ''}${countsAs(item)}`
+                ? `**${itemLabel(item)}**${tierEffect(item).replace(/^ \((.*)\)$/, ' · $1')}${countsAs(item)}`
                 : `**${itemLabel(item)}:** ${inventory[item.id]}x${countsAs(item)}`));
         const job = activeJob(userData);
 

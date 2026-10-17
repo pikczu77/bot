@@ -12,6 +12,7 @@ import { JOBS, JOB_SHIFTS, activeJob, ensureOffers, getServerLevel, randomPay, t
 import { assertNotJailed } from '../../../services/economyJail.js';
 import { bestInChain } from '../../../config/shop/items.js';
 import { itemLabel } from './buy.js';
+import { againComponents } from './again_button.js';
 import { t, tr } from '../../../i18n/index.js';
 
 /** What one shift pays on top of the job's base pay: best work tool × Career. scaleEarnings adds the server multiplier and Fortune. */
@@ -117,7 +118,7 @@ function shiftView({ guildId, userData, user, job, result, notice = '' }) {
             { name: t("Next Work"), value: nextWork, inline: true },
             { name: t('Contract'), value: result.ended ? t('finished') : t`${job.emoji} ${result.shiftsLeft}/${JOB_SHIFTS} shifts left`, inline: true },
         ).setFooter({ text: t`Requested by ${user.tag ?? user.username}`, iconURL: user.displayAvatarURL?.() })],
-        components: [],
+        components: againComponents('work', user.id, result.inARowLeft, userData),
     };
 }
 

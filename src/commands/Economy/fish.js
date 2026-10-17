@@ -5,16 +5,19 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t, tr } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
-import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
+import { earningMultiplier, staminaCooldown, takeUseInARow, upgradeBonusLine, withEconomyLock } from '../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../services/economyJail.js';
 import { FISH_PAY_MULTIPLIERS, addTo, hasAny, indexKey, rarityOf, rollFish } from '../../services/collections.js';
 import { itemLabel, requireTool } from './modules/buy.js';
-import { bestInChain } from '../../config/shop/items.js';
+import { bestInChain, usesInARow } from '../../config/shop/items.js';
+import { againComponents } from './modules/again_button.js';
 
 // A Fishing Rod (or a better rod) is needed to fish; the Carbon Rod adds +50%, the Golden Rod +100%.
 // Since 2026-10-15 the fish decides the pay (services/collections.js): its rarity multiplies a
 // base between the server's min and max (common x0.4 ... legendary x8, ≈ x1 on average), a golden
 // fish pays x1.2 and a diamond one x1.6. Every catch is recorded in /index.
+// Hooks (spare hook, hook set, tackle box) give 2-4 catches in a row before the break; while some
+// are left the result has a "Fish again" button (modules/again_button.js).
 
 const CATCH_MESSAGES = [
     t("You cast your line into the crystal clear waters..."),
@@ -32,25 +35,28 @@ export default {
     execute: withErrorHandling(async (interaction, config, client) => {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
+        await InteractionHelper.safeEditReply(interaction, await runFish({ client, guild: interaction.guild, user: interaction.user }));
+    }, { command: 'fish' })
+};
 
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
+/** One /fish for `user`. Returns the reply payload; throws a user error on a break or in jail. */
+export function runFish({ client, guild, user }) {
+    return withEconomyLock(guild.id, user.id, async () => {
+            const userId = user.id;
+            const guildId = guild.id;
             const now = Date.now();
 
             const settings = await getEconomySettings(guildId);
             const { fish } = settings.commands;
             const userData = await getEconomyData(client, guildId, userId);
             const FISH_COOLDOWN = staminaCooldown(userData, cooldownMs(fish.cooldownMinutes));
-            const lastFish = userData.lastFish || 0;
             assertNotJailed(userData, now, { settings, guildId });
-            await requireTool({ guild: interaction.guild, userData, toolIds: ['fishing_rod', 'carbon_rod', 'golden_rod'], action: 'fish' });
+            await requireTool({ guild, userData, toolIds: ['fishing_rod', 'carbon_rod', 'golden_rod'], action: 'fish' });
 
-            let usedEnergyDrink = false;
-            if (now < lastFish + FISH_COOLDOWN && (userData.inventory["energy_drink"] || 0) > 0) {
-                userData.inventory["energy_drink"] -= 1;
-                usedEnergyDrink = true;
-            } else if (now < lastFish + FISH_COOLDOWN) {
-                const remaining = lastFish + FISH_COOLDOWN - now;
+            const use = takeUseInARow(userData, { lastKey: 'lastFish', streakKey: 'fishStreak', cooldown: FISH_COOLDOWN, allowed: usesInARow(userData, 'hooks'), skipItem: 'energy_drink', now });
+            const usedEnergyDrink = !use.blocked && use.usedItem;
+            if (use.blocked) {
+                const remaining = use.remaining;
                 const hours = Math.floor(remaining / (1000 * 60 * 60));
                 const minutes = Math.floor(
                     (remaining % (1000 * 60 * 60)) / (1000 * 60),
@@ -93,7 +99,6 @@ export default {
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
 
             userData.wallet += finalEarned;
-            userData.lastFish = now;
             userData.fishIndex = addTo(userData.fishIndex, indexKey(caught.id, variant));
 
             await setEconomyData(client, guildId, userId, userData);
@@ -115,8 +120,10 @@ export default {
                         inline: true,
                     }
                 )
-                .setFooter({ text: t`Next fishing trip available in ${formatDuration(FISH_COOLDOWN)}.` });
+                .setFooter({ text: use.inARowLeft > 0
+                    ? t`${use.inARowLeft} more in a row now, then a break of ${formatDuration(FISH_COOLDOWN)}.`
+                    : t`Next fishing trip available in ${formatDuration(FISH_COOLDOWN)}.` });
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-    }, { command: 'fish' })
-};
+            return { embeds: [embed], components: againComponents('fish', userId, use.inARowLeft, userData) };
+    });
+}
