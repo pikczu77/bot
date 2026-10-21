@@ -92,6 +92,19 @@ change you make, so the next session knows what was done and why.
   (`src/services/features.js`), also run after a panel save. Remembers who could see each channel
   before closing (store `night-channel`, `{ channels: { [id]: state } }`) and restores it.
 
+## Minecraft whitelist map
+- `src/services/minecraftWhitelist.js`: Pterodactyl client API (default panel `https://ptero.mathost.eu`,
+  the owner's paid MatHost server), channel handler `handleWhitelistMessage` (called from
+  `src/events/featureMessages.js` after automod), `releaseMemberOnLeave` (from `guildMemberRemove.js`).
+  Store `guild:{id}:minecraft-whitelist`: `enabled, channelId, roleId, removeOnLeave, panelUrl,
+  serverId, apiKey, members: { [userId]: { name, at } }`.
+- Commands: `/minecraft whitelista ustaw|dodaj|usun|lista|wylacz` in
+  `src/commands/Minecraft/modules/whitelist.js`; the `ustaw` form is modal `whitelista:ustaw:<channel>:<role|->:<1|0>`
+  (`src/interactions/modals/minecraft/whitelist.js`).
+- The API key is secret: it is typed only into the private form, never returned by any reply, panel
+  endpoint or log, and a saved key is never sent to a different panel address. `wylacz` deletes it.
+- Tests: `test/minecraft-whitelist.test.js` (fake panel and fake Mojang API through `globalThis.fetch`).
+
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
   - Luck model changed from a relative multiplier to percentage points (owner's request).
@@ -234,3 +247,20 @@ change you make, so the next session knows what was done and why.
     one run per guild at a time; voice channels allowed; same from/to rejected.
   - Not done: the channel itself is not set on the live server (the panel key on disk did not
     match the host). The owner picks it in the panel; disappear hour default 6:00 (my guess).
+- **2026-10-21** (owner, Discord message: "dodaj drugi serwer pod bota, to ma być bot połączony z
+  serwerem minecraft ... automatycznie dodawał na whiteliste nicki które napisze się na danym kanale";
+  answers: the same bot on a second Discord server, the Minecraft server is a paid MatHost server, Java).
+  Live after the owner restarts the bot:
+  - No new top-level command: `/minecraft whitelista` group (see "Minecraft whitelist map").
+    The bot is already multi-server; the second Discord server only needs the bot invited.
+  - MatHost runs Pterodactyl (`ptero.mathost.eu`, found through their `MatHost-Node` npm module),
+    so the bot uses the panel client API instead of RCON: console command `whitelist add` when the
+    server runs (then reads `whitelist.json` back to confirm), direct edit of `whitelist.json` when
+    it is stopped (UUID from Mojang, or the offline UUID when `online-mode=false`).
+  - My decisions: one nick per member (a new one replaces the old one), a nick held by someone else
+    is refused, 10 s pause per member, answers in the channel disappear after 20 s (the ✅/❌
+    reaction stays), nick removed when the member leaves (on by default, option
+    `usun_po_wyjsciu`), optional role for whitelisted members, the guide message is posted when
+    `ustaw` is saved.
+  - Not done: the web panel (pikczu.pl/bot) still serves only Klubik Pikcza (`SERWER` in
+    `pikczu/tools/serwer/bot.js`), so the second server is configured with commands only.

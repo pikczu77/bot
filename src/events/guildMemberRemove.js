@@ -8,6 +8,7 @@ import { deleteUserLevelData, getLevelingConfig } from '../services/leveling/lev
 import { getEconomySettings } from '../services/economySettings.js';
 import { getEconomyKey } from '../utils/database.js';
 import { endMarriageOnLeave } from '../services/marriageService.js';
+import { releaseMemberOnLeave } from '../services/minecraftWhitelist.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n/index.js';
 
@@ -18,7 +19,10 @@ export default {
   async execute(member) {
     try {
         const { guild, user } = member;
-        
+        // Not awaited: it talks to the Minecraft panel and must not wait behind (or be
+        // skipped by) the goodbye message below. It logs its own failures.
+        releaseMemberOnLeave(guild, user.id);
+
         const welcomeConfig = await getWelcomeConfig(member.client, guild.id);
         
         const goodbyeChannelId = welcomeConfig?.goodbyeChannelId;

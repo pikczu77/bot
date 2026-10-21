@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { getCommandPrefix } from '../config/bot.js';
 import { runAutomod } from '../services/automodService.js';
+import { handleWhitelistMessage } from '../services/minecraftWhitelist.js';
 import { bumpSticky, handleTagMessage } from '../services/tagService.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
 import { logger } from '../utils/logger.js';
@@ -20,6 +21,8 @@ export default {
 
     try {
       if (await runAutomod(message)) return;
+      // The Minecraft nick channel answers every message itself.
+      if (await handleWhitelistMessage(message)) return;
 
       const guildConfig = await getGuildConfig(client, message.guild.id);
       await handleTagMessage(message, guildConfig?.prefix || getCommandPrefix());

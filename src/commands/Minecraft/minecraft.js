@@ -11,10 +11,11 @@ import {
     trackServer,
     untrackServer,
 } from '../../services/minecraftService.js';
+import { addWhitelistGroup, autocompleteWhitelist, runWhitelist } from './modules/whitelist.js';
 import { t } from '../../i18n/index.js';
 
 export default {
-    data: new SlashCommandBuilder()
+    data: addWhitelistGroup(new SlashCommandBuilder()
         .setName('minecraft')
         .setDescription('Minecraft server status and live status card')
         .addSubcommand((sub) =>
@@ -43,10 +44,11 @@ export default {
                 .setDescription('Stop tracking a server (admin)')
                 .addStringOption((option) => option.setName('address').setDescription('Tracked server').setRequired(true).setAutocomplete(true)),
         )
-        .addSubcommand((sub) => sub.setName('list').setDescription('Show tracked servers')),
+        .addSubcommand((sub) => sub.setName('list').setDescription('Show tracked servers'))),
     slashOnly: true,
 
     async autocomplete(interaction) {
+        if (interaction.options.getSubcommandGroup(false) === 'whitelista') return autocompleteWhitelist(interaction);
         const servers = await getMinecraftServers(interaction.guildId);
         const typed = interaction.options.getFocused().toLowerCase();
         await interaction.respond(
@@ -59,6 +61,7 @@ export default {
 
     async execute(interaction) {
         const guild = requireGuild(interaction);
+        if (interaction.options.getSubcommandGroup(false) === 'whitelista') return runWhitelist(interaction);
         const subcommand = interaction.options.getSubcommand();
         const servers = await getMinecraftServers(guild.id);
 
