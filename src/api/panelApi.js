@@ -1,8 +1,8 @@
 // panelApi.js — HTTP API for a web panel (pikczu.pl/bot) to read and change
 // module settings: language, welcome, auto-roles, automod, server logs, invites, YouTube,
 // economy (settings, shop, balances), leveling (settings, rewards, member levels),
-// tickets (panel and its look, staff, categories) and temporary voice channels (join to create,
-// message with the control buttons).
+// tickets (panel and its look, staff, categories), temporary voice channels (join to create,
+// message with the control buttons) and the Minecraft whitelist channel (never its panel key).
 //
 // Disabled unless PANEL_API_KEY is set. Every request must send
 //   Authorization: Bearer <PANEL_API_KEY>
@@ -73,6 +73,16 @@ import { applyNightChannel } from '../services/nightChannel.js';
 import { EVENT_TYPES, getIgnoreList } from '../services/loggingService.js';
 import { cacheGuildInvites, getInviteConfig, updateInviteConfig } from '../services/inviteService.js';
 import { addFeed, fetchVideos, getFeeds, removeFeed, resolveChannel, sendTestNotification, updateFeed } from '../services/notifications/youtube.js';
+import {
+  PanelError,
+  channelGuideEmbed,
+  checkPanel,
+  getWhitelistConfig,
+  normalizePanelUrl,
+  normalizeServerId,
+  panelErrorText,
+  updateWhitelistSettings,
+} from '../services/minecraftWhitelist.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -930,6 +940,103 @@ async function listLevelAccounts(client, guild) {
   return accounts;
 }
 
+// Minecraft whitelist channel (src/services/minecraftWhitelist.js). The panel API key is secret: it is typed
+// only into the private Discord form (/minecraft whitelista ustaw), so the view says only whether one is saved.
+const WHITELIST_CHANNEL_PERMISSIONS = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.SendMessages,
+  PermissionFlagsBits.EmbedLinks,
+  PermissionFlagsBits.AddReactions,
+  PermissionFlagsBits.ReadMessageHistory,
+];
+
+function minecraftView(client, guild, config) {
+  const members = {};
+  for (const [userId, entry] of Object.entries(config.members ?? {})) {
+    members[userId] = { name: entry.name, at: entry.at ?? null, user: userName(client, guild, userId) };
+  }
+  return {
+    enabled: Boolean(config.enabled),
+    channelId: config.channelId ?? null,
+    roleId: config.roleId ?? null,
+    removeOnLeave: config.removeOnLeave !== false,
+    panelUrl: config.panelUrl,
+    serverId: config.serverId ?? null,
+    hasKey: Boolean(config.apiKey),
+    members,
+  };
+}
+
+// The bot reads nicks, reacts and answers on this channel.
+function requireWhitelistChannel(guild, channelId, field) {
+  const channel = guild.channels.cache.get(channelId);
+  const permissions = guild.members.me ? channel.permissionsFor(guild.members.me) : null;
+  if (!permissions?.has(WHITELIST_CHANNEL_PERMISSIONS)) {
+    throw new ApiError(400, `${field}: the bot needs to see the channel, send messages with embeds, add reactions and read the history there`);
+  }
+}
+
+// Role given to whitelisted members: the bot must be able to give it.
+function requireWhitelistRole(guild, roleId) {
+  const id = requireRole(guild, roleId, 'roleId');
+  if (!id) return null;
+  const role = guild.roles.cache.get(id);
+  const highest = guild.members.me?.roles?.highest?.position;
+  if (role.editable === false || (typeof highest === 'number' && role.position >= highest)) {
+    throw new ApiError(400, 'roleId: this role is above the bot\'s highest role');
+  }
+  return id;
+}
+
+async function applyMinecraft(client, guild, body) {
+  if ('apiKey' in body) throw new ApiError(400, 'apiKey: the panel key is typed only in /minecraft whitelista ustaw on Discord');
+  const current = await getWhitelistConfig(guild.id);
+  const updates = {};
+  if ('enabled' in body) updates.enabled = boolean(body.enabled, 'enabled');
+  if ('removeOnLeave' in body) updates.removeOnLeave = boolean(body.removeOnLeave, 'removeOnLeave');
+  if ('channelId' in body) updates.channelId = requireTextChannel(guild, body.channelId, 'channelId');
+  if ('roleId' in body) updates.roleId = requireWhitelistRole(guild, body.roleId);
+  if ('panelUrl' in body) updates.panelUrl = normalizePanelUrl(body.panelUrl);
+  if ('serverId' in body) updates.serverId = normalizeServerId(body.serverId);
+
+  const next = { ...current, ...updates };
+  // A saved key only ever goes back to the panel it was typed for.
+  if (current.apiKey && next.panelUrl !== current.panelUrl) {
+    throw new ApiError(400, 'panelUrl: the saved API key is never sent to another panel; change the address with /minecraft whitelista ustaw and type the key again');
+  }
+  if (next.enabled && !current.apiKey) throw new ApiError(400, 'enabled: connect the server panel first with /minecraft whitelista ustaw on Discord');
+  if (next.enabled && !next.channelId) throw new ApiError(400, 'channelId: choose the channel for nicks before turning the whitelist on');
+
+  // The guide goes to a new nick channel, or again on request ("postGuide").
+  const moved = 'channelId' in updates && updates.channelId !== (current.channelId ?? null);
+  const postGuide = body.postGuide === true;
+  if (postGuide && !next.channelId) throw new ApiError(400, 'channelId: choose the channel for nicks first');
+  if (next.channelId && (moved || postGuide)) requireWhitelistChannel(guild, next.channelId, 'channelId');
+
+  // Another server on the same panel: the saved key must open it before it is stored.
+  if (current.apiKey && next.serverId !== current.serverId) {
+    try {
+      await checkPanel({ panelUrl: next.panelUrl, serverId: next.serverId, apiKey: current.apiKey });
+    } catch (error) {
+      if (error instanceof PanelError) throw new ApiError(400, `serverId: ${panelErrorText(error)}`);
+      throw error;
+    }
+  }
+
+  const saved = await updateWhitelistSettings(guild.id, (data) => {
+    Object.assign(data, updates);
+  });
+  let guidePosted;
+  if (saved.channelId && ((moved && saved.enabled) || postGuide)) {
+    guidePosted = await guild.channels.cache.get(saved.channelId).send({ embeds: [channelGuideEmbed()] })
+      .then(() => true, (error) => {
+        logger.warn(`Panel: Minecraft whitelist guide not posted in guild ${guild.id}: ${error.message}`);
+        return false;
+      });
+  }
+  return { ...minecraftView(client, guild, saved), ...(guidePosted === undefined ? {} : { guidePosted }) };
+}
+
 /**
  * Build the panel router, or null when the API is switched off.
  */
@@ -1006,6 +1113,7 @@ export function createPanelRouter(client) {
       tempvoice: tempVoiceView(await getJoinToCreateConfig(client, guild.id), guild),
       selfroles: selfRolesView(await getSelfRolePanels(guild.id), guild),
       logging: loggingView(await getGuildConfig(client, guild.id)),
+      minecraft: minecraftView(client, guild, await getWhitelistConfig(guild.id)),
     },
   })));
 
@@ -1038,6 +1146,11 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/automod', route(({ guild, body }) => applyAutomod(guild, body)));
 
   router.patch('/guilds/:guildId/logging', route(({ guild, body }) => applyLogging(client, guild, body)));
+
+  // Minecraft whitelist channel: settings and who holds which nick. The panel key is never read or written here.
+  router.get('/guilds/:guildId/minecraft', route(async ({ guild }) => minecraftView(client, guild, await getWhitelistConfig(guild.id))));
+
+  router.patch('/guilds/:guildId/minecraft', route(({ guild, body }) => applyMinecraft(client, guild, body)));
 
   router.patch('/guilds/:guildId/invites', route(async ({ guild, body }) => {
     const config = await updateInviteConfig(guild.id, (data) => {

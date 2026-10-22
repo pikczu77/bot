@@ -103,7 +103,15 @@ change you make, so the next session knows what was done and why.
   (`src/interactions/modals/minecraft/whitelist.js`).
 - The API key is secret: it is typed only into the private form, never returned by any reply, panel
   endpoint or log, and a saved key is never sent to a different panel address. `wylacz` deletes it.
-- Tests: `test/minecraft-whitelist.test.js` (fake panel and fake Mojang API through `globalThis.fetch`).
+- Web panel (pikczu.pl/bot, module "Minecraft"): `GET` / `PATCH /api/v1/guilds/:guildId/minecraft` in
+  `src/api/panelApi.js` (`minecraftView`, `applyMinecraft`), also `modules.minecraft` in `GET /guilds/:guildId`.
+  The view has `hasKey` instead of the key; `members[userId] = { name, at, user }` (`user` = Discord name).
+  PATCH takes `enabled, channelId, roleId, removeOnLeave, panelUrl, serverId, postGuide`; `apiKey` in the body
+  is refused (400). A different `panelUrl` is refused while a key is saved; a new `serverId` is first opened
+  with the saved key (same panel). A new channel (while on) or `postGuide: true` posts the guide message.
+  Saves go through `updateWhitelistSettings` (same lock as the member changes).
+- Tests: `test/minecraft-whitelist.test.js` (fake panel and fake Mojang API through `globalThis.fetch`),
+  `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel).
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -270,3 +278,15 @@ change you make, so the next session knows what was done and why.
   checked per server on the site side (details in `pikczu/README.md`, "WYBOR SERWERA W PANELU").
   Still no panel view for the Minecraft whitelist: `panelApi.js` has no endpoint for it, and one
   must never return `apiKey`.
+- **2026-10-22 afternoon** (task from the session that built the server picker: a "Minecraft" module in
+  pikczu.pl/bot so the owner sees and changes the whitelist settings of the second Discord server without
+  slash commands). Live after the owner restarts the bot; the page side is in the site project
+  (`pikczu/CLAUDE.md`, 2026-10-22 "Minecraft" entry). Until the restart the panel says the bot lacks the module:
+  - New `GET` / `PATCH /api/v1/guilds/:guildId/minecraft` and `modules.minecraft` in the guild overview
+    (details in "Minecraft whitelist map"). No new command, no new translation.
+  - The panel key stays Discord-only: the view says `hasKey`, PATCH refuses `apiKey`, and a different panel
+    address is refused while a key is saved (the owner changes the address with `/minecraft whitelista ustaw`).
+  - My decisions: turning the whitelist on needs a saved key and a channel; a new server ID is checked with
+    the saved key before it is stored; the guide message is posted for a new channel (while on) or on the
+    panel's "send the guide again" button; turning it off from the panel keeps the key (only `wylacz` deletes
+    it); the panel shows who holds which nick but cannot add or remove nicks (still `/minecraft whitelista`).

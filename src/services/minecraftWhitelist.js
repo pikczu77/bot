@@ -271,6 +271,9 @@ export async function countWhitelist(panel) {
 
 const lockKey = (guildId) => `minecraft-whitelist:${guildId}`;
 
+/** Settings change from the web panel, under the same lock as the member changes below. */
+export const updateWhitelistSettings = (guildId, mutate) => Mutex.runExclusive(lockKey(guildId), () => store.update(guildId, mutate));
+
 /** Discord user id that holds a nick on this server, or null. */
 export function nickOwner(config, nick) {
   const lower = nick.toLowerCase();
