@@ -264,3 +264,9 @@ change you make, so the next session knows what was done and why.
     `ustaw` is saved.
   - Not done: the web panel (pikczu.pl/bot) still serves only Klubik Pikcza (`SERWER` in
     `pikczu/tools/serwer/bot.js`), so the second server is configured with commands only.
+- **2026-10-22** (site only, no bot code changed; live on pikczu.pl): the web panel now has a
+  server picker. The site asks for the bot's servers and sends `serwer` with every request, so the
+  existing `/api/v1/guilds/:guildId/...` routes serve the second Discord server too. Access is
+  checked per server on the site side (details in `pikczu/README.md`, "WYBOR SERWERA W PANELU").
+  Still no panel view for the Minecraft whitelist: `panelApi.js` has no endpoint for it, and one
+  must never return `apiKey`.
