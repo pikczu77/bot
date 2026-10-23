@@ -35,6 +35,8 @@ const store = guildStore('minecraft-whitelist', {
   serverId: null,
   apiKey: null,
   members: {},
+  // Console channel (src/services/minecraftConsole.js); it uses the same panel connection.
+  consoleChannelId: null,
 });
 
 const lastTry = new Map();
@@ -42,7 +44,7 @@ const lastTry = new Map();
 export const getWhitelistConfig = (guildId) => store.get(guildId);
 export const updateWhitelistConfig = (guildId, mutate) => store.update(guildId, mutate);
 
-const panelOf = (config) => ({ panelUrl: config.panelUrl, serverId: config.serverId, apiKey: config.apiKey });
+export const panelOf = (config) => ({ panelUrl: config.panelUrl, serverId: config.serverId, apiKey: config.apiKey });
 
 // --- input checks -------------------------------------------------------------------
 
@@ -107,7 +109,7 @@ export function panelErrorText(error) {
   }
 }
 
-async function panelRequest(panel, method, path, { json, text, timeoutMs = 10_000 } = {}) {
+export async function panelRequest(panel, method, path, { json, text, timeoutMs = 10_000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -152,7 +154,7 @@ async function readFile(panel, file) {
 }
 
 const writeFile = (panel, file, content) => panelRequest(panel, 'POST', `/files/write?file=${encodeURIComponent(file)}`, { text: content });
-const sendCommand = (panel, command) => panelRequest(panel, 'POST', '/command', { json: { command } });
+export const sendCommand = (panel, command) => panelRequest(panel, 'POST', '/command', { json: { command } });
 
 // --- whitelist.json and server.properties -------------------------------------------
 

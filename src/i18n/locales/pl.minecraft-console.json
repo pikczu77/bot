@@ -1,0 +1,18 @@
+{
+  "Channel where admins type Minecraft server console commands (Administrator)": "Kanał, na którym admini wpisują komendy do konsoli serwera Minecraft (Administrator)",
+  "Console channel; leave empty to turn the console off": "Kanał konsoli; zostaw puste, żeby wyłączyć konsolę",
+
+  "Minecraft console is off": "Konsola Minecraft wyłączona",
+  "Messages in the old console channel are no longer sent to the server.": "Wiadomości z dawnego kanału konsoli nie trafiają już na serwer.",
+  "✅ Minecraft console is on": "✅ Konsola Minecraft włączona",
+  "Administrators can type server commands in {0}.": "Administratorzy mogą wpisywać komendy serwera na {0}.",
+  "⚠️ Everyone can see this channel, so everyone sees the console output. Make it private (only admins).": "⚠️ Każdy widzi ten kanał, więc każdy zobaczy wyniki z konsoli. Ustaw go jako prywatny (tylko dla adminów).",
+  "🖥️ Minecraft console": "🖥️ Konsola Minecraft",
+  "Admins type server commands here, for example `list`, `say Hi` or `whitelist add Nick`. A leading `/` is optional, one command per line.": "Tutaj admini wpisują komendy serwera, np. `list`, `say Siema` albo `whitelist add Nick`. `/` na początku nie jest potrzebny, jedna komenda w linii.",
+  "The bot answers with what the console printed. Messages from people without Administrator are refused.": "Bot odpisuje tym, co wypisała konsola. Wiadomości od osób bez uprawnienia Administrator są odrzucane.",
+  "Only administrators can use the server console.": "Tylko administratorzy mogą używać konsoli serwera.",
+  "At most {0} commands in one message.": "Maksymalnie {0} komend w jednej wiadomości.",
+  "A command can have at most {0} characters.": "Komenda może mieć maksymalnie {0} znaków.",
+  "Connect the server panel first with `/minecraft whitelista ustaw`.": "Najpierw podłącz panel serwera przez `/minecraft whitelista ustaw`.",
+  "This is the whitelist channel. Pick another channel for the console.": "To jest kanał whitelisty. Wybierz inny kanał na konsolę."
+}

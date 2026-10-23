@@ -110,8 +110,16 @@ change you make, so the next session knows what was done and why.
   is refused (400). A different `panelUrl` is refused while a key is saved; a new `serverId` is first opened
   with the saved key (same panel). A new channel (while on) or `postGuide: true` posts the guide message.
   Saves go through `updateWhitelistSettings` (same lock as the member changes).
+- Console channel: `src/services/minecraftConsole.js` (`handleConsoleMessage`, called from
+  `featureMessages.js` after the whitelist handler), `/minecraft konsola [kanal]` in
+  `src/commands/Minecraft/modules/console.js` (no channel = off). Same store and panel key as the
+  whitelist, field `consoleChannelId`. Only Administrator / server owner / bot owners may run
+  commands (and set the channel): the console can op players and stop the server. Output is read
+  from the panel websocket (`GET /websocket`, `ws` with `origin` = panel address, Wings checks it;
+  confirmed on the real MatHost panel 2026-10-23), for `consoleTiming.outputMs` after the commands.
 - Tests: `test/minecraft-whitelist.test.js` (fake panel and fake Mojang API through `globalThis.fetch`),
-  `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel).
+  `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel), `test/minecraft-console.test.js`
+  (fake websocket through `consoleSocket.create`).
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -290,3 +298,14 @@ change you make, so the next session knows what was done and why.
     the saved key before it is stored; the guide message is posted for a new channel (while on) or on the
     panel's "send the guide again" button; turning it off from the panel keeps the key (only `wylacz` deletes
     it); the panel shows who holds which nick but cannot add or remove nicks (still `/minecraft whitelista`).
+- **2026-10-23** (owner: "dodaj zebym mogl wpisywac komendy na jakims czacie"). Live after the owner
+  restarts the bot:
+  - `/minecraft konsola kanal:#...` makes a Discord channel the server console: each line of a message
+    is sent as a console command through the panel API, and the bot replies with the console lines
+    printed in the next 2.5 s (code block, colour codes removed, newest lines kept, no pings).
+  - My decisions: Administrator only (Manage Server is not enough), also for setting the channel; at
+    most 5 commands of 400 characters per message; it cannot be the whitelist channel; a warning when
+    @everyone can see the channel; every run is logged with the member and the commands; refusals
+    disappear after 20 s, output stays. `wylacz` of the whitelist deletes the key, so it stops the
+    console too. No panel (pikczu.pl/bot) field for the console channel yet.
+  - New dependency `ws` (was already installed through discord.js and riffy).
