@@ -309,3 +309,12 @@ change you make, so the next session knows what was done and why.
     disappear after 20 s, output stays. `wylacz` of the whitelist deletes the key, so it stops the
     console too. No panel (pikczu.pl/bot) field for the console channel yet.
   - New dependency `ws` (was already installed through discord.js and riffy).
+- **2026-10-26** (owner: "na glownym czacie dalej da sie pisac przeklenstwa od 22 a nie powinno tak byc").
+  No code change; live setting changed through the panel API with the owner's yes:
+  - Cause: on pikczu club™ the words rule had `freeHours` on (22-6). Free hours allow banned words on
+    EVERY channel, so #chat let members swear after 22. 🤬｜nocny-chat was already in `freeChannels`
+    and in `nightChannels` (visible 22-6).
+  - Set `rules.words.freeHours` to false (PATCH sent only that field). Now swearing is allowed only on
+    🤬｜nocny-chat; slurs stay banned everywhere. Read back after the change: other settings unchanged.
+  - If the owner asks for swearing "after 22" again: that is `freeChannels` (+ a night channel), not
+    `freeHours`, unless they want it on all channels.
