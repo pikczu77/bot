@@ -137,7 +137,7 @@ change you make, so the next session knows what was done and why.
 - Volume default 100 and max 100: any other volume makes the node re-encode the audio.
 - Before changing nodes: probe them (`/v4/info`, `/v4/loadtracks`, and a player without voice:
   `TrackStartEvent` = the node can stream, `TrackExceptionEvent` = it cannot).
-- Tests: `test/music.test.js`. Voice itself cannot be tested without the live bot.
+- Tests: `test/music.test.js`. Voice itself cannot be tested without the live bot (owner checked it 2026-10-26).
 
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
@@ -364,5 +364,5 @@ change you make, so the next session knows what was done and why.
     emoji control buttons (one play/pause toggle), Polish text; nicer `/play` answer and queue.
   - My decisions: volume max stays 100% (above it the node re-encodes); a failed track gets two
     other nodes before it is skipped; a stuttering player moves at most once per 4 minutes.
-  - Not verified: real voice playback and the stutter fix (needs the live bot in a voice channel).
-    If it still stutters, the real fix is an own Lavalink server near Europe (`lavalink/application.yml`).
+  - Confirmed by the owner on 2026-10-26 after the restart: music plays without stutter.
+    If it stutters again, the real fix is an own Lavalink server near Europe (`lavalink/application.yml`).
