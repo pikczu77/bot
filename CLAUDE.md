@@ -366,3 +366,13 @@ change you make, so the next session knows what was done and why.
     other nodes before it is skipped; a stuttering player moves at most once per 4 minutes.
   - Confirmed by the owner on 2026-10-26 after the restart: music plays without stutter.
     If it stutters again, the real fix is an own Lavalink server near Europe (`lavalink/application.yml`).
+- **2026-10-26 afternoon** (owner: "kasyno dajemy zeby dawalo x1.7", after I showed that `/gamble` at 50% x2
+  with +25 luck wins on every bet). Live after the owner restarts the bot:
+  - `/gamble` default payout x2 -> x1.7. A stored x2 (the live server had 50% / x2) becomes x1.7 once:
+    `BALANCE_VERSION` 3 in `economySettings.js`. A payout picked in the panel after that stays as picked.
+    The shop price reset of version 2 still runs only for settings older than version 2.
+  - Roulette colour, even/odd and halves (`EVEN_MONEY_PAYOUT` in `casino.js`) and a won blackjack hand pay
+    x1.7 too (my reading of "kasyno"). Blackjack 3:2, dozens x3, number x36 and slots are unchanged.
+  - I could not change the live setting through the panel API myself (reading the key file was blocked).
+  - Math for the owner: 50% x1.7 = 85% return; with the best luck (+24) 74% x1.7 = 126%, still a profit.
+    Break-even at 50% base is about +9 luck.

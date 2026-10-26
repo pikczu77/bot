@@ -46,8 +46,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
       finePercent: 10,
       minVictimCash: 500,
     },
-    // payoutPercent 200 = a won bet is doubled. maxBet 0 = no limit.
-    gamble: { cooldownMinutes: 5, winPercent: 40, payoutPercent: 200, maxBet: 0 },
+    // payoutPercent 170 = a won bet pays x1.7 (owner, 2026-10-26; was x2). maxBet 0 = no limit.
+    gamble: { cooldownMinutes: 5, winPercent: 40, payoutPercent: 170, maxBet: 0 },
   },
   // items: { [itemId]: { enabled, price } } overrides for the built-in items.
   // roles: [{ roleId, price, description }] roles members can buy.
@@ -60,7 +60,8 @@ export const EARNINGS_PERCENT_LIMITS = Object.freeze([10, 1000]);
 
 // Version of the built-in prices. Older stored settings lose their shop price overrides
 // once, so the prices balanced on 2026-10-14 reach servers that had set their own.
-const BALANCE_VERSION = 2;
+// Version 3 (2026-10-26): a stored /gamble payout of x2 becomes x1.7 once (owner: the casino pays x1.7).
+const BALANCE_VERSION = 3;
 
 /** Allowed range of every number in `commands` — the panel API validates against this. */
 export const COMMAND_LIMITS = Object.freeze({
@@ -108,10 +109,13 @@ function normalize(stored) {
       roles: Array.isArray(stored.shop.roles) ? stored.shop.roles : [],
     };
   }
-  if ((Number(stored.balanceVersion) || 1) < BALANCE_VERSION) {
+  if ((Number(stored.balanceVersion) || 1) < 2) {
     settings.shop.items = Object.fromEntries(Object.entries(settings.shop.items)
       .map(([id, { price, ...rest }]) => [id, rest])
       .filter(([, rest]) => Object.keys(rest).length > 0));
+  }
+  if ((Number(stored.balanceVersion) || 1) < 3 && settings.commands.gamble.payoutPercent === 200) {
+    settings.commands.gamble.payoutPercent = 170;
   }
   settings.balanceVersion = BALANCE_VERSION;
   return settings;

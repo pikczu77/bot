@@ -7,6 +7,10 @@
 // together at most MAX_LUCK = 25. Bets that pay more than x2 get fewer points,
 // (2 / payout)^2 of them, so a roulette number (x36) is not a sure profit. A win chance
 // never goes above MAX_WIN_CHANCE.
+//
+// Even-money bets (roulette colour, even/odd, halves; a won blackjack hand) pay
+// EVEN_MONEY_PAYOUT times the stake: x1.7 since 2026-10-26 (owner), so luck alone is
+// not a sure profit. /gamble takes its payout from the server settings (default x1.7).
 
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { createError, ErrorTypes } from '../utils/errorHandler.js';
@@ -18,6 +22,7 @@ import { t, tr } from '../i18n/index.js';
 
 export const MAX_WIN_CHANCE = 0.95;
 export const MAX_LUCK = 25;
+export const EVEN_MONEY_PAYOUT = 1.7;
 
 const LUCK_ITEMS = ['lucky_clover', 'lucky_charm'];
 
@@ -123,12 +128,12 @@ export function playRound({ client, guildId, userId, bet }, resolve) {
 export const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 
 export const ROULETTE_BETS = Object.freeze({
-  czerwone: { name: t('🔴 Red'), payout: 2, wins: (n) => RED_NUMBERS.has(n) },
-  czarne: { name: t('⚫ Black'), payout: 2, wins: (n) => n > 0 && !RED_NUMBERS.has(n) },
-  parzyste: { name: t('Even'), payout: 2, wins: (n) => n > 0 && n % 2 === 0 },
-  nieparzyste: { name: t('Odd'), payout: 2, wins: (n) => n % 2 === 1 },
-  niskie: { name: '1-18', payout: 2, wins: (n) => n >= 1 && n <= 18 },
-  wysokie: { name: '19-36', payout: 2, wins: (n) => n >= 19 },
+  czerwone: { name: t('🔴 Red'), payout: EVEN_MONEY_PAYOUT, wins: (n) => RED_NUMBERS.has(n) },
+  czarne: { name: t('⚫ Black'), payout: EVEN_MONEY_PAYOUT, wins: (n) => n > 0 && !RED_NUMBERS.has(n) },
+  parzyste: { name: t('Even'), payout: EVEN_MONEY_PAYOUT, wins: (n) => n > 0 && n % 2 === 0 },
+  nieparzyste: { name: t('Odd'), payout: EVEN_MONEY_PAYOUT, wins: (n) => n % 2 === 1 },
+  niskie: { name: '1-18', payout: EVEN_MONEY_PAYOUT, wins: (n) => n >= 1 && n <= 18 },
+  wysokie: { name: '19-36', payout: EVEN_MONEY_PAYOUT, wins: (n) => n >= 19 },
   tuzin1: { name: '1-12', payout: 3, wins: (n) => n >= 1 && n <= 12 },
   tuzin2: { name: '13-24', payout: 3, wins: (n) => n >= 13 && n <= 24 },
   tuzin3: { name: '25-36', payout: 3, wins: (n) => n >= 25 },

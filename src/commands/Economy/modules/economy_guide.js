@@ -120,9 +120,9 @@ function casino({ guildId, settings }) {
     description: t`One break for all games: **${waitMinutes(gamble.cooldownMinutes)}** · highest bet: **${gamble.maxBet > 0 ? money(guildId, gamble.maxBet) : t('no limit')}**`,
     fields: [
       field(t('🎲 /gamble'), t`**${gamble.winPercent}%** chance\na win pays **x${gamble.payoutPercent / 100}**`),
-      field(t('🎡 /ruletka'), t('**x2:** colour, even/odd, half\n**x3:** a dozen\n**x36:** zero or one number')),
+      field(t('🎡 /ruletka'), t('**x1.7:** colour, even/odd, half\n**x3:** a dozen\n**x36:** zero or one number')),
       field(t('🎰 /slots'), t`**${formatChance(SLOT_BASE_CHANCE)}%** chance\nup to **x${top.payout}** (${top.symbols[0].repeat(3)})`),
-      field(t('🃏 /blackjack'), t('dealer stands on 17\nblackjack pays **3:2**\nyou can double down')),
+      field(t('🃏 /blackjack'), t('dealer stands on 17\na win pays **x1.7**, blackjack **3:2**\nyou can double down')),
       field(t('🎯 Your chance'), t('Every game shows your exact win chance under the result.')),
       field(t('🍀 Luck'), t('Raises the chance. Pick the 🍀 Luck topic for details.')),
     ],

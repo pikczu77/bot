@@ -2,8 +2,10 @@
 // keep the hand in the member's economy data (`blackjack`), so a game survives a restart.
 //
 // Rules: endless deck, the dealer draws to 17 and stands on every 17, a blackjack (21 with
-// two cards) pays 3:2, double down on the first move. Luck: when a card you draw would bust
+// two cards) pays 3:2, any other win x1.7 (EVEN_MONEY_PAYOUT), double down on the first move. Luck: when a card you draw would bust
 // you, there is a luck% chance it is swapped once for another card.
+
+import { EVEN_MONEY_PAYOUT } from './casino.js';
 
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const SUITS = ['♠', '♥', '♦', '♣'];
@@ -117,6 +119,6 @@ export function settle(game) {
   else if (dealer > 21 || player > dealer) outcome = 'win';
   else if (player === dealer) outcome = 'push';
   else outcome = 'lose';
-  const payout = { blackjack: Math.floor(game.bet * 2.5), win: game.bet * 2, push: game.bet, lose: 0 }[outcome];
+  const payout = { blackjack: Math.floor(game.bet * 2.5), win: Math.floor(game.bet * EVEN_MONEY_PAYOUT), push: game.bet, lose: 0 }[outcome];
   return { outcome, payout, player, dealer };
 }

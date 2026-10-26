@@ -24,12 +24,12 @@ export default {
                 .setDescription('What you bet on')
                 .setRequired(true)
                 .addChoices(
-                    { name: 'Red (x2)', value: 'czerwone' },
-                    { name: 'Black (x2)', value: 'czarne' },
-                    { name: 'Even (x2)', value: 'parzyste' },
-                    { name: 'Odd (x2)', value: 'nieparzyste' },
-                    { name: '1-18 (x2)', value: 'niskie' },
-                    { name: '19-36 (x2)', value: 'wysokie' },
+                    { name: 'Red (x1.7)', value: 'czerwone' },
+                    { name: 'Black (x1.7)', value: 'czarne' },
+                    { name: 'Even (x1.7)', value: 'parzyste' },
+                    { name: 'Odd (x1.7)', value: 'nieparzyste' },
+                    { name: '1-18 (x1.7)', value: 'niskie' },
+                    { name: '19-36 (x1.7)', value: 'wysokie' },
                     { name: '1-12 (x3)', value: 'tuzin1' },
                     { name: '13-24 (x3)', value: 'tuzin2' },
                     { name: '25-36 (x3)', value: 'tuzin3' },
@@ -65,7 +65,7 @@ export default {
 
         const round = await playRound({ client, guildId, userId: interaction.user.id, bet }, ({ userData, luck }) => {
             const spin = spinRoulette(betId, number, luck.total);
-            const payout = spin.win ? bet * spin.bet.payout : 0;
+            const payout = spin.win ? Math.floor(bet * spin.bet.payout) : 0;
             userData.wallet = (userData.wallet || 0) - bet + payout;
             return { ...spin, payout };
         });

@@ -71,11 +71,29 @@ test('prices: earnings multiplier, payout-based consumables, old price overrides
   assert.equal(catalog.get('fishing_net').price, 300);
 
   const saved = await updateEconomySettings(other.id, (data) => { data.earningsPercent = 200; data.shop.items.pc = { price: 9999 }; });
-  assert.equal(saved.balanceVersion, 2);
+  assert.equal(saved.balanceVersion, 3);
   const after = new Map(getShopCatalog(await getEconomySettings(other.id)).map((item) => [item.id, item]));
   assert.equal(after.get('pc').price, 9999, 'overrides set after the update stay');
   assert.equal(after.get('energy_drink').price, 1000, 'x2 earnings doubles payout-based prices');
   assert.deepEqual([40, 449, 1234, 12_300].map(nicePrice), [50, 450, 1200, 12_500]);
+});
+
+test('gamble x2 stored before 2026-10-26 becomes x1.7 once; prices set after the 2026-10-14 balance stay', async () => {
+  const old = mockGuild(client, 'Stare kasyno');
+  await client.db.set(`guild:${old.id}:economy-settings`, {
+    balanceVersion: 2,
+    shop: { items: { pc: { price: 7777 } } },
+    commands: { gamble: { cooldownMinutes: 5, winPercent: 50, payoutPercent: 200, maxBet: 0 } },
+  });
+  const settings = await getEconomySettings(old.id);
+  assert.equal(settings.commands.gamble.payoutPercent, 170);
+  assert.equal(settings.commands.gamble.winPercent, 50);
+  assert.equal(settings.shop.items.pc.price, 7777);
+  // Chosen again in the panel after the change: x2 stays.
+  const saved = await updateEconomySettings(old.id, (data) => { data.commands.gamble.payoutPercent = 200; });
+  assert.equal(saved.commands.gamble.payoutPercent, 200);
+  assert.equal((await getEconomySettings(old.id)).commands.gamble.payoutPercent, 200);
+  assert.equal((await getEconomySettings(mockGuild(client, 'Nowe kasyno').id)).commands.gamble.payoutPercent, 170);
 });
 
 test('/work: 3 offers for the server level, a job lasts 5 shifts, Overtime allows shifts in a row', async () => {
@@ -171,6 +189,7 @@ test('casino: luck adds points, fewer on big payouts, at most +25; the shown cha
   assert.ok(luckPoints(25, 36) < 0.1);
   const red = spinRoulette('czerwone', null, 0, () => 0);
   assert.equal(red.base, 18 / 37);
+  assert.equal(red.bet.payout, 1.7, "even-money bets pay x1.7 since 2026-10-26");
   assert.equal(red.win, true);
   assert.ok([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(red.result));
   const lost = spinRoulette('liczba', 7, 0, () => 0.99);
@@ -224,6 +243,8 @@ test('blackjack: odds, payouts and a full hand through the buttons', async () =>
   assert.ok(bustChance(['10♠', '2♥'], 50) < 4 / 13);
   assert.deepEqual(settle({ bet: 100, player: ['A♠', 'K♥'], dealer: ['9♠', '9♥'] }), { outcome: 'blackjack', payout: 250, player: 21, dealer: 18 });
   assert.equal(settle({ bet: 100, player: ['10♠', '9♥'], dealer: ['10♠', '9♦'] }).outcome, 'push');
+  // A normal win pays x1.7 since 2026-10-26 (owner: the casino pays x1.7), a blackjack still 3:2.
+  assert.equal(settle({ bet: 100, player: ['10♠', '9♥'], dealer: ['10♠', '7♦'] }).payout, 170);
 
   const player = newMember('Karciarz');
   await save(player, { wallet: 1000, lastGamble: 0 });
@@ -239,7 +260,7 @@ test('blackjack: odds, payouts and a full hand through the buttons', async () =>
   }
   account = await data(player);
   assert.equal(account.blackjack, null);
-  assert.ok([800, 1000, 1200, 1300].includes(account.wallet), String(account.wallet));
+  assert.ok([800, 1000, 1140, 1300].includes(account.wallet), String(account.wallet));
 
   const gone = press(player, `bj:dobierz:${player.id}`);
   await runWithLocale('en', () => buttons.execute(gone, client, ['dobierz', player.id]));
