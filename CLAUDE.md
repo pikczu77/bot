@@ -413,3 +413,10 @@ change you make, so the next session knows what was done and why.
     x3 as often), youtube (/nagraj x2), szczescie (+5 casino luck, above the 25 cap), paczki (packs half price).
     The announcement is deleted when the event ends or is stopped. My decisions: the types, one event at a time,
     automatic events off by default (random type, the next one 0.75-1.25 x `everyHours` later).
+  - `/wordle` (owner: "zrobmy wordle za kase, ze mozna raz dziennie zrobic wordle"): `src/services/wordle.js`, views
+    `modules/wordle_game.js`, button `wordle:zgaduj:<owner>`, modal `wordle:odp:<owner>`, words
+    `src/config/wordleWords.js` (243 common Polish five-letter words, my list). One word a day per server (Warsaw
+    midnight, a different order per server, no repeat until the list is used up), six guesses, private board,
+    the finished result posted in the channel as squares only. Reward `commands.wordle.reward` (default 3,000) x
+    1 / 0.85 / 0.7 / 0.55 / 0.4 / 0.25 by guesses, then the server multiplier, Fortune and a "kasa" event.
+    My decisions: any five Polish letters count as a guess (no dictionary check), streak for days in a row. 78 commands.

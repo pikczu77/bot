@@ -48,6 +48,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     },
     // payoutPercent 170 = a won bet pays x1.7 (owner, 2026-10-26; was x2). maxBet 0 = no limit.
     gamble: { cooldownMinutes: 5, winPercent: 40, payoutPercent: 170, maxBet: 0 },
+    // /wordle (services/wordle.js): a word solved in one guess pays this, fewer for more guesses.
+    wordle: { reward: 3000 },
   },
   // Timed events (services/economyEvents.js): announcement channel, optional role ping, automatic
   // events every `everyHours` lasting `durationMinutes`, and the running one.
@@ -78,6 +80,7 @@ export const COMMAND_LIMITS = Object.freeze({
   sue: { cooldownMinutes: [0, MAX_COOLDOWN], courtCostPercent: [0, 100], minDefendantMoney: [0, MAX_MONEY] },
   rob: { cooldownMinutes: [0, MAX_COOLDOWN], successPercent: [0, 100], stealPercent: [1, 100], finePercent: [0, 100], minVictimCash: [0, MAX_MONEY] },
   gamble: { cooldownMinutes: [0, MAX_COOLDOWN], winPercent: [1, 99], payoutPercent: [101, 10_000], maxBet: [0, MAX_MONEY] },
+  wordle: { reward: [0, MAX_MONEY] },
 });
 
 export const CURRENCY_POSITIONS = ['left', 'right'];

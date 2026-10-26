@@ -43,8 +43,8 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
   ];
   assert.deepEqual(removed.filter((name) => client.commands.has(name)), []);
   // 64 on 2026-10-14 morning; then /hajs /ruletka /blackjack /slots /ekwipunek and /randka /slub.
-  // 2026-10-26: /misje /osiagniecia /wymiana.
-  assert.equal(client.commands.size, 77);
+  // 2026-10-26: /misje /osiagniecia /wymiana /wordle.
+  assert.equal(client.commands.size, 78);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);

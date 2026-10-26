@@ -1,0 +1,20 @@
+{
+  "Guess the Polish word of the day in six tries and win money (once a day)": "Zgadnij polskie słowo dnia w sześciu próbach i wygraj kasę (raz dziennie)",
+  "🟩 Wordle #{0}": "🟩 Wordle #{0}",
+  "Letters": "Litery",
+  "Solved!": "Odgadnięte!",
+  "The word was {0}": "Słowo dnia: {0}",
+  "New word <t:{0}:R>. Streak: **{1}**": "Nowe słowo <t:{0}:R>. Seria: **{1}**",
+  "Rules": "Zasady",
+  "A {0}-letter Polish word. 🟩 right place · 🟨 in the word elsewhere · ⬛ not in the word.\nGuesses left: **{1}** · a hit now pays **{2}**": "Polskie słowo, {0} liter. 🟩 dobre miejsce · 🟨 jest w słowie, ale gdzie indziej · ⬛ nie ma go w słowie.\nZostało prób: **{1}** · trafienie teraz daje **{2}**",
+  "Guess": "Zgaduj",
+  "Wordle": "Wordle",
+  "Your word (5 letters)": "Twoje słowo (5 liter)",
+  "**{0}** played Wordle #{1}: **{2}**": "**{0}** zagrał(a) w Wordle #{1}: **{2}**",
+  " · streak {0} 🔥": " · seria {0} 🔥",
+  "You already played today. Come back tomorrow!": "Dziś już grałeś. Wróć jutro!",
+  "❌ Type exactly {0} letters (Polish letters are fine).": "❌ Wpisz dokładnie {0} liter (polskie litery są OK).",
+  "🎉 **{0}**! You get **{1}**.": "🎉 **{0}**! Dostajesz **{1}**.",
+  "No more guesses for today.": "Na dziś koniec prób.",
+  "Start your own game with `/wordle`.": "Zacznij swoją grę przez `/wordle`."
+}
