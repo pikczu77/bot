@@ -536,3 +536,13 @@ change you make, so the next session knows what was done and why.
     Clovers 15% / Legend pack 10% (my odds). Shown under /daily.
   - New missions (daily: win a duel; weekly: lottery tickets, duels) and badges (lottery win, 10 duels, /daily 30 days
     in a row). Guide: duels, lottery, chest (`GUIDE_VERSION` 3, the posted guide refreshes at start).
+  - Panel: module "Ostrzeżenia" (ladder, days, who has warnings, "Wyzeruj wszystkie" = `POST /warnings/reset`, site
+    operation `warny-reset`) and the lottery card in Ekonomia > Gry (`lottery` in the economy view and PATCH).
+  - Picture channels (owner, mid-task: "na fanarty jak sie wrzuci zdjecie to sa emotki serdusza a wiadomosci usuwaja
+    sie automatycznie"): `src/services/mediaChannels.js`, `handleMediaMessage` in `featureMessages.js` (after automod and
+    the Minecraft channels), `/channel zdjecia [kanal] [emotki] [usuwaj] [watki] [wylacz]` (Manage Channels), panel module
+    "Kanały na zdjęcia" (`mediachannels`, PATCH takes the whole list). A message with a picture or video (file or link)
+    gets the reactions (❤️ by default, up to 5, custom emoji allowed); any other message is deleted with a notice that
+    disappears after 6 s; members with Manage Messages may write. My reading of "wiadomości usuwają się": text
+    without a picture is removed, pictures stay. Optional thread for comments under every picture (off by default).
+    The owner still has to pick the fan art channel (command or panel).

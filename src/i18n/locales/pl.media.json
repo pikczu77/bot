@@ -1,0 +1,21 @@
+{
+  "Channel moderation: lock, slowmode, sticky message, wipe, lockdown, picture channels": "Moderacja kanałów: blokada, wolny tryb, przypięta wiadomość, czyszczenie, lockdown, kanały na zdjęcia",
+  "Pictures-only channel (fan art): reactions under pictures, other messages disappear": "Kanał tylko na zdjęcia (fanarty): reakcje pod zdjęciami, inne wiadomości znikają",
+  "The channel (default: this one)": "Kanał (domyślnie ten)",
+  "Reactions under every picture, e.g. ❤️ 🔥 (default ❤️)": "Reakcje pod każdym zdjęciem, np. ❤️ 🔥 (domyślnie ❤️)",
+  "Delete messages without a picture (default: yes)": "Usuwaj wiadomości bez zdjęcia (domyślnie: tak)",
+  "A thread for comments under every picture (default: no)": "Wątek na komentarze pod każdym zdjęciem (domyślnie: nie)",
+  "Make it a normal channel again": "Zrób z niego zwykły kanał",
+  "📸 {0} is a normal channel again.": "📸 {0} to znowu zwykły kanał.",
+  "Write the reactions as emoji, for example ❤️ 🔥.": "Wpisz reakcje jako emotki, np. ❤️ 🔥.",
+  "A server can have at most {0} picture channels.": "Serwer może mieć najwyżej {0} kanałów na zdjęcia.",
+  "📸 Picture channel": "📸 Kanał na zdjęcia",
+  "Channel: {0}": "Kanał: {0}",
+  "Under every picture: {0}": "Pod każdym zdjęciem: {0}",
+  "Messages without a picture disappear (people with Manage Messages may write).": "Wiadomości bez zdjęcia znikają (osoby z uprawnieniem Zarządzanie wiadomościami mogą pisać).",
+  "Messages without a picture stay.": "Wiadomości bez zdjęcia zostają.",
+  "Every picture gets a thread for comments.": "Każde zdjęcie dostaje wątek na komentarze.",
+  "Comments: {0}": "Komentarze: {0}",
+  "📸 {0}, this channel is for pictures only. Comment in the thread under a picture.": "📸 {0}, ten kanał jest tylko na zdjęcia. Komentuj w wątku pod zdjęciem.",
+  "📸 {0}, this channel is for pictures only. Talk about them on the chat.": "📸 {0}, ten kanał jest tylko na zdjęcia. Pogadaj o nich na czacie."
+}

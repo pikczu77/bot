@@ -98,6 +98,11 @@ import {
   saveServerCounters, updateCounter,
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
+import { getLottery, potOf, updateLottery } from '../services/lottery.js';
+import {
+  DEFAULT_REACTIONS as DEFAULT_MEDIA_REACTIONS, MAX_MEDIA_CHANNELS, MAX_REACTIONS as MAX_MEDIA_REACTIONS, getMediaChannels,
+  parseReactions as parseMediaReactions, updateMediaChannels,
+} from '../services/mediaChannels.js';
 import {
   MAX_BAN_MINUTES, MAX_STEPS, MAX_TIMEOUT_MINUTES, PUNISHMENT_ACTIONS, getPunishmentSettings, resetGuildWarnings, updatePunishmentSettings, warnedMembers,
 } from '../services/moderation/warningPunishments.js';
@@ -428,11 +433,28 @@ function applyIdList(target, patch, field, known) {
 // Quiz settings live in their own store (src/services/quiz.js); the panel shows them in Ekonomia > Gry.
 const quizView = (quiz) => ({ channelId: quiz.channelId ?? null, auto: Boolean(quiz.auto), everyMinutes: quiz.everyMinutes, reward: quiz.reward });
 
-function economyView(settings, guild, premiumRoleId, quiz = null) {
+// Weekly lottery (services/lottery.js) for the economy view: settings and the running round.
+function lotteryView(lottery, settings) {
+  const tickets = Object.values(lottery.round?.tickets ?? {}).reduce((sum, count) => sum + count, 0);
+  return {
+    channelId: lottery.channelId ?? null,
+    ticketPrice: lottery.ticketPrice,
+    maxTickets: lottery.maxTickets,
+    bonus: lottery.bonus,
+    drawAt: lottery.round?.drawAt ?? null,
+    tickets,
+    players: Object.keys(lottery.round?.tickets ?? {}).length,
+    pot: potOf(lottery, settings),
+    last: lottery.last ?? null,
+  };
+}
+
+function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null) {
   const { shop, balanceVersion, ...rest } = settings;
   return {
     ...rest,
     ...(quiz ? { quiz: quizView(quiz) } : {}),
+    ...(lottery ? { lottery: lotteryView(lottery, settings) } : {}),
     // Timed events (services/economyEvents.js): settings in `events`, the types to start one by hand.
     eventTypes: ECONOMY_EVENT_TYPES.map((type) => ({ id: type.id, emoji: type.emoji, name: tr(type.name), description: tr(type.description) })),
     shop: {
@@ -449,7 +471,8 @@ function economyView(settings, guild, premiumRoleId, quiz = null) {
       roles: shop.roles,
     },
     limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS, missionRewardPercent: [0, 1000], quizEveryMinutes: [10, 1440], quizReward: [0, 1_000_000],
-      eventEveryHours: [1, 168], eventMinutes: [MIN_EVENT_MINUTES, MAX_EVENT_MINUTES] },
+      eventEveryHours: [1, 168], eventMinutes: [MIN_EVENT_MINUTES, MAX_EVENT_MINUTES],
+      lotteryTicketPrice: [1, MAX_MONEY], lotteryMaxTickets: [1, 1000], lotteryBonus: [0, MAX_MONEY] },
   };
 }
 
@@ -477,6 +500,15 @@ async function applyEconomy(client, guild, body) {
     if ('auto' in events) eventsPatch.auto = boolean(events.auto, 'events.auto');
     if ('everyHours' in events) eventsPatch.everyHours = integer(events.everyHours, 'events.everyHours', 1, 168);
     if ('durationMinutes' in events) eventsPatch.durationMinutes = integer(events.durationMinutes, 'events.durationMinutes', MIN_EVENT_MINUTES, MAX_EVENT_MINUTES);
+  }
+  let lotteryPatch = null;
+  if ('lottery' in body) {
+    const lottery = plainObject(body.lottery, 'lottery');
+    lotteryPatch = {};
+    if ('channelId' in lottery) lotteryPatch.channelId = requireTextChannel(guild, lottery.channelId, 'lottery.channelId');
+    if ('ticketPrice' in lottery) lotteryPatch.ticketPrice = integer(lottery.ticketPrice, 'lottery.ticketPrice', 1, MAX_MONEY);
+    if ('maxTickets' in lottery) lotteryPatch.maxTickets = integer(lottery.maxTickets, 'lottery.maxTickets', 1, 1000);
+    if ('bonus' in lottery) lotteryPatch.bonus = integer(lottery.bonus, 'lottery.bonus', 0, MAX_MONEY);
   }
   let eventStart = null;
   if ('eventStart' in body) {
@@ -574,14 +606,15 @@ async function applyEconomy(client, guild, body) {
   });
 
   const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
+  const lottery = lotteryPatch ? await updateLottery(guild.id, (data) => { Object.assign(data, lotteryPatch); }) : await getLottery(guild.id);
   if (body.eventStop === true || eventStart) {
     if (eventStart) await startEvent(guild, eventStart.type, eventStart.minutes);
     else await endEvent(guild);
     settings = await getEconomySettings(guild.id);
   }
-  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz);
+  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, lottery);
   await updateGuildConfig(client, guild.id, { premiumRoleId });
-  return economyView(settings, guild, premiumRoleId, quiz);
+  return economyView(settings, guild, premiumRoleId, quiz, lottery);
 }
 
 // List of role IDs, each at most once. `assignable` also refuses roles the bot can never give (managed ones).
@@ -1423,6 +1456,49 @@ async function applyWarnings(client, guild, body) {
   return warningsView(client, guild);
 }
 
+// ---- Picture channels (fan art): reactions under pictures, other messages disappear (services/mediaChannels.js).
+const MEDIA_CHANNEL_PERMISSIONS = [
+  PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions,
+  PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ReadMessageHistory,
+];
+
+async function mediaChannelsView(guild) {
+  return {
+    channels: (await getMediaChannels(guild.id)).map((entry) => ({
+      channelId: entry.channelId,
+      reactions: entry.reactions?.length ? entry.reactions : [...DEFAULT_MEDIA_REACTIONS],
+      deleteOther: entry.deleteOther !== false,
+      thread: Boolean(entry.thread),
+    })),
+    limits: { channels: MAX_MEDIA_CHANNELS, reactions: MAX_MEDIA_REACTIONS },
+  };
+}
+
+async function applyMediaChannels(guild, body) {
+  if (!Array.isArray(body.channels) || body.channels.length > MAX_MEDIA_CHANNELS) {
+    throw new ApiError(400, `channels: list of up to ${MAX_MEDIA_CHANNELS} channels expected`);
+  }
+  const channels = body.channels.map((entry, index) => {
+    const item = plainObject(entry, `channels.${index}`);
+    const channelId = requireTextChannel(guild, item.channelId ?? null, `channels.${index}.channelId`);
+    if (!channelId) throw new ApiError(400, `channels.${index}.channelId: pick a channel`);
+    const permissions = guild.members.me ? guild.channels.cache.get(channelId).permissionsFor(guild.members.me) : null;
+    if (!permissions?.has(MEDIA_CHANNEL_PERMISSIONS)) {
+      throw new ApiError(400, `channels.${index}.channelId: the bot needs to see the channel, react and manage messages there`);
+    }
+    const reactions = parseMediaReactions(Array.isArray(item.reactions) ? item.reactions.join(' ') : String(item.reactions ?? ''));
+    return {
+      channelId,
+      reactions: reactions.length ? reactions : [...DEFAULT_MEDIA_REACTIONS],
+      deleteOther: 'deleteOther' in item ? boolean(item.deleteOther, `channels.${index}.deleteOther`) : true,
+      thread: 'thread' in item ? boolean(item.thread, `channels.${index}.thread`) : false,
+    };
+  });
+  if (new Set(channels.map((entry) => entry.channelId)).size !== channels.length) throw new ApiError(400, 'channels: the same channel is listed twice');
+  await updateMediaChannels(guild.id, (data) => { data.channels = channels; });
+  return mediaChannelsView(guild);
+}
+
 export function createPanelRouter(client) {
   const apiKey = (process.env.PANEL_API_KEY ?? '').trim();
   if (!apiKey) return null;
@@ -1489,7 +1565,7 @@ export function createPanelRouter(client) {
       automod: automodView(await getAutomodConfig(guild.id, { fresh: true })),
       invites: await getInviteConfig(guild.id),
       youtube: (await getFeeds(guild.id)).map(feedView),
-      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id)),
+      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await getLottery(guild.id)),
       leveling: levelingView(await getLevelingConfig(client, guild.id)),
       autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
       tickets: await ticketsView(client, guild),
@@ -1503,6 +1579,7 @@ export function createPanelRouter(client) {
       serverstats: await serverStatsView(client, guild),
       modmail: await modmailView(guild),
       warnings: await warningsView(client, guild),
+      mediachannels: await mediaChannelsView(guild),
     },
   })));
 
@@ -1512,6 +1589,7 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/serverstats', route(({ guild, body }) => applyServerStats(client, guild, body)));
   router.patch('/guilds/:guildId/modmail', route(({ guild, body }) => applyModmail(guild, body)));
   router.patch('/guilds/:guildId/warnings', route(({ guild, body }) => applyWarnings(client, guild, body)));
+  router.patch('/guilds/:guildId/mediachannels', route(({ guild, body }) => applyMediaChannels(guild, body)));
   // Every warning on the server back to zero (the panel asks twice before it calls this).
   router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
     const reset = await resetGuildWarnings(guild.id);
