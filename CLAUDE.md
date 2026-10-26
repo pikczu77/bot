@@ -122,6 +122,23 @@ change you make, so the next session knows what was done and why.
   `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel), `test/minecraft-console.test.js`
   (fake websocket through `consoleSocket.create`).
 
+## Music map
+- Riffy 1.0.12 + public Lavalink v4 nodes from `lavalink/nodes.json` (no own Lavalink server).
+  `src/services/music/riffySetup.js` subclasses Riffy: node order from `nodeHealth.js` (`rankNodes`:
+  playing players per core, CPU, lost audio frames, 3 min penalty after a failure) instead of Riffy's
+  REST call count; endless reconnects (Riffy deleted a node after 3 tries); no 30 s retry on 5xx;
+  `prepareNode` drops events from a node a player has left.
+- `playerRecovery.js`: a failed or stuck track moves to another node and continues at the same second
+  (max 2 moves per track), a dropped node's players move, a node losing >4% of frames is left
+  (checked every minute). `movePlayer` sends `channelId` with the voice data (Lavalink 4.2 needs it).
+- `musicActions.js`: `resolveTracks` asks the player's node, then the others; plain text tries
+  ytmsearch, ytsearch, scsearch. `cleanQuery` cuts YouTube Mix (`list=RD`) links to the song.
+- Look: `musicEmbeds.js` (player message, `/play` answer, queue). Text in `pl.music.json`.
+- Volume default 100 and max 100: any other volume makes the node re-encode the audio.
+- Before changing nodes: probe them (`/v4/info`, `/v4/loadtracks`, and a player without voice:
+  `TrackStartEvent` = the node can stream, `TrackExceptionEvent` = it cannot).
+- Tests: `test/music.test.js`. Voice itself cannot be tested without the live bot.
+
 ## Change log
 - **2026-10-14 evening** (not yet live; the owner must restart the bot after the push):
   - Luck model changed from a relative multiplier to percentage points (owner's request).
@@ -331,3 +348,21 @@ change you make, so the next session knows what was done and why.
     The panel card still describes this list as "rasistowskie i homofobiczne" (site text not changed).
   - Test: `test/automod-night.test.js` ("words for a young audience"), innocent words checked (nudy,
     pedagog, zboczenie z trasy, cyklon, stulecie).
+- **2026-10-17, finished 2026-10-26** (owner: "nie dziala w ogole odtwarzanie muzyki, popraw jak wyglada
+  i zeby dzialal, jak juz dziala to mega zacina"; the session was interrupted on 2026-10-17 and resumed
+  with "try again"). Live after the owner restarts the bot. Details in "Music map":
+  - Causes found: 2 of 4 public nodes were dead (Jirayu: REST 500, 1025 players on 2 cores, lost
+    frames; TriniumHost: 502) and Riffy rotated players and searches onto them; a 5xx search waited
+    30 s; after 3 failed reconnects Riffy deleted a node for good, so a long-running bot ended with no
+    nodes; default volume 75% forced re-encoding on busy nodes (stutter); the idle timer never left
+    the channel (Riffy keeps `player.current`); auto-pause in an empty channel never ran because
+    `voiceStateUpdate.js` returned before the music call.
+  - Nodes now: Nazha (Lavalink 4.2.2), Serenetia, MilloHost; all three streamed YouTube in a test on
+    2026-10-17 and again on 2026-10-26. Spotify links and YouTube playlists resolve (Nazha).
+  - YouTube links are allowed again (were refused); Mix links play only the song.
+  - New look: one player message with a progress bar, artwork, requester, volume, loop, next song,
+    emoji control buttons (one play/pause toggle), Polish text; nicer `/play` answer and queue.
+  - My decisions: volume max stays 100% (above it the node re-encodes); a failed track gets two
+    other nodes before it is skipped; a stuttering player moves at most once per 4 minutes.
+  - Not verified: real voice playback and the stutter fix (needs the live bot in a voice channel).
+    If it still stutters, the real fix is an own Lavalink server near Europe (`lavalink/application.yml`).

@@ -6,6 +6,7 @@ import {
     buildNowPlayingEmbed,
     buildPlayerButtonRows,
 } from './musicEmbeds.js';
+import { withGuildLocale } from '../languageService.js';
 import { t } from '../../i18n/index.js';
 
 const UPDATE_INTERVAL_MS = 15 * 1000;
@@ -42,8 +43,21 @@ async function editOrSendPlayerMessage(client, guildData, channelId, embed, comp
     }
 }
 
+// Riffy events and the refresh timer run outside any interaction, so the guild's language
+// is entered here. Updates for one guild run one after another, so two of them cannot both
+// see "no message yet" and post two player messages.
+function inGuildLocale(client, guildId, callback) {
+    const guildData = getGuildMusicData(guildId);
+    const run = () => withGuildLocale(client, guildId, callback).catch((error) => {
+        logger.error('Music player message update failed:', error);
+    });
+    const next = (guildData.messageChain || Promise.resolve()).then(run, run);
+    guildData.messageChain = next;
+    return next;
+}
+
 export async function refreshPlayerMessage(client, guildId) {
-    try {
+    return inGuildLocale(client, guildId, async () => {
         const player = client.riffy?.players?.get(guildId);
         if (!player?.current) {
             return;
@@ -54,9 +68,7 @@ export async function refreshPlayerMessage(client, guildId) {
         const components = buildPlayerButtonRows(player, guildData);
         const channelId = guildData.playerChannelId || player.textChannel;
         await editOrSendPlayerMessage(client, guildData, channelId, embed, components);
-    } catch (error) {
-        logger.error('Failed to refresh music player message:', error);
-    }
+    });
 }
 
 function startUpdateInterval(client, guildId) {
@@ -131,7 +143,8 @@ export function setupPlayerHandler(client) {
                 player.setLoop(guildData.loop);
             }
 
-            if (player.previous) {
+            // A track that moved to another node starts again; it is not a new "previous" track.
+            if (player.previous && guildData.previousTracks.at(-1) !== player.previous) {
                 guildData.previousTracks.push(player.previous);
                 if (guildData.previousTracks.length > 20) {
                     guildData.previousTracks.shift();
@@ -143,10 +156,7 @@ export function setupPlayerHandler(client) {
                 guildData.idleTimeout = null;
             }
 
-            const embed = buildNowPlayingEmbed(track, player, guildData);
-            const components = buildPlayerButtonRows(player, guildData);
-            const channelId = guildData.playerChannelId || player.textChannel;
-            await editOrSendPlayerMessage(client, guildData, channelId, embed, components);
+            await refreshPlayerMessage(client, player.guildId);
             startUpdateInterval(client, player.guildId);
         } catch (error) {
             logger.error('Music trackStart error:', error);
@@ -163,7 +173,10 @@ export function setupPlayerHandler(client) {
                 return;
             }
 
-            if (guildData.playerMessageId && guildData.playerChannelId) {
+            await inGuildLocale(client, player.guildId, async () => {
+                if (!guildData.playerMessageId || !guildData.playerChannelId) {
+                    return;
+                }
                 try {
                     const channel = client.channels.cache.get(guildData.playerChannelId);
                     if (channel) {
@@ -175,7 +188,7 @@ export function setupPlayerHandler(client) {
                 }
                 guildData.playerMessageId = null;
                 guildData.playerChannelId = null;
-            }
+            });
 
             if (!guildData.twentyFourSeven) {
                 if (guildData.idleTimeout) {
@@ -183,8 +196,10 @@ export function setupPlayerHandler(client) {
                 }
                 guildData.idleTimeout = setTimeout(() => {
                     try {
+                        // Riffy keeps the last track in player.current after the queue ends,
+                        // so "nothing left to play" is: not playing, not paused, empty queue.
                         const currentPlayer = client.riffy.players.get(player.guildId);
-                        if (currentPlayer && !currentPlayer.playing && !currentPlayer.paused && !currentPlayer.current) {
+                        if (currentPlayer && !currentPlayer.playing && !currentPlayer.paused && !currentPlayer.queue.length) {
                             currentPlayer.destroy();
                         }
                     } catch {
@@ -225,13 +240,17 @@ export function setupPlayerHandler(client) {
     });
 
     client.riffy.on('trackError', async (player, track, payload) => {
-        logger.error(`Track error in ${player.guildId} for "${track?.info?.title}":`, payload?.error || payload);
+        const retrying = player.migrating;
+        logger.warn(`Track error in ${player.guildId} on node "${player.node?.name}" for "${track?.info?.title}": ${payload?.exception?.message || payload?.error || 'unknown'}${retrying ? ' (retrying on another node)' : ''}`);
+        if (retrying) {
+            return;
+        }
         const guildData = getGuildMusicData(player.guildId);
-        if (guildData.playerChannelId) {
-            const channel = client.channels.cache.get(guildData.playerChannelId);
-            if (channel) {
-                channel.send(t`Failed to play **${track?.info?.title || 'track'}**. Skipping...`).catch(() => null);
-            }
+        const channel = client.channels.cache.get(guildData.playerChannelId || player.textChannel);
+        if (channel) {
+            withGuildLocale(client, player.guildId, () =>
+                channel.send(`⚠️ ${t`Failed to play **${track?.info?.title || 'track'}**. Skipping...`}`))
+                .catch(() => null);
         }
     });
 

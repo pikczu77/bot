@@ -12,7 +12,7 @@ import {
 } from '../services/music/musicActions.js';
 import { canControlMusic, VOICE_CHANNEL_DENIAL } from '../services/music/permissions.js';
 import { refreshPlayerMessage } from '../services/music/playerHandler.js';
-import { MUSIC_BUTTON_IDS } from '../services/music/musicEmbeds.js';
+import { MAX_VOLUME, MUSIC_BUTTON_IDS } from '../services/music/musicEmbeds.js';
 import { replyUserError, ErrorTypes } from '../utils/errorHandler.js';
 import { t } from '../i18n/index.js';
 
@@ -130,7 +130,7 @@ async function handleMusicButton(interaction, client) {
                 await refreshPlayerMessage(client, interaction.guild.id);
                 break;
             case MUSIC_BUTTON_IDS.VOL_UP:
-                guildData.volume = Math.min(100, guildData.volume + 10);
+                guildData.volume = Math.min(MAX_VOLUME, guildData.volume + 10);
                 player.setVolume(guildData.volume);
                 await refreshPlayerMessage(client, interaction.guild.id);
                 break;

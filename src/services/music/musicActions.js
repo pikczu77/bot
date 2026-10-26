@@ -6,17 +6,111 @@ import { botHasPermission } from '../../utils/permissionGuard.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { getGuildMusicData, clearUpdateInterval } from './playerStore.js';
 import { canControlMusic, requireVoiceChannel, VOICE_CHANNEL_DENIAL } from './permissions.js';
+import { logger } from '../../utils/logger.js';
 import {
     buildNowPlayingEmbed,
+    buildPlaylistAddedEmbed,
     buildQueueEmbed,
     buildQueuePaginationRow,
+    buildTrackAddedEmbed,
     getQueuePageSize,
+    MAX_VOLUME,
 } from './musicEmbeds.js';
 import { refreshPlayerMessage } from './playerHandler.js';
+import { markNodeFailed, rankNodes } from './nodeHealth.js';
+import lavalinkConfig from '../../config/music/lavalink.js';
 import { t } from '../../i18n/index.js';
 
-const YOUTUBE_URL_PATTERN = /(?:youtube\.com|youtu\.be)/i;
 const PLAYER_CONNECT_TIMEOUT_MS = 12_000;
+const SEARCH_TIMEOUT_MS = 12_000;
+// Nodes asked for one query before giving up, and search sites tried on each of them.
+const SEARCH_NODE_LIMIT = 3;
+const URL_PATTERN = /^https?:\/\//i;
+
+/**
+ * Cleans what a member typed. YouTube "Mix" / radio links (list=RD...) would load a
+ * 50-song generated playlist, so only the video itself is kept.
+ */
+export function cleanQuery(query) {
+    const text = String(query || '').trim().replace(/^<(.+)>$/, '$1');
+    if (!URL_PATTERN.test(text)) {
+        return text;
+    }
+    try {
+        const url = new URL(text);
+        if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/i.test(url.hostname)) {
+            const list = url.searchParams.get('list');
+            if (list && /^RD/i.test(list) && (url.searchParams.get('v') || url.hostname.endsWith('youtu.be'))) {
+                url.searchParams.delete('list');
+                url.searchParams.delete('start_radio');
+                url.searchParams.delete('index');
+            }
+            url.searchParams.delete('si');
+            url.searchParams.delete('pp');
+        }
+        return url.toString();
+    } catch {
+        return text;
+    }
+}
+
+function withTimeout(promise, ms, label) {
+    let timer;
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
+        }),
+    ]).finally(() => clearTimeout(timer));
+}
+
+function searchSources() {
+    return [...new Set([lavalinkConfig.defaultSearchPlatform || 'ytmsearch', 'ytsearch', 'scsearch'])];
+}
+
+/**
+ * Looks the query up on the player's node first, then on the other healthy nodes. A plain
+ * search that finds nothing on YouTube Music is tried on YouTube and SoundCloud too.
+ */
+export async function resolveTracks(client, query, requester, preferredNode = null) {
+    const ranked = rankNodes(client.riffy.nodeMap.values());
+    const nodes = (preferredNode?.connected ? [preferredNode, ...ranked.filter((node) => node !== preferredNode)] : ranked)
+        .slice(0, SEARCH_NODE_LIMIT);
+    const sources = URL_PATTERN.test(query) ? [undefined] : searchSources();
+
+    let answered = false;
+    for (const node of nodes) {
+        for (const source of sources) {
+            try {
+                const result = await withTimeout(
+                    client.riffy.resolve({ query, source, requester, node }),
+                    SEARCH_TIMEOUT_MS,
+                    `Search on "${node.name}"`,
+                );
+                answered = true;
+                if (result?.tracks?.length) {
+                    return { ...result, node };
+                }
+                if (result?.loadType === 'error') {
+                    logger.warn(`Music search failed on "${node.name}" (${source || 'url'}): ${result.exception?.message || 'unknown error'}`);
+                }
+            } catch (error) {
+                logger.warn(`Music search on "${node.name}" failed: ${error.message}`);
+                markNodeFailed(node);
+                break;
+            }
+        }
+    }
+
+    if (!answered) {
+        throw new TitanBotError(
+            'Lavalink search failed',
+            ErrorTypes.CONFIGURATION,
+            t('The music servers did not answer. Try again in a moment.'),
+        );
+    }
+    return { loadType: 'empty', tracks: [], playlistInfo: null };
+}
 
 function getConnectedLavalinkNodes(client) {
     if (!client.riffy?.nodeMap) {
@@ -135,17 +229,27 @@ export async function ensurePlayer(client, interaction) {
     let player = getPlayer(client, guildId);
 
     if (!player) {
-        player = client.riffy.createConnection({
-            guildId,
-            voiceChannel: interaction.member.voice.channel.id,
-            textChannel: interaction.channel.id,
-            deaf: true,
-        });
+        assertBotVoicePermissions(interaction.member.voice.channel);
+        player = createPlayer(client, guildId, interaction.member.voice.channel.id, interaction.channel.id, guildData);
         guildData.playerChannelId = interaction.channel.id;
+    } else if (player.volume !== guildData.volume) {
+        player.setVolume(guildData.volume);
     }
 
-    player.setVolume(guildData.volume);
     return { player, guildData };
+}
+
+// The volume goes with the first voice update, so a new player needs no separate request.
+// 100% is the default: at any other volume the node has to decode and re-encode the audio,
+// which on a busy public node is what makes music stutter.
+function createPlayer(client, guildId, voiceChannelId, textChannelId, guildData) {
+    return client.riffy.createConnection({
+        guildId,
+        voiceChannel: voiceChannelId,
+        textChannel: textChannelId,
+        deaf: true,
+        defaultVolume: guildData.volume,
+    });
 }
 
 function isDuplicateTrack(player, track) {
@@ -179,16 +283,12 @@ export async function joinVoiceChannel(client, interaction) {
     }
 
     if (!player) {
-        player = client.riffy.createConnection({
-            guildId,
-            voiceChannel: channel.id,
-            textChannel: interaction.channel.id,
-            deaf: true,
-        });
+        assertLavalinkNodeAvailable(client);
+        player = createPlayer(client, guildId, channel.id, interaction.channel.id, guildData);
         guildData.playerChannelId = interaction.channel.id;
+    } else if (player.volume !== guildData.volume) {
+        player.setVolume(guildData.volume);
     }
-
-    player.setVolume(guildData.volume);
 
     return successEmbed(
         t('Joined Voice Channel'),
@@ -196,21 +296,15 @@ export async function joinVoiceChannel(client, interaction) {
     );
 }
 
-export async function playQuery(client, interaction, query) {
-    if (YOUTUBE_URL_PATTERN.test(query)) {
-        throw new TitanBotError(
-            'YouTube URL blocked',
-            ErrorTypes.USER_INPUT,
-            t('YouTube links are not supported. Try a song name instead.'),
-        );
+export async function playQuery(client, interaction, rawQuery) {
+    const query = cleanQuery(rawQuery);
+    if (!query) {
+        throw new TitanBotError('Empty query', ErrorTypes.USER_INPUT, t('No results found for that query.'));
     }
 
-    const { player, guildData } = await ensurePlayer(client, interaction);
+    const { player } = await ensurePlayer(client, interaction);
 
-    const result = await client.riffy.resolve({
-        query,
-        requester: interaction.user,
-    });
+    const result = await resolveTracks(client, query, interaction.user, player.node);
 
     const { loadType, tracks, playlistInfo } = result;
 
@@ -230,13 +324,17 @@ export async function playQuery(client, interaction, query) {
 
         if (!player.playing && !player.paused) {
             await startPlayback(player);
+        } else {
+            await refreshPlayerMessage(client, interaction.guild.id);
         }
 
         return {
-            embed: successEmbed(
-                t('Playlist Added'),
-                t`**${playlistInfo?.name || t('Playlist')}**\nAdded ${added} of ${tracks.length} track(s).${skipped ? t` Skipped ${skipped} duplicate(s).` : ''}`,
-            ),
+            embed: buildPlaylistAddedEmbed(playlistInfo?.name, {
+                added,
+                total: tracks.length,
+                skipped,
+                firstTrack: tracks[0],
+            }),
         };
     }
 
@@ -267,19 +365,16 @@ export async function playQuery(client, interaction, query) {
 
         if (willPlayNow) {
             await startPlayback(player);
+        } else {
+            await refreshPlayerMessage(client, interaction.guild.id);
         }
 
         return {
-            embed: successEmbed(
-                willPlayNow ? t('Now Playing') : t('Track Added'),
-                willPlayNow
-                    ? `**${track.info.title}**\n${track.info.author}`
-                    : t`**${track.info.title}**\n${track.info.author}\nPosition: #${queuePosition} in queue`,
-            ),
+            embed: buildTrackAddedEmbed(track, { playingNow: willPlayNow, position: queuePosition }),
         };
     }
 
-    throw new TitanBotError('No results', ErrorTypes.USER_INPUT, t`No results found. (loadType: ${loadType})`);
+    throw new TitanBotError('No results', ErrorTypes.USER_INPUT, t('No results found for that query.'));
 }
 
 export async function skipTrack(client, interaction) {
@@ -420,7 +515,7 @@ export async function setVolume(client, interaction, volume) {
     assertCanControl(interaction.member, player);
 
     const guildData = getGuildMusicData(interaction.guild.id);
-    guildData.volume = Math.max(0, Math.min(100, volume));
+    guildData.volume = Math.max(0, Math.min(MAX_VOLUME, volume));
     player.setVolume(guildData.volume);
     await refreshPlayerMessage(client, interaction.guild.id);
     return successEmbed(t('Volume Updated'), t`Volume set to **${guildData.volume}%**.`);

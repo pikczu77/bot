@@ -25,6 +25,14 @@ export default {
     async execute(oldState, newState, client) {
         if (newState.member.user.bot) return;
 
+        // Before the temporary-channel code below: it returns early in most cases, and then
+        // music never paused in an empty channel or resumed when someone came back.
+        if (client.config?.features?.music) {
+            handleMusicVoiceState(client, oldState, newState).catch((error) => {
+                logger.error('Music voice state handler error:', error);
+            });
+        }
+
         const guildId = newState.guild.id;
         const userId = newState.member.id;
         const cooldownKey = `${guildId}-${userId}`;
@@ -239,12 +247,6 @@ userLimit: userLimit === 0 ? undefined : userLimit,
             } catch (error) {
                 logger.error(`Failed to delete temporary channel ${channel.id}:`, error);
             }
-        }
-
-        if (client.config?.features?.music) {
-            handleMusicVoiceState(client, oldState, newState).catch((error) => {
-                logger.error('Music voice state handler error:', error);
-            });
         }
     }
 };

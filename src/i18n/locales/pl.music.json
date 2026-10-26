@@ -1,0 +1,20 @@
+{
+  "The music servers did not answer. Try again in a moment.": "Serwery muzyki nie odpowiedziały. Spróbuj ponownie za chwilę.",
+  "🔂 Track": "🔂 Utwór",
+  "🔁 Queue": "🔁 Kolejka",
+  "🔴 Live stream": "🔴 Na żywo",
+  "+{0} more in the queue": "+{0} więcej w kolejce",
+  "Nothing queued. Add songs with /play.": "Kolejka pusta. Dodaj piosenki przez /play.",
+  "{0} in queue · {1} in total": "W kolejce: {0} · łącznie {1}",
+  "⏸️ Paused": "⏸️ Wstrzymano",
+  "🎶 Now Playing": "🎶 Teraz gra",
+  "Requested by": "Dodał(a)",
+  "Up next": "Następne",
+  "Position in queue: **#{0}**": "Miejsce w kolejce: **#{0}**",
+  "➕ Added to the queue": "➕ Dodano do kolejki",
+  "Added {0} of {1} track(s).": "Dodano {0} z {1} utworów.",
+  "Skipped {0} duplicate(s).": "Pominięto powtórki: {0}.",
+  "📃 Playlist added": "📃 Dodano playlistę",
+  "📋 Music Queue": "📋 Kolejka",
+  "Page {0} of {1} · {2} queued · {3} in total": "Strona {0} z {1} · w kolejce: {2} · łącznie {3}"
+}
