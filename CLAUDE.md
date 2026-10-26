@@ -491,3 +491,10 @@ change you make, so the next session knows what was done and why.
     from voice XP has no channel, so without a chosen channel it is not announced (my decision).
   - Panel API returns `levelUpChannel: 'same'` when none is chosen; the panel lost its "Kanał systemowy serwera"
     option (pikczu `tools/serwer/bot.html`).
+  - `/profil [osoba]` (owner picked idea 11): `src/services/profileCard.js` draws a 1000x420 PNG with
+    `@napi-rs/canvas` 1.0.11 (new dependency, prebuilt binaries; the host must run `npm install`, which a
+    Pterodactyl Node server does at start) and Inter from `assets/fonts` (SIL OFL, `OFL.txt`; the container has no
+    fonts). Avatar, level + XP bar, cash, bank, cards x/21, fish x/20, the 6 newest badges, spouse. No emoji on
+    the picture (the font has none). Buttons `profil:odznaki|misje:<userId>` open the lists privately. When the
+    canvas module does not load, the command answers with an embed. Command in `commands/Leveling` (no economy
+    channel rules). 81 commands.
