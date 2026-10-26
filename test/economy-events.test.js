@@ -83,7 +83,7 @@ test('effects: double money for payouts only, fish, videos, luck above the cap, 
   await startEvent(guild, 'szczescie', 60, { now });
   settings = await getEconomySettings(guild.id);
   const luck = takeLuck({ upgrades: { luck: 15 }, inventory: { diamond_clover: 1, lucky_clover: 1 } }, EVENT_LUCK);
-  assert.equal(luck.total, 24 + EVENT_LUCK, 'the event goes above the cap of 25');
+  assert.equal(luck.total, 20 + EVENT_LUCK, 'the event goes above the cap of 20');
 
   await startEvent(guild, 'paczki', 60, { now });
   settings = await getEconomySettings(guild.id);

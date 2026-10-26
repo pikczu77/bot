@@ -355,10 +355,12 @@ export async function runAutomod(message) {
 
   if (rule.action === 'warn') {
     try {
-      const module = await import('./moderation/warningService.js');
-      const Warnings = module.WarningService ?? module.default;
-      await Warnings.addWarning({
-        guildId: message.guild.id,
+      // Counts like every warning: the punishment ladder of services/moderation/warningPunishments.js.
+      const { warnMember } = await import('./moderation/warningPunishments.js');
+      await warnMember({
+        client: message.client,
+        guild: message.guild,
+        member: message.member,
         userId: message.author.id,
         moderatorId: message.client.user.id,
         reason: t`Automod: ${label}`,

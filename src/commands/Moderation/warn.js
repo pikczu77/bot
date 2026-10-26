@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, PermissionsBitField, ChannelT
 import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
 import { logModerationAction } from '../../utils/moderation.js';
 import { logger } from '../../utils/logger.js';
-import { WarningService } from '../../services/moderation/warningService.js';
+import { describeStep, warnMember } from '../../services/moderation/warningPunishments.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
@@ -71,12 +71,14 @@ export default {
 
         ModerationService.assertModerationHierarchy(interaction.member, member, 'warn');
 
-        const { id, totalCount } = await WarningService.addWarning({
-            guildId,
+        // Stores the warning and runs the punishment for the new count (services/moderation/warningPunishments.js).
+        const { id, count: totalCount, step, applied, next } = await warnMember({
+            client,
+            guild: interaction.guild,
+            member,
             userId: target.id,
             moderatorId: moderator.id,
             reason,
-            timestamp: Date.now()
         });
 
         await logModerationAction({
@@ -101,7 +103,9 @@ export default {
             embeds: [
                 successEmbed(
                     t`⚠️ **Warned** ${target.tag}`,
-                    t`**Reason:** ${reason}\n**Total Warns:** ${totalCount}`,
+                    t`**Reason:** ${reason}\n**Total Warns:** ${totalCount}` +
+                    (step ? t`\n**Punishment:** ${describeStep(step)}${step.action !== 'none' && !applied ? t(' (not applied - check the bot\'s role and permissions)') : ''}` : '') +
+                    (next ? t`\n**Next warning:** ${describeStep(next)}` : ''),
                 ),
             ],
         });

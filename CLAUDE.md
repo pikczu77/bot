@@ -77,7 +77,7 @@ change you make, so the next session knows what was done and why.
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
   10 points off the bank share, down to 10%.
 - Luck adds percentage points to the win chance (40% with luck +3 is 43%). Luck upgrade:
-  +1 point per level, 15 levels. All luck sources together give at most +25 (cap). Since
+  +1 point per level, 15 levels. All luck sources together give at most +25 (cap); since 2026-10-26 +20 (owner). Since
   2026-10-15 the Diamond Clover gives +5 (owner), so the real best is 15 + 5 + 4 = 24.
   Bets that pay more than x2 get fewer points, `(2 / payout)^2` of them; the owner wanted big
   payouts (roulette number x36) to get "an even smaller chance".
@@ -510,3 +510,16 @@ change you make, so the next session knows what was done and why.
     `eventTypes` and limits `eventEveryHours`, `eventMinutes`; `PATCH /economy` takes `events: { channelId, roleId,
     auto, everyHours, durationMinutes }` (saved with the rest; turning `auto` on plans the first one) and the actions
     `eventStart: { type, minutes }` / `eventStop: true` (run after the save; they post or delete the announcement).
+- **2026-10-26 evening, second list** (owner: "1. +20", "2. koniecznie - zresetuj wszystkie warny, i ogarnij pokolei co
+  robi ile warnow", "3. rob", "4. klasa", "8 fajne"). Live after the owner restarts the bot:
+  - Casino luck cap 25 -> **20** (`MAX_LUCK`). Best permanent luck is now 15 + 5 = 20, so luck consumables add nothing
+    at the cap. The "szczescie" event still goes 5 above it. Break-even at 50% / x1.7 is +9, so max luck still profits.
+  - Warning punishments: `src/services/moderation/warningPunishments.js`. Every warning (`/warn` and automod rules with
+    the "warn" action) goes through `warnMember`: stored, warnings of the last `expireDays` (30) counted, the step for
+    that count runs, the member gets a DM (reason, count, punishment, next step). My ladder: 1 only a warning, 2 timeout
+    10 min, 3 1 h, 4 6 h, 5 1 day, 6 3 days, 7 kick, 8 ban 7 days, 9+ ban 30 days (bans lift through `scheduleUnban`).
+    No automatic permanent ban (moderators decide). A longer timeout already running is not shortened. Settings
+    `guild:{id}:warning-punishments` (enabled, expireDays, steps), panel module "Ostrzeżenia" (`warnings` in the
+    overview, `PATCH /warnings`, `POST /warnings/reset`).
+  - Every warning on every server is deleted once at the next start (`resetAllWarningsOnce` in `initFeatures`, marker
+    `bot:warnings-reset:2026-10-26`; owner's request).

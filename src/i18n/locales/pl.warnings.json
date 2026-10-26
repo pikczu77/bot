@@ -1,0 +1,19 @@
+{
+  " (not applied - check the bot's role and permissions)": " (nie nałożona - sprawdź rolę i uprawnienia bota)",
+  "\n**Punishment:** {0}{1}": "\n**Kara:** {0}{1}",
+  "\n**Next warning:** {0}": "\n**Następne ostrzeżenie:** {0}",
+  "only a warning": "tylko ostrzeżenie",
+  "{0} {0|day|days}": "{0} {0|dzień|dni|dni}",
+  "{0} h": "{0} h",
+  "timeout {0}": "wyciszenie na {0}",
+  "kick from the server": "wyrzucenie z serwera",
+  "ban for {0}": "ban na {0}",
+  "permanent ban": "ban na stałe",
+  "{0} warnings: {1}": "{0} ostrzeżeń: {1}",
+  "Warning punishment: {0}": "Kara za ostrzeżenia: {0}",
+  "**Warnings in the last {0} days:** {1}": "**Ostrzeżenia z ostatnich {0} dni:** {1}",
+  "**Warnings:** {0}": "**Ostrzeżenia:** {0}",
+  "**Punishment:** {0}": "**Kara:** {0}",
+  "**Next warning:** {0}": "**Następne ostrzeżenie:** {0}",
+  "⚠️ Warning on {0}": "⚠️ Ostrzeżenie na serwerze {0}"
+}

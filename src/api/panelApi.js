@@ -99,6 +99,9 @@ import {
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import {
+  MAX_BAN_MINUTES, MAX_STEPS, MAX_TIMEOUT_MINUTES, PUNISHMENT_ACTIONS, getPunishmentSettings, resetGuildWarnings, updatePunishmentSettings, warnedMembers,
+} from '../services/moderation/warningPunishments.js';
+import {
   EVENT_TYPES as ECONOMY_EVENT_TYPES, MAX_EVENT_MINUTES, MIN_EVENT_MINUTES, endEvent, nextAutoTime, startEvent,
 } from '../services/economyEvents.js';
 
@@ -1385,6 +1388,41 @@ async function applyModmail(guild, body) {
   return modmailView(guild);
 }
 
+// ---- Warnings: what each number of warnings does (services/moderation/warningPunishments.js) and who has some.
+async function warningsView(client, guild) {
+  const settings = await getPunishmentSettings(guild.id);
+  const members = await warnedMembers(guild.id, settings);
+  return {
+    enabled: settings.enabled !== false,
+    expireDays: Number(settings.expireDays) || 0,
+    steps: [...settings.steps].sort((a, b) => a.count - b.count).map((step) => ({ count: step.count, action: step.action, minutes: Number(step.minutes) || 0 })),
+    members: members.map((entry) => ({ ...entry, user: userName(client, guild, entry.userId) })),
+    actions: PUNISHMENT_ACTIONS,
+    limits: { steps: MAX_STEPS, timeoutMinutes: MAX_TIMEOUT_MINUTES, banMinutes: MAX_BAN_MINUTES, expireDays: [0, 365] },
+  };
+}
+
+async function applyWarnings(client, guild, body) {
+  const updates = {};
+  if ('enabled' in body) updates.enabled = boolean(body.enabled, 'enabled');
+  if ('expireDays' in body) updates.expireDays = integer(body.expireDays, 'expireDays', 0, 365);
+  if ('steps' in body) {
+    if (!Array.isArray(body.steps) || body.steps.length > MAX_STEPS) throw new ApiError(400, `steps: list of up to ${MAX_STEPS} steps expected`);
+    const steps = body.steps.map((entry, index) => {
+      const step = plainObject(entry, `steps.${index}`);
+      const action = oneOf(step.action, `steps.${index}.action`, PUNISHMENT_ACTIONS);
+      const max = action === 'timeout' ? MAX_TIMEOUT_MINUTES : action === 'ban' ? MAX_BAN_MINUTES : 0;
+      const minutes = action === 'timeout' ? integer(step.minutes, `steps.${index}.minutes`, 1, max)
+        : action === 'ban' ? integer(step.minutes ?? 0, `steps.${index}.minutes`, 0, max) : 0;
+      return { count: integer(step.count, `steps.${index}.count`, 1, 100), action, minutes };
+    });
+    if (new Set(steps.map((step) => step.count)).size !== steps.length) throw new ApiError(400, 'steps: two steps for the same number of warnings');
+    updates.steps = steps.sort((a, b) => a.count - b.count);
+  }
+  await updatePunishmentSettings(guild.id, (data) => Object.assign(data, updates));
+  return warningsView(client, guild);
+}
+
 export function createPanelRouter(client) {
   const apiKey = (process.env.PANEL_API_KEY ?? '').trim();
   if (!apiKey) return null;
@@ -1464,6 +1502,7 @@ export function createPanelRouter(client) {
       counting: await countingView(client, guild),
       serverstats: await serverStatsView(client, guild),
       modmail: await modmailView(guild),
+      warnings: await warningsView(client, guild),
     },
   })));
 
@@ -1472,6 +1511,12 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/counting', route(({ guild, body }) => applyCounting(client, guild, body)));
   router.patch('/guilds/:guildId/serverstats', route(({ guild, body }) => applyServerStats(client, guild, body)));
   router.patch('/guilds/:guildId/modmail', route(({ guild, body }) => applyModmail(guild, body)));
+  router.patch('/guilds/:guildId/warnings', route(({ guild, body }) => applyWarnings(client, guild, body)));
+  // Every warning on the server back to zero (the panel asks twice before it calls this).
+  router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
+    const reset = await resetGuildWarnings(guild.id);
+    return { ...(await warningsView(client, guild)), reset };
+  }));
 
   router.patch('/guilds/:guildId/language', route(async ({ guild, body }) => {
     const locale = normalizeLocale(body.language);

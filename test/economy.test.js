@@ -178,7 +178,7 @@ test('items: tiers need the one before, the best one counts, the Discount upgrad
   assert.equal((await data(buyer)).inventory.lucky_charm, 3);
 });
 
-test('casino: luck adds points, fewer on big payouts, at most +25; the shown chance is exact', async () => {
+test('casino: luck adds points, fewer on big payouts, at most +20; the shown chance is exact', async () => {
   // Points: 40% with luck +25 is 65%; never above 95%.
   assert.ok(Math.abs(applyLuck(0.4, 25) - 0.65) < 1e-12);
   assert.ok(Math.abs(applyLuck(0.4, 3) - 0.43) < 1e-12);
@@ -210,9 +210,9 @@ test('casino: luck adds points, fewer on big payouts, at most +25; the shown cha
   const luck = takeLuck({ upgrades: { luck: 5 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 2 } });
   assert.equal(luck.total, 14);
   assert.equal(luck.item.id, 'lucky_clover');
-  // Everything at its best: 15 + 5 + 4 = 24, under the cap of 25.
-  assert.equal(takeLuck({ upgrades: { luck: 15 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 1 } }).total, 24);
-  assert.equal(takeLuck({ upgrades: { luck: 99 }, inventory: { diamond_clover: 1, lucky_clover: 1, lucky_charm: 3 } }).total, 24);
+  // Everything at its best: 15 + 5 + 4 = 24, cut to the cap of 20 (owner, 2026-10-26).
+  assert.equal(takeLuck({ upgrades: { luck: 15 }, inventory: { golden_clover: 1, diamond_clover: 1, lucky_clover: 1 } }).total, 20);
+  assert.equal(takeLuck({ upgrades: { luck: 99 }, inventory: { diamond_clover: 1, lucky_clover: 1, lucky_charm: 3 } }).total, 20);
 
   const gambler = newMember('Hazardzista');
   await updateEconomySettings(guild.id, (settings) => { settings.commands.gamble = { cooldownMinutes: 0, winPercent: 40, payoutPercent: 200, maxBet: 0 }; });

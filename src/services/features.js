@@ -13,6 +13,7 @@ import { applyNightChannels } from './nightChannel.js';
 import { runEconomyEvents } from './economyEvents.js';
 import { runQuiz } from './quiz.js';
 import { syncChatBridges } from './minecraftChat.js';
+import { resetAllWarningsOnce } from './moderation/warningPunishments.js';
 import { runBackups } from './minecraftServer.js';
 
 const JOBS = [
@@ -47,4 +48,6 @@ export async function initFeatures(client) {
   }
 
   await cacheAllInvites(client).catch((error) => logger.warn(`Invite cache failed: ${error.message}`));
+  // Owner's one-time request (2026-10-26): every warning on every server back to zero.
+  await resetAllWarningsOnce(client).catch((error) => logger.warn(`Warnings reset failed: ${error.message}`));
 }

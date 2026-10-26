@@ -4,7 +4,7 @@
 //
 // Luck adds percentage points to a game's win chance: 40% with luck +3 is 43%. Sources: the Luck upgrade (+1 a level, 15 levels), the best clover item
 // (golden +4, diamond +6) and one consumable per game (Lucky Clover +4, Lucky Charm +2),
-// together at most MAX_LUCK = 25. Bets that pay more than x2 get fewer points,
+// together at most MAX_LUCK = 20 (owner, 2026-10-26; was 25). Bets that pay more than x2 get fewer points,
 // (2 / payout)^2 of them, so a roulette number (x36) is not a sure profit. A win chance
 // never goes above MAX_WIN_CHANCE.
 //
@@ -23,7 +23,7 @@ import { recordProgress } from './progress.js';
 import { eventLuck } from './economyEvents.js';
 
 export const MAX_WIN_CHANCE = 0.95;
-export const MAX_LUCK = 25;
+export const MAX_LUCK = 20;
 export const EVEN_MONEY_PAYOUT = 1.7;
 
 const LUCK_ITEMS = ['lucky_clover', 'lucky_charm'];

@@ -11,7 +11,7 @@
 //   kasa       every job payout x2 (scaleEarnings with the member's data: jobs, /daily, chat, level-up money)
 //   ryby       /fish pays x2 and golden / diamond fish come 3x as often
 //   youtube    /nagraj pays x2
-//   szczescie  +5 luck in every casino game (also above the normal cap of 25)
+//   szczescie  +5 luck in every casino game (also above the normal cap of 20)
 //   paczki     /paczka packs cost half
 
 import { createEmbed } from '../utils/embeds.js';
