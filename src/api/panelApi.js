@@ -14,7 +14,7 @@ import express from 'express';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { TitanBotError } from '../utils/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { LOCALE_INFO, SUPPORTED_LOCALES, normalizeLocale, runWithLocale, tr, trAny } from '../i18n/index.js';
+import { LOCALE_INFO, SUPPORTED_LOCALES, normalizeLocale, runWithLocale, t, tr, trAny } from '../i18n/index.js';
 import { getGuildLocale, setGuildLocale } from '../services/languageService.js';
 import { getGuildConfig, updateGuildConfig } from '../services/config/guildConfig.js';
 import { getEconomyPrefix, getJoinToCreateConfig, getWelcomeConfig, saveJoinToCreateConfig, updateWelcomeConfig } from '../utils/database.js';
@@ -87,6 +87,17 @@ import { consoleGuideEmbed } from '../services/minecraftConsole.js';
 import { chatHistory, syncChatBridge } from '../services/minecraftChat.js';
 import { MAX_BACKUP_HOURS } from '../services/minecraftServer.js';
 import { getQuizSettings, updateQuizSettings } from '../services/quiz.js';
+import { deleteBirthday, getAllBirthdays } from '../services/birthdayService.js';
+import { getGuildGiveaways, saveGiveaway } from '../utils/giveaways.js';
+import { createGiveawayButtons, createGiveawayEmbed } from '../services/giveawayService.js';
+import {
+  disableCountingGame, getCountingGameConfig, getCountingSystemChoices, getExpectedCountValue, resetCountingGame, saveCountingGameConfig,
+} from '../services/countingGameService.js';
+import {
+  COUNTER_NAME_MAX_LENGTH, COUNTER_TYPE_CONFIG, getCounterBaseName, getCounterTypeLabel, getServerCounters, normalizeCounterNameTemplate,
+  saveServerCounters, updateCounter,
+} from '../services/serverstatsService.js';
+import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -1120,6 +1131,225 @@ async function applyMinecraft(client, guild, body) {
 /**
  * Build the panel router, or null when the API is switched off.
  */
+// ---- Birthdays (/urodziny): channel and role in the guild config, the list read-only (members set their own date).
+async function birthdaysView(client, guild) {
+  const config = await getGuildConfig(client, guild.id);
+  const list = await getAllBirthdays(client, guild.id).catch(() => []);
+  return {
+    channelId: config.birthdayChannelId ?? null,
+    roleId: config.birthdayRoleId ?? null,
+    list: list.map((entry) => ({ userId: entry.userId, user: userName(client, guild, entry.userId), month: entry.month, day: entry.day })),
+  };
+}
+
+async function applyBirthdays(client, guild, body) {
+  const updates = {};
+  if ('channelId' in body) updates.birthdayChannelId = requireTextChannel(guild, body.channelId, 'channelId');
+  if ('roleId' in body) {
+    const roleId = requireRole(guild, body.roleId, 'roleId');
+    if (roleId && guild.roles.cache.get(roleId)?.editable === false) throw new ApiError(400, 'roleId: the bot cannot give this role');
+    updates.birthdayRoleId = roleId;
+  }
+  if ('remove' in body) {
+    const userId = requireUserId(body.remove);
+    await deleteBirthday(client, guild.id, userId);
+  }
+  if (Object.keys(updates).length) await updateGuildConfig(client, guild.id, updates);
+  return birthdaysView(client, guild);
+}
+
+// ---- Giveaways: the running ones and the last ended ones; start one, or end one now (the giveaway job
+// ends it within a minute, the same way as when its time is up).
+const GIVEAWAY_LIST_LIMIT = 15;
+const GIVEAWAY_MAX_MINUTES = 30 * 24 * 60;
+
+async function giveawaysView(client, guild) {
+  const all = await getGuildGiveaways(client, guild.id);
+  const ended = (giveaway) => giveaway.ended === true || giveaway.isEnded === true;
+  const sorted = [...all].sort((a, b) => Number(b.endsAt ?? b.endTime ?? 0) - Number(a.endsAt ?? a.endTime ?? 0));
+  const running = sorted.filter((giveaway) => !ended(giveaway));
+  const finished = sorted.filter(ended).slice(0, Math.max(0, GIVEAWAY_LIST_LIMIT - running.length));
+  return {
+    list: [...running, ...finished].map((giveaway) => ({
+      id: String(giveaway.messageId),
+      prize: giveaway.prize,
+      channelId: giveaway.channelId ?? null,
+      endsAt: Number(giveaway.endsAt ?? giveaway.endTime) || null,
+      winners: Number(giveaway.winnerCount) || 1,
+      entries: (giveaway.participants ?? []).length,
+      ended: ended(giveaway),
+      winnerNames: (giveaway.winnerIds ?? []).map((id) => userName(client, guild, id) ?? id),
+    })),
+    limits: { winners: [1, 10], minutes: [1, GIVEAWAY_MAX_MINUTES], prize: 100 },
+  };
+}
+
+async function applyGiveaways(client, guild, body) {
+  if ('end' in body) {
+    const id = String(body.end ?? '');
+    const giveaway = (await getGuildGiveaways(client, guild.id)).find((entry) => String(entry.messageId) === id);
+    if (!giveaway) throw new ApiError(404, 'end: no such giveaway');
+    if (giveaway.ended || giveaway.isEnded) throw new ApiError(400, 'end: this giveaway has already ended');
+    await saveGiveaway(client, guild.id, { ...giveaway, endTime: Date.now() - 1, endsAt: Date.now() - 1 });
+  }
+  if ('start' in body) {
+    const start = plainObject(body.start, 'start');
+    const channelId = requireTextChannel(guild, start.channelId, 'start.channelId');
+    if (!channelId) throw new ApiError(400, 'start.channelId: pick a channel');
+    const channel = guild.channels.cache.get(channelId);
+    requireEmbedAccess(guild, channel, 'start.channelId');
+    const prize = optionalString(start.prize, 'start.prize', 100);
+    if (!prize) throw new ApiError(400, 'start.prize: write the prize');
+    const minutes = integer(start.minutes, 'start.minutes', 1, GIVEAWAY_MAX_MINUTES);
+    const winnerCount = integer(start.winners, 'start.winners', 1, 10);
+    const pingRoleId = 'pingRoleId' in start ? requireRole(guild, start.pingRoleId, 'start.pingRoleId') : null;
+    const endTime = Date.now() + minutes * 60_000;
+    const giveaway = {
+      messageId: 'placeholder', channelId, guildId: guild.id, prize, hostId: client.user?.id ?? null,
+      endTime, endsAt: endTime, winnerCount, participants: [], tickets: {},
+      requirements: { roleId: null, minLevel: null, minInvites: null, minAccountAgeDays: null, minMemberDays: null },
+      bonusEntries: [], isEnded: false, ended: false, createdAt: new Date().toISOString(),
+    };
+    const message = await channel.send({
+      content: pingRoleId ? `${t('🎉 **NEW GIVEAWAY** 🎉')} <@&${pingRoleId}>` : t('🎉 **NEW GIVEAWAY** 🎉'),
+      embeds: [createGiveawayEmbed(giveaway, 'active')],
+      components: [createGiveawayButtons(false, 0)],
+      allowedMentions: { roles: pingRoleId ? [pingRoleId] : [] },
+    });
+    giveaway.messageId = message.id;
+    await saveGiveaway(client, guild.id, giveaway);
+  }
+  return giveawaysView(client, guild);
+}
+
+// ---- Counting game (/liczenie): channel (null = off), number system, reset, the top counters.
+async function countingView(client, guild) {
+  const config = await getCountingGameConfig(client, guild.id);
+  const top = Object.entries(config.leaderboard ?? {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([userId, count]) => ({ userId, user: userName(client, guild, userId), count }));
+  return {
+    enabled: Boolean(config.enabled && config.channelId),
+    channelId: config.channelId ?? null,
+    system: config.system,
+    next: getExpectedCountValue(config),
+    nextNumber: config.nextNumber,
+    bestStreak: config.bestStreak || 0,
+    top,
+    systems: getCountingSystemChoices().map((choice) => ({ id: choice.value, name: tr(choice.name) })),
+  };
+}
+
+async function applyCounting(client, guild, body) {
+  const systems = getCountingSystemChoices().map((choice) => choice.value);
+  let config = await getCountingGameConfig(client, guild.id);
+  if ('channelId' in body) {
+    const channelId = requireTextChannel(guild, body.channelId, 'channelId');
+    if (!channelId) {
+      config = await disableCountingGame(client, guild.id);
+    } else if (channelId !== config.channelId || !config.enabled) {
+      config = await saveCountingGameConfig(client, guild.id, { ...config, enabled: true, channelId });
+    }
+  }
+  if ('system' in body) {
+    const system = oneOf(body.system, 'system', systems);
+    if (system !== config.system) config = await saveCountingGameConfig(client, guild.id, { ...config, system });
+  }
+  if ('reset' in body) {
+    await resetCountingGame(client, guild.id, integer(body.reset, 'reset', 1, 1_000_000_000));
+  }
+  return countingView(client, guild);
+}
+
+// ---- Server stats counters (/statystyki): add a counter channel in a category, rename or remove one.
+const COUNTER_TYPES = Object.keys(COUNTER_TYPE_CONFIG);
+
+async function serverStatsView(client, guild) {
+  const counters = await getServerCounters(client, guild.id);
+  return {
+    counters: counters.map((counter) => ({
+      id: String(counter.id),
+      type: counter.type,
+      channelId: counter.channelId,
+      channelName: guild.channels.cache.get(counter.channelId)?.name ?? null,
+      voice: guild.channels.cache.get(counter.channelId)?.type === ChannelType.GuildVoice,
+      name: counter.name ?? null,
+    })),
+    types: COUNTER_TYPES.map((type) => ({ id: type, name: tr(getCounterTypeLabel(type)), base: tr(getCounterBaseName(type)) })),
+  };
+}
+
+async function applyServerStats(client, guild, body) {
+  let counters = await getServerCounters(client, guild.id);
+  if ('remove' in body) {
+    const id = String(body.remove ?? '');
+    const counter = counters.find((entry) => String(entry.id) === id);
+    if (!counter) throw new ApiError(404, 'remove: no such counter');
+    counters = counters.filter((entry) => entry !== counter);
+    await saveServerCounters(client, guild.id, counters);
+    if (body.deleteChannel === true) await guild.channels.cache.get(counter.channelId)?.delete('Counter removed in the web panel').catch(() => null);
+  }
+  if ('rename' in body) {
+    const rename = plainObject(body.rename, 'rename');
+    const counter = counters.find((entry) => String(entry.id) === String(rename.id ?? ''));
+    if (!counter) throw new ApiError(404, 'rename.id: no such counter');
+    const name = normalizeCounterNameTemplate(optionalString(rename.name, 'rename.name', COUNTER_NAME_MAX_LENGTH));
+    if (name) counter.name = name;
+    else delete counter.name;
+    await saveServerCounters(client, guild.id, counters);
+    await updateCounter(client, guild, counter);
+  }
+  if ('add' in body) {
+    const add = plainObject(body.add, 'add');
+    const type = oneOf(add.type, 'add.type', COUNTER_TYPES);
+    if (counters.some((entry) => entry.type === type)) throw new ApiError(400, 'add.type: a counter of this type already exists');
+    const categoryId = requireChannelOfType(guild, add.categoryId, 'add.categoryId', ChannelType.GuildCategory, 'category');
+    const voice = add.voice !== false;
+    const name = normalizeCounterNameTemplate(optionalString(add.name, 'add.name', COUNTER_NAME_MAX_LENGTH));
+    const channel = await guild.channels.create({
+      name: getCounterBaseName(type),
+      type: voice ? ChannelType.GuildVoice : ChannelType.GuildText,
+      parent: categoryId,
+      reason: 'Counter channel created in the web panel',
+    });
+    const counter = { id: Date.now().toString(), type, channelId: channel.id, guildId: guild.id, createdAt: new Date().toISOString(), enabled: true };
+    if (name) counter.name = name;
+    await saveServerCounters(client, guild.id, [...counters, counter]);
+    await updateCounter(client, guild, counter);
+  }
+  return serverStatsView(client, guild);
+}
+
+// ---- Modmail: DMs to the bot open a staff channel in a category.
+async function modmailView(guild) {
+  const config = await getModmailConfig(guild.id);
+  return {
+    enabled: Boolean(config.enabled),
+    categoryId: config.categoryId ?? null,
+    staffRoleId: config.staffRoleId ?? null,
+    logChannelId: config.logChannelId ?? null,
+    greeting: config.greeting ?? '',
+    anonymous: Boolean(config.anonymous),
+    blocked: (config.blocked ?? []).length,
+  };
+}
+
+async function applyModmail(guild, body) {
+  const current = await getModmailConfig(guild.id);
+  const updates = {};
+  if ('enabled' in body) updates.enabled = boolean(body.enabled, 'enabled');
+  if ('categoryId' in body) updates.categoryId = requireChannelOfType(guild, body.categoryId, 'categoryId', ChannelType.GuildCategory, 'category');
+  if ('staffRoleId' in body) updates.staffRoleId = requireRole(guild, body.staffRoleId, 'staffRoleId');
+  if ('logChannelId' in body) updates.logChannelId = requireTextChannel(guild, body.logChannelId, 'logChannelId');
+  if ('greeting' in body) updates.greeting = optionalString(body.greeting, 'greeting', 1000) || null;
+  if ('anonymous' in body) updates.anonymous = boolean(body.anonymous, 'anonymous');
+  const next = { ...current, ...updates };
+  if (next.enabled && !next.categoryId) throw new ApiError(400, 'categoryId: pick a category for the modmail channels before turning it on');
+  await updateModmailConfig(guild.id, (data) => Object.assign(data, updates));
+  return modmailView(guild);
+}
+
 export function createPanelRouter(client) {
   const apiKey = (process.env.PANEL_API_KEY ?? '').trim();
   if (!apiKey) return null;
@@ -1194,8 +1424,19 @@ export function createPanelRouter(client) {
       selfroles: selfRolesView(await getSelfRolePanels(guild.id), guild),
       logging: loggingView(await getGuildConfig(client, guild.id)),
       minecraft: minecraftView(client, guild, await getWhitelistConfig(guild.id)),
+      birthdays: await birthdaysView(client, guild),
+      giveaways: await giveawaysView(client, guild),
+      counting: await countingView(client, guild),
+      serverstats: await serverStatsView(client, guild),
+      modmail: await modmailView(guild),
     },
   })));
+
+  router.patch('/guilds/:guildId/birthdays', route(({ guild, body }) => applyBirthdays(client, guild, body)));
+  router.patch('/guilds/:guildId/giveaways', route(({ guild, body }) => applyGiveaways(client, guild, body)));
+  router.patch('/guilds/:guildId/counting', route(({ guild, body }) => applyCounting(client, guild, body)));
+  router.patch('/guilds/:guildId/serverstats', route(({ guild, body }) => applyServerStats(client, guild, body)));
+  router.patch('/guilds/:guildId/modmail', route(({ guild, body }) => applyModmail(guild, body)));
 
   router.patch('/guilds/:guildId/language', route(async ({ guild, body }) => {
     const locale = normalizeLocale(body.language);

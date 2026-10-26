@@ -498,3 +498,11 @@ change you make, so the next session knows what was done and why.
     the picture (the font has none). Buttons `profil:odznaki|misje:<userId>` open the lists privately. When the
     canvas module does not load, the command answers with an embed. Command in `commands/Leveling` (no economy
     channel rules). 81 commands.
+  - Panel API for five more modules (owner: "5 zrob" on my list; the site cards are in pikczu `bot.html`), all in
+    `src/api/panelApi.js`, also in `modules` of `GET /guilds/:guildId`:
+    `birthdays` (PATCH `channelId`, `roleId`, `remove: userId`; list read-only), `giveaways` (PATCH
+    `start: { channelId, prize, minutes, winners, pingRoleId? }`, `end: messageId` = due now, the giveaway job ends
+    it within a minute), `counting` (PATCH `channelId` (null = off), `system`, `reset: startNumber`; top 10),
+    `serverstats` (PATCH `add: { type, categoryId, voice, name? }` creates the channel, `rename: { id, name }`,
+    `remove: id` (+ `deleteChannel: true`)), `modmail` (PATCH `enabled, categoryId, staffRoleId, logChannelId,
+    greeting, anonymous`; on needs a category). Tests: `test/panel-modules.test.js`.
