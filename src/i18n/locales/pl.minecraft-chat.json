@@ -1,0 +1,20 @@
+{
+  "Link a channel with the Minecraft chat, both ways (Manage Server)": "Połącz kanał z czatem Minecrafta w obie strony (Zarządzanie serwerem)",
+  "Chat channel; leave empty to turn the link off": "Kanał czatu; zostaw puste, żeby rozłączyć",
+  "Also post joins, leaves, deaths and advancements (default: yes)": "Pokazuj też wejścia, wyjścia, śmierci i osiągnięcia (domyślnie: tak)",
+
+  "This is the whitelist channel. Pick another channel for the chat.": "To jest kanał whitelisty. Wybierz inny kanał na czat.",
+  "This is the console channel. Pick another channel for the chat.": "To jest kanał konsoli. Wybierz inny kanał na czat.",
+  "Minecraft chat link is off": "Czat z Minecraftem rozłączony",
+  "The channel and the game chat are no longer linked.": "Kanał i czat w grze nie są już połączone.",
+  "✅ Minecraft chat is linked": "✅ Czat z Minecraftem połączony",
+  "Messages in {0} go to the game, and the game chat comes here.": "Wiadomości z {0} trafiają do gry, a czat z gry przychodzi tutaj.",
+  "Joins, leaves, deaths and advancements are posted too.": "Wejścia, wyjścia, śmierci i osiągnięcia też się pokazują.",
+  "Only chat messages are posted (no joins, leaves or deaths).": "Pokazują się tylko wiadomości z czatu (bez wejść, wyjść i śmierci).",
+  "⚠️ Give the bot **Manage Webhooks** on this channel to show players with their own name and head.": "⚠️ Daj botu uprawnienie **Zarządzanie webhookami** na tym kanale, żeby gracze pisali ze swoim nickiem i głową.",
+  "📥 {0} joined the game": "📥 {0} wszedł do gry",
+  "📤 {0} left the game": "📤 {0} wyszedł z gry",
+  "🏆 {0} got the advancement **{1}**": "🏆 {0} zdobył osiągnięcie **{1}**",
+  "🟢 The server is on": "🟢 Serwer włączony",
+  "🔴 The server is shutting down": "🔴 Serwer się wyłącza"
+}

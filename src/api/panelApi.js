@@ -84,6 +84,7 @@ import {
   updateWhitelistSettings,
 } from '../services/minecraftWhitelist.js';
 import { consoleGuideEmbed } from '../services/minecraftConsole.js';
+import { syncChatBridge } from '../services/minecraftChat.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -968,6 +969,9 @@ function minecraftView(client, guild, config) {
     // Console channel (src/services/minecraftConsole.js): only Administrators can run commands there.
     consoleChannelId: config.consoleChannelId ?? null,
     consolePublic: isPublicChannel(guild, config.consoleChannelId),
+    // Chat link with the game (src/services/minecraftChat.js).
+    chatChannelId: config.chatChannelId ?? null,
+    chatEvents: config.chatEvents !== false,
   };
 }
 
@@ -1011,6 +1015,8 @@ async function applyMinecraft(client, guild, body) {
   if ('panelUrl' in body) updates.panelUrl = normalizePanelUrl(body.panelUrl);
   if ('serverId' in body) updates.serverId = normalizeServerId(body.serverId);
   if ('consoleChannelId' in body) updates.consoleChannelId = requireTextChannel(guild, body.consoleChannelId, 'consoleChannelId');
+  if ('chatChannelId' in body) updates.chatChannelId = requireTextChannel(guild, body.chatChannelId, 'chatChannelId');
+  if ('chatEvents' in body) updates.chatEvents = boolean(body.chatEvents, 'chatEvents');
 
   const next = { ...current, ...updates };
   // A saved key only ever goes back to the panel it was typed for.
@@ -1033,6 +1039,15 @@ async function applyMinecraft(client, guild, body) {
     if (next.enabled && next.consoleChannelId === next.channelId) throw new ApiError(400, 'consoleChannelId: this is the whitelist channel, pick another channel for the console');
     requireWhitelistChannel(guild, next.consoleChannelId, 'consoleChannelId');
   }
+  // Same rules as /minecraft czat: a connected panel, not the nick or console channel.
+  const chatMoved = 'chatChannelId' in updates && updates.chatChannelId !== (current.chatChannelId ?? null);
+  if (chatMoved && next.chatChannelId) {
+    if (!current.apiKey) throw new ApiError(400, 'chatChannelId: connect the server panel first with /minecraft whitelista ustaw on Discord');
+    if ((next.enabled && next.chatChannelId === next.channelId) || next.chatChannelId === next.consoleChannelId) {
+      throw new ApiError(400, 'chatChannelId: pick a channel that is not the whitelist or console channel');
+    }
+    requireWhitelistChannel(guild, next.chatChannelId, 'chatChannelId');
+  }
 
   // Another server on the same panel: the saved key must open it before it is stored.
   if (current.apiKey && next.serverId !== current.serverId) {
@@ -1054,6 +1069,9 @@ async function applyMinecraft(client, guild, body) {
         logger.warn(`Panel: Minecraft whitelist guide not posted in guild ${guild.id}: ${error.message}`);
         return false;
       });
+  }
+  if ('chatChannelId' in updates || 'chatEvents' in updates) {
+    await syncChatBridge(guild).catch((error) => logger.warn(`Panel: Minecraft chat link not started in guild ${guild.id}: ${error.message}`));
   }
   if (consoleMoved && saved.consoleChannelId) {
     await guild.channels.cache.get(saved.consoleChannelId).send({ embeds: [consoleGuideEmbed()] })

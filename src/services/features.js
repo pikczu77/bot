@@ -12,6 +12,7 @@ import { awardVoiceXp } from './leveling/voiceXp.js';
 import { applyNightChannels } from './nightChannel.js';
 import { runEconomyEvents } from './economyEvents.js';
 import { runQuiz } from './quiz.js';
+import { syncChatBridges } from './minecraftChat.js';
 
 const JOBS = [
   { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
@@ -21,6 +22,7 @@ const JOBS = [
   { name: 'voice_xp', schedule: '* * * * *', run: awardVoiceXp },
   { name: 'economy_events', schedule: '* * * * *', run: runEconomyEvents },
   { name: 'quiz', schedule: '* * * * *', run: runQuiz },
+  { name: 'minecraft_chat', schedule: '* * * * *', run: syncChatBridges },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */

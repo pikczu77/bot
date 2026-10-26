@@ -4,6 +4,7 @@ import { runAutomod } from '../services/automodService.js';
 import { handleWhitelistMessage } from '../services/minecraftWhitelist.js';
 import { handleConsoleMessage } from '../services/minecraftConsole.js';
 import { noteQuizActivity } from '../services/quiz.js';
+import { handleChatBridgeMessage } from '../services/minecraftChat.js';
 import { bumpSticky, handleTagMessage } from '../services/tagService.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
 import { logger } from '../utils/logger.js';
@@ -24,9 +25,10 @@ export default {
     try {
       if (await runAutomod(message)) return;
       noteQuizActivity(message);
-      // The Minecraft nick and console channels answer every message themselves.
+      // The Minecraft nick, console and chat channels handle every message themselves.
       if (await handleWhitelistMessage(message)) return;
       if (await handleConsoleMessage(message)) return;
+      if (await handleChatBridgeMessage(message)) return;
 
       const guildConfig = await getGuildConfig(client, message.guild.id);
       await handleTagMessage(message, guildConfig?.prefix || getCommandPrefix());

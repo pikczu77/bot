@@ -128,9 +128,18 @@ change you make, so the next session knows what was done and why.
   commands (and set the channel): the console can op players and stop the server. Output is read
   from the panel websocket (`GET /websocket`, `ws` with `origin` = panel address, Wings checks it;
   confirmed on the real MatHost panel 2026-10-23), for `consoleTiming.outputMs` after the commands.
+- Chat link (since 2026-10-26): `src/services/minecraftChat.js`, `/minecraft czat [kanal] [wydarzenia]` in
+  `src/commands/Minecraft/modules/chat.js` (Manage Server; no channel = off). Same store and panel key, fields
+  `chatChannelId`, `chatEvents`. One long-lived panel websocket per guild reads the console (`parseChatLine`:
+  vanilla/Paper chat, joins, leaves, advancements, deaths, start/stop); chat goes out through a "Minecraft"
+  webhook with the player's name and mc-heads.net head (plain bot messages without Manage Webhooks), never pings.
+  Discord messages on the channel become `tellraw @a` (`handleChatBridgeMessage`, after the console handler;
+  bot and webhook messages are skipped earlier, so no loop). Job `minecraft_chat` every minute opens/closes the
+  sockets (`syncChatBridges`), a dropped socket retries after 30 s ... 5 min. Panel API: `chatChannelId`,
+  `chatEvents` in `minecraftView` / `applyMinecraft`. Chat plugins that change the console format are not read.
 - Tests: `test/minecraft-whitelist.test.js` (fake panel and fake Mojang API through `globalThis.fetch`),
   `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel), `test/minecraft-console.test.js`
-  (fake websocket through `consoleSocket.create`).
+  (fake websocket through `consoleSocket.create`), `test/minecraft-chat.test.js`.
 
 ## Music map
 - Riffy 1.0.12 + public Lavalink v4 nodes from `lavalink/nodes.json` (no own Lavalink server).
@@ -427,3 +436,17 @@ change you make, so the next session knows what was done and why.
     member, 45 s per question, the first right answer wins (prize x server multiplier, Fortune, "kasa" event),
     automatic questions only when a member wrote on the channel since the last one, the running question lives in
     memory (a restart ends it). 79 commands.
+- **2026-10-26 ~12:00, finished ~14:30** (owner picked idea 14: Minecraft chat on Discord). One session wrote the
+  code and tests and stopped before translating and committing; the next session (asked to "continue where the
+  other session stopped") added the Polish text (`pl.minecraft-chat.json`), checked it and pushed it.
+  Live after the owner restarts the bot. Details in "Minecraft whitelist map":
+  - `/minecraft czat kanal:#... [wydarzenia]`: game chat comes to the channel as the player (name + head), Discord
+    messages go to the game as "[Discord] Name: text" (blue/aqua, max 200 characters, attachments as
+    "[załącznik]"). Joins, leaves, deaths, advancements, server on/off as short lines unless `wydarzenia:false`.
+  - Panel API takes `chatChannelId` (null = off) and `chatEvents`, same rules as the command: a saved key, not
+    the whitelist or console channel. The pikczu.pl/bot page has no card for it yet (site project).
+  - Decisions of the first session: Manage Server (not Administrator) because the link cannot run commands;
+    consecutive lines of one player go in one message (1 s window); a failed send to the game reacts ❌.
+  - Not tested against the real MatHost server (no access); the websocket part is the one the console already
+    uses there. Each Discord message is one panel API call (Pterodactyl allows about 240 a minute).
+  - 79 commands (a subcommand, no new top-level command).

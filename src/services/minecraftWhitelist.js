@@ -37,6 +37,9 @@ const store = guildStore('minecraft-whitelist', {
   members: {},
   // Console channel (src/services/minecraftConsole.js); it uses the same panel connection.
   consoleChannelId: null,
+  // Chat link with the game (src/services/minecraftChat.js); chatEvents = also joins, deaths, advancements.
+  chatChannelId: null,
+  chatEvents: true,
 });
 
 const lastTry = new Map();

@@ -95,6 +95,8 @@ test('the panel sees the settings and the members, never the API key', async () 
     members: { [player.id]: { name: 'Pikczu', at: 1760000000000, user: 'Gracz1' } },
     consoleChannelId: null,
     consolePublic: false,
+    chatChannelId: null,
+    chatEvents: true,
   });
   assert.ok(!view.text.includes(MC_KEY));
 
@@ -221,4 +223,18 @@ test('console channel from the panel: needs a key, never the nick channel, posts
   await updateWhitelistConfig(guild.id, (data) => { Object.assign(data, { apiKey: null, enabled: false }); });
   assert.match((await patch({ consoleChannelId: consoleChannel.id })).json.error, /^consoleChannelId: connect the server panel/);
   assert.equal((await getWhitelistConfig(guild.id)).consoleChannelId, null);
+});
+
+test('chat channel from the panel: needs a key, not the nick or console channel; events switch', async () => {
+  const chatChannel = mockChannel(guild, 'czat-mc');
+  const on = await patch({ chatChannelId: chatChannel.id, chatEvents: false });
+  assert.equal(on.status, 200, on.text);
+  assert.equal(on.json.chatChannelId, chatChannel.id);
+  assert.equal(on.json.chatEvents, false);
+  assert.match((await patch({ chatChannelId: channel.id })).json.error, /^chatChannelId: pick a channel/);
+  assert.equal((await patch({ chatEvents: 'tak' })).status, 400);
+  const off = await patch({ chatChannelId: null });
+  assert.equal(off.json.chatChannelId, null);
+  await updateWhitelistConfig(guild.id, (data) => { Object.assign(data, { apiKey: null, enabled: false }); });
+  assert.match((await patch({ chatChannelId: chatChannel.id })).json.error, /^chatChannelId: connect the server panel/);
 });
