@@ -17,6 +17,7 @@ import { runChatEngagement } from './chatEngagement.js';
 import { syncChatBridges } from './minecraftChat.js';
 import { resetAllWarningsOnce } from './moderation/warningPunishments.js';
 import { runBackups } from './minecraftServer.js';
+import { pollMinecraftLive } from './minecraftLive.js';
 
 const JOBS = [
   { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
@@ -30,6 +31,7 @@ const JOBS = [
   { name: 'chat_engagement', schedule: '* * * * *', run: runChatEngagement },
   { name: 'minecraft_chat', schedule: '* * * * *', run: syncChatBridges },
   { name: 'minecraft_backup', schedule: '* * * * *', run: runBackups },
+  { name: 'minecraft_live', schedule: '* * * * *', run: pollMinecraftLive },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */

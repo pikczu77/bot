@@ -153,6 +153,15 @@ change you make, so the next session knows what was done and why.
   (`canUseConsole`). Store fields `backupEveryHours`, `lastAutoBackupAt`, `lastBackup`. Job `minecraft_backup` every minute.
   Automatic backups are named `Discord auto ...`; a full plan deletes only the oldest unlocked automatic backup. Panel API:
   `backupEveryHours` (0-168) in PATCH, `chatRecent` (last 30 chat lines, memory) and `lastBackup` in the view.
+- Public status for pikczu.pl/smp (since 2026-10-26): `src/services/minecraftLive.js`, job `minecraft_live` every minute
+  for each guild with a connected whitelist panel: panel `/resources` (state, uptime) + mcsrvstat.us ping at the address of a
+  `/minecraft track` server on that guild, else the panel's default allocation (`GET ''`, cached 1 h; `0.0.0.0` = no
+  address, the poll fails). "Since" in memory (a chat-bridge join line gives the exact minute), "last seen" in the store
+  `guild:<id>:minecraft-live` (`seen`). A sample of names (names < count) never marks anyone as gone. Panel API
+  `GET /api/v1/minecraft/live` -> `{ servers: [{ guildId, checkedAt, state, startedAt, count, players }] }`, players =
+  online first (longest playing first), then the whitelist nicks with `lastSeen`. The owner's rule: the Club SMP is a private
+  SMP of YouTubers - this view must never carry the address, version, player limit, Discord names or chat
+  (`test/minecraft-live.test.js` checks the response text).
 
 ## Music map
 - Riffy 1.0.12 + public Lavalink v4 nodes from `lavalink/nodes.json` (no own Lavalink server).

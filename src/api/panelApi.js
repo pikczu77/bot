@@ -85,6 +85,7 @@ import {
 } from '../services/minecraftWhitelist.js';
 import { consoleGuideEmbed } from '../services/minecraftConsole.js';
 import { chatHistory, syncChatBridge } from '../services/minecraftChat.js';
+import { liveServers } from '../services/minecraftLive.js';
 import { MAX_BACKUP_HOURS } from '../services/minecraftServer.js';
 import { getQuizSettings, updateQuizSettings } from '../services/quiz.js';
 import { deleteBirthday, getAllBirthdays } from '../services/birthdayService.js';
@@ -1675,6 +1676,8 @@ export function createPanelRouter(client) {
   router.get('/guilds/:guildId/minecraft', route(async ({ guild }) => minecraftView(client, guild, await getWhitelistConfig(guild.id))));
 
   router.patch('/guilds/:guildId/minecraft', route(({ guild, body }) => applyMinecraft(client, guild, body)));
+  // Public status for pikczu.pl/smp (services/minecraftLive.js): state and players only - no address, version or chat.
+  router.get('/minecraft/live', route(() => liveServers(client)));
 
   router.patch('/guilds/:guildId/invites', route(async ({ guild, body }) => {
     const config = await updateInviteConfig(guild.id, (data) => {
