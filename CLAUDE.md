@@ -137,6 +137,9 @@ change you make, so the next session knows what was done and why.
 - Volume default 100 and max 100: any other volume makes the node re-encode the audio.
 - Before changing nodes: probe them (`/v4/info`, `/v4/loadtracks`, and a player without voice:
   `TrackStartEvent` = the node can stream, `TrackExceptionEvent` = it cannot).
+- Own Lavalink server (since 2026-10-26, owner's guide in `lavalink/README.md`): `LAVALINK_HOST` in `.env` adds a
+  node named `LAVALINK_NAME` (default `Wlasny`) before the public ones; `rankNodes` puts it first while it is not
+  cooling down and loses at most 4% of frames. `LAVALINK_ONLY_OWN=true` drops the public nodes.
 - Tests: `test/music.test.js`. Voice itself cannot be tested without the live bot (owner checked it 2026-10-26).
 
 ## Change log
@@ -380,3 +383,6 @@ change you make, so the next session knows what was done and why.
     `consolePublic` (@everyone sees the channel); PATCH takes `consoleChannelId` (null = off) with the same rules
     as `/minecraft konsola`: a saved key, not the nick channel while the whitelist is on, bot permissions; a new
     channel gets the console guide. Running commands still needs Administrator on Discord.
+  - Own Lavalink (owner: "zrob" on my idea list): code and guide only. The owner still has to create the Java
+    server, upload `Lavalink.jar` + `lavalink/application.yml` and add `LAVALINK_HOST/PORT/PASSWORD` to the bot's
+    `.env`. Until then nothing changes (public nodes).

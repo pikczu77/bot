@@ -95,6 +95,37 @@ test('overloaded, stuttering and failed nodes go to the back', () => {
   assert.ok(nodeScore(failed) > nodeScore(crowded));
 });
 
+test('the own Lavalink server (LAVALINK_HOST) goes first while it is healthy', () => {
+  const own = fakeNode('Wlasny', { playingPlayers: 3, cpu: { cores: 1, systemLoad: 0.5 } });
+  const calm = fakeNode('calm', { playingPlayers: 0, cpu: { cores: 8, systemLoad: 0 } });
+  assert.deepEqual(rankNodes([calm, own], Date.now(), 'Wlasny').map((node) => node.name), ['Wlasny', 'calm']);
+  assert.deepEqual(rankNodes([calm, own], Date.now(), null).map((node) => node.name), ['calm', 'Wlasny'], 'no own server configured');
+  const stutter = fakeNode('Wlasny', { frameStats: { sent: 2700, nulled: 100, deficit: 200 } });
+  assert.deepEqual(rankNodes([stutter, calm], Date.now(), 'Wlasny').map((node) => node.name), ['calm', 'Wlasny']);
+  markNodeFailed(own);
+  assert.deepEqual(rankNodes([own, calm], Date.now(), 'Wlasny').map((node) => node.name), ['calm', 'Wlasny']);
+});
+
+test('LAVALINK_HOST adds the own server before the public nodes', async () => {
+  const saved = { ...process.env };
+  try {
+    Object.assign(process.env, { LAVALINK_HOST: 'lava.example.pl', LAVALINK_PORT: '443', LAVALINK_SECURE: 'true', LAVALINK_PASSWORD: 'tajne' });
+    delete process.env.LAVALINK_NAME;
+    delete process.env.LAVALINK_NODES;
+    const { getLavalinkNodes } = await import('../src/config/music/lavalink.js');
+    const nodes = getLavalinkNodes();
+    assert.deepEqual(nodes[0], { host: 'lava.example.pl', port: 443, password: 'tajne', secure: true, name: 'Wlasny' });
+    assert.ok(nodes.length > 1, 'public nodes stay as a backup');
+    process.env.LAVALINK_ONLY_OWN = 'true';
+    assert.equal(getLavalinkNodes().length, 1);
+    delete process.env.LAVALINK_HOST;
+    assert.ok(getLavalinkNodes().every((node) => node.name !== 'Wlasny'));
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+  }
+});
+
 test('frame loss is the share of audio frames not sent', () => {
   assert.equal(frameLossRatio(fakeNode('a')), 0);
   const lossy = fakeNode('b', { frameStats: { sent: 2850, nulled: 50, deficit: 100 } });

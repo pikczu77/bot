@@ -51,15 +51,33 @@ function loadNodesFromFile() {
     }
 }
 
-export function getLavalinkNodes() {
-    const fromJson = parseNodesFromEnv();
-    if (fromJson?.length) {
-        return fromJson;
-    }
+// The owner's own Lavalink server (lavalink/README.md): LAVALINK_HOST in .env. It goes first and
+// is preferred while it is healthy (nodeHealth.js); the public nodes stay as a backup.
+export const OWN_NODE_NAME = process.env.LAVALINK_NAME?.trim() || 'Wlasny';
 
-    const fromFile = loadNodesFromFile();
-    if (fromFile?.length) {
-        return fromFile;
+function ownNodeFromEnv() {
+    const host = process.env.LAVALINK_HOST?.trim();
+    if (!host) {
+        return null;
+    }
+    return {
+        host,
+        port: Number(process.env.LAVALINK_PORT || 2333),
+        password: process.env.LAVALINK_PASSWORD || 'youshallnotpass',
+        secure: parseBoolean(process.env.LAVALINK_SECURE, false),
+        name: OWN_NODE_NAME,
+    };
+}
+
+export function getLavalinkNodes() {
+    const own = ownNodeFromEnv();
+    const publicNodes = parseNodesFromEnv() || loadNodesFromFile() || [];
+    if (own) {
+        const onlyOwn = parseBoolean(process.env.LAVALINK_ONLY_OWN, false);
+        return onlyOwn ? [own] : [own, ...publicNodes.filter((node) => node.name !== own.name)];
+    }
+    if (publicNodes.length) {
+        return publicNodes;
     }
 
     const host = process.env.LAVALINK_HOST || 'localhost';

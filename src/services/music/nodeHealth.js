@@ -53,11 +53,25 @@ export function nodeScore(node, now = Date.now()) {
     return score;
 }
 
+// The owner's own server (LAVALINK_HOST, src/config/music/lavalink.js) comes first while it has not
+// failed and loses less than this share of frames; otherwise it is ranked like the public nodes.
+export const OWN_NODE_MAX_FRAME_LOSS = 0.04;
+
+export function isPreferredOwnNode(node, ownName, now = Date.now()) {
+    return Boolean(ownName) && node?.name === ownName && !isNodeCoolingDown(node, now)
+        && frameLossRatio(node) <= OWN_NODE_MAX_FRAME_LOSS;
+}
+
 /** Connected nodes, best first. Ties keep the order from lavalink/nodes.json. */
-export function rankNodes(nodes, now = Date.now()) {
+export function rankNodes(nodes, now = Date.now(), ownName = ownNodeName()) {
     return [...nodes]
-        .map((node, index) => ({ node, index, score: nodeScore(node, now) }))
+        .map((node, index) => ({ node, index, own: isPreferredOwnNode(node, ownName, now), score: nodeScore(node, now) }))
         .filter(({ node }) => node.connected)
-        .sort((a, b) => a.score - b.score || a.index - b.index)
+        .sort((a, b) => Number(b.own) - Number(a.own) || a.score - b.score || a.index - b.index)
         .map(({ node }) => node);
+}
+
+// Name of the own node only when one is configured.
+function ownNodeName() {
+    return process.env.LAVALINK_HOST?.trim() ? (process.env.LAVALINK_NAME?.trim() || 'Wlasny') : null;
 }

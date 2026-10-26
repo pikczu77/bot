@@ -1,19 +1,30 @@
+# Lavalink v4 config for the owner's own music server (see lavalink/README.md).
+# The bot finds this server through LAVALINK_HOST / LAVALINK_PORT / LAVALINK_PASSWORD in its .env.
 server:
-  port: 2333
+  port: ${SERVER_PORT:2333}
   address: 0.0.0.0
 
 lavalink:
   plugins:
+    # Newest version: https://github.com/lavalink-devs/youtube-source/releases
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.13.5"
       snapshot: false
   server:
     password: "${LAVALINK_PASSWORD:youshallnotpass}"
     sources:
-      youtube: false
+      youtube: false # the plugin above plays YouTube
       bandcamp: true
       soundcloud: true
+      twitch: true
+      vimeo: true
       http: true
       local: false
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+    youtubePlaylistLoadLimit: 6
+    playerUpdateInterval: 5
+    youtubeSearchEnabled: true
+    soundcloudSearchEnabled: true
 
 plugins:
   youtube:
@@ -23,5 +34,11 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
-      - ANDROID_TESTSUITE
+      - ANDROID_VR
       - WEB
+      - WEBEMBEDDED
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO
