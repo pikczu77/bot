@@ -400,3 +400,8 @@ change you make, so the next session knows what was done and why.
     My decisions: rewards and goals (`MISSIONS`, `ACHIEVEMENTS`), a free Starter pack for all daily missions and a
     Collector pack for all weekly ones, one free swap a day and a week, badges reached before the release (fish
     already in /index) are given on the next action, "earned" counts job money only (not casino, robbery, /daily).
+  - `/wymiana osoba [daje] [chce] [doplacam] [chce_kasy]` (`modules/trade.js`, buttons `wymiana:ok|nie|anuluj:<offerId>`):
+    cards (autocomplete from each side's cards) and money one way; posted in the channel, only the partner accepts,
+    both sides are checked again at the swap. My decisions: only cards and money (fish are sold when caught, so
+    there is nothing to trade); offers live 15 min in memory (gone after a restart); own accounts only, no joint
+    bank of a marriage. 77 commands.
