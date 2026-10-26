@@ -32,11 +32,12 @@ import { ITEM_CHAINS, getItemById, tierEffect } from '../../../config/shop/items
 import { itemLabel } from './buy.js';
 import { enterLocale, t, tr } from '../../../i18n/index.js';
 import { getGuildLocale } from '../../../services/languageService.js';
+import { CHEST_EVERY } from '../../../services/dailyStreak.js';
 
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 2;
+export const GUIDE_VERSION = 3;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -87,7 +88,7 @@ function earn({ guildId, settings, leveling }) {
     description: t('-# Amounts before bonuses: items, upgrades, Fortune and the server multiplier make them bigger.'),
     fields: [
       field(t('💼 /work'), t`**${money(guildId, lowest)} - ${money(guildId, best.max)}** a shift\njobs for your server level\n${JOB_SHIFTS} shifts per contract\nbreak **${waitMinutes(work.cooldownMinutes)}**`),
-      field(t('📅 /daily'), t`**${money(guildId, daily.amount)}**\nonce every **${waitMinutes(daily.cooldownMinutes)}**`),
+      field(t('📅 /daily'), t`**${money(guildId, daily.amount)}**\nonce every **${waitMinutes(daily.cooldownMinutes)}**\n🔥 every **${CHEST_EVERY}th** day in a row: a chest`),
       field(t('🎬 /nagraj'), t`YouTube: views decide the pay\ncommon **x${VIDEO_RARITIES[0].multiplier}** · legendary **x${VIDEO_RARITIES.at(-1).multiplier}** of ${range(mine)}\nbreak **${waitMinutes(mine.cooldownMinutes)}**\nneeds a computer`),
       field(t('🎣 /fish'), t`${range(fish)}\nbreak **${waitMinutes(fish.cooldownMinutes)}**\nneeds a fishing rod`),
       field(t('🙏 /beg'), t`${range(beg)}\n**${beg.successPercent}%** chance\nbreak **${waitMinutes(beg.cooldownMinutes)}**`),
@@ -243,6 +244,8 @@ function games({ guildId, settings }) {
       field(t('🟩 /wordle'), t`one Polish word a day\n6 guesses, up to **${money(guildId, wordle.reward)}**\nfewer guesses = more money`),
       field(t('🧠 Quiz'), t('a question in the quiz channel\nthe **first right answer** wins\none try per person')),
       field(t('🤝 /wymiana @someone'), t("swap Club'o'mony cards\nand money with another member")),
+      field(t('⚔️ /pojedynek @someone'), t('rock, paper, scissors for money\nthe loser pays the stake\na tie = another round')),
+      field(t('🎟️ /loteria'), t('buy tickets all week\ndraw on **Sunday at 20:00**\none ticket takes the whole pot')),
       field(t('⏱️ Events'), t`${EVENT_TYPES.map((type) => type.emoji).join(' ')} for a limited time\ne.g. double pay or half-price packs\nannounced on the events channel`),
     ],
   };
@@ -271,7 +274,7 @@ function commands() {
       field(t('💵 Money'), '`/hajs` `/balans`\n`/bank wplac` `/bank wyplac`\n`/pay` `/topkasa`'),
       field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij`'),
       field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
-      field(t('🎮 Games'), '`/napad` `/wordle`\n`/misje` `/osiagniecia`'),
+      field(t('🎮 Games'), '`/napad` `/wordle`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
       field(t('💍 Relationships'), '`/randka` `/slub`'),
@@ -290,7 +293,7 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'sklep', emoji: '🛒', name: t('Shop and items'), hint: t('Tools and one-use items'), color: '#64D2FF', build: shop },
   { id: 'wiezienie', emoji: '🚔', name: t('Jail and breaks'), hint: t('Jail, Stamina, skipping a break'), color: '#FF453A', build: jail },
   { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
-  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, quiz, trades, events'), color: '#30D158', build: games },
+  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, duels, lottery, quiz, events'), color: '#30D158', build: games },
   { id: 'misje', emoji: '🎯', name: t('Missions and badges'), hint: t('/misje and /osiagniecia'), color: '#F1C40F', build: missions },
   { id: 'zwiazki', emoji: '💍', name: t('Dates and marriage'), hint: t('/randka and /slub'), color: '#FF375F', build: love },
   { id: 'komendy', emoji: '📋', name: t('All commands'), hint: t('The full list'), color: '#8E8E93', build: commands },
@@ -325,7 +328,7 @@ export function buildGuideMessage(guild = null) {
       field(t('🚀 Start'), '`/daily` · `/work`'),
       field(t('💵 Balance'), '`/hajs`'),
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
-      field(t('🎮 Games'), '`/napad` · `/wordle` · `/misje`'),
+      field(t('🎮 Games'), '`/napad` · `/wordle` · `/pojedynek` · `/loteria`'),
     ],
     thumbnail: guild?.iconURL?.({ size: 128 }) ?? null,
     footer: { text: t('The tutorials always show the current server settings.') },

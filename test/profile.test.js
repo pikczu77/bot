@@ -13,6 +13,7 @@ import { updateEconomySettings } from '../src/services/economySettings.js';
 import { renderProfileCard } from '../src/services/profileCard.js';
 import { profileData } from '../src/commands/Leveling/profil.js';
 import profileButtons from '../src/interactions/buttons/leveling/profile.js';
+import { ACHIEVEMENTS } from '../src/services/progress.js';
 
 const client = { guilds: { cache: new Collection() }, users: { fetch: async () => null } };
 let guild;
@@ -54,7 +55,7 @@ test('profile data: money, collections, badges newest first, spouse', async () =
   assert.equal(data.tiles[2].value, '2/21');
   assert.equal(data.tiles[3].value, '1/20');
   assert.deepEqual(data.badges, ['Gambler', 'Angler', 'First catch']);
-  assert.match(data.badgesTitle, /Badges 3\/26/);
+  assert.equal(data.badgesTitle, `Badges 3/${ACHIEVEMENTS.length}`);
   assert.match(data.subtitle, /Level 0/);
 });
 

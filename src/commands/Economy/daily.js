@@ -7,7 +7,9 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
-import { t } from '../../i18n/index.js';
+import { CHEST_EVERY, daysToChest, nextStreak, openStreakChest } from '../../services/dailyStreak.js';
+import { getItemById } from '../../config/shop/items.js';
+import { t, tr } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, interestPercent, upgradeBonusLine } from '../../services/economyUpgrades.js';
 
@@ -93,7 +95,10 @@ export default {
 
             userData.wallet = (userData.wallet || 0) + earned;
             userData.lastDaily = now;
-            const progress = recordProgress(userData, { daily: 1 }, { settings, now });
+            // Days in a row; every 7th one opens a chest (services/dailyStreak.js).
+            userData.dailyStreak = nextStreak(userData.dailyStreak, lastDaily, now, DAILY_COOLDOWN);
+            const chest = userData.dailyStreak % CHEST_EVERY === 0 ? openStreakChest(userData, settings, DAILY_AMOUNT) : null;
+            const progress = recordProgress(userData, { daily: 1, dailyStreak: userData.dailyStreak }, { settings, now });
 
             await setEconomyData(client, guildId, userId, userData);
 
@@ -114,12 +119,25 @@ export default {
                     name: t("New Cash Balance"),
                     value: `${money(guildId, userData.wallet)}`,
                     inline: true,
+                }, {
+                    name: t('🔥 Streak'),
+                    value: chest
+                        ? t`${userData.dailyStreak} {0|day|days} in a row`
+                        : t`${userData.dailyStreak} {0|day|days} in a row · chest in ${daysToChest(userData.dailyStreak)} {1|day|days}`,
+                    inline: true,
                 })
                 .setFooter({
                     text: hasPremiumRole
                         ? t`Next claim in ${formatDuration(DAILY_COOLDOWN)}. (Premium Active)`
                         : t`Next claim in ${formatDuration(DAILY_COOLDOWN)}.`,
                 });
+
+            if (chest) {
+                const extra = chest.pack
+                    ? `${chest.pack.emoji} ${tr(chest.pack.name)}: ${chest.drawn.map(({ card, variant, isNew }) => `${variant.emoji || card.emoji} ${card.name}${isNew ? ' 🆕' : ''}`).join(', ')}`
+                    : `${getItemById(chest.item)?.emoji ?? ''} ${chest.count}× ${tr(getItemById(chest.item)?.name ?? chest.item)}`;
+                embed.addFields({ name: t`🎁 Chest for ${CHEST_EVERY} days in a row`, value: `+**${money(guildId, chest.money)}**\n${extra}` });
+            }
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(progress, guildId)] });
     }, { command: 'daily' })

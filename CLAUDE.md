@@ -523,3 +523,16 @@ change you make, so the next session knows what was done and why.
     overview, `PATCH /warnings`, `POST /warnings/reset`).
   - Every warning on every server is deleted once at the next start (`resetAllWarningsOnce` in `initFeatures`, marker
     `bot:warnings-reset:2026-10-26`; owner's request).
+  - `/loteria kup|info|ustaw` (owner: "3. rob"): `src/services/lottery.js`, job `lottery` every minute. Tickets all week
+    (cash then bank), draw on Sunday 20:00 Polish time (`nextDrawTime`), one ticket wins the whole pot = tickets sold +
+    `bonus` (server multiplier). Store `guild:{id}:lottery` (channelId, ticketPrice 500, maxTickets 50, bonus 2,000,
+    round, last). Result on the lottery channel (or where the last ticket was bought) + DM. My numbers and rules.
+  - `/pojedynek osoba kwota` (owner: "4. klasa"): rock, paper, scissors for money, `modules/duel.js`, buttons
+    `pojedynek:ok|nie|pick:<id>[:r|p|s]`. Picks are private until both chose; a tie replays (3 ties = nobody pays);
+    60 s to pick (the one who picked wins). No money is held during the duel: the loser pays at the end (cash then
+    bank, at most what they have). Blocked in jail, min stake 50, max = the casino's highest bet. 83 commands.
+  - `/daily` streak (owner: "8 fajne"): `src/services/dailyStreak.js`. `dailyStreak` +1 when claimed within the break
+    plus one day, else 1; every 7th day a chest: 3x the daily amount + Starter pack 50% / Collector 25% / 2 Lucky
+    Clovers 15% / Legend pack 10% (my odds). Shown under /daily.
+  - New missions (daily: win a duel; weekly: lottery tickets, duels) and badges (lottery win, 10 duels, /daily 30 days
+    in a row). Guide: duels, lottery, chest (`GUIDE_VERSION` 3, the posted guide refreshes at start).

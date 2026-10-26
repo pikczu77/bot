@@ -50,6 +50,7 @@ export const MISSIONS = {
     { id: 'quiz', stat: 'quiz', goal: [1, 1], reward: 1500, text: () => t('Answer a quiz question first') },
     { id: 'rareFish', stat: 'fishRare', goal: [1, 1], reward: 1500, text: () => t('Catch a rare or better fish') },
     { id: 'heist', stat: 'heist', goal: [1, 1], reward: 1200, text: () => t('Take part in a `/napad` heist') },
+    { id: 'duelWin', stat: 'duelWin', goal: [1, 1], reward: 1200, text: () => t('Win a duel with `/pojedynek`') },
   ],
   weekly: [
     { id: 'work', stat: 'work', goal: [20, 30], reward: 450, text: (goal) => t`Work ${goal} shifts with \`/work\`` },
@@ -66,6 +67,9 @@ export const MISSIONS = {
     { id: 'viral', stat: 'videoViral', goal: [2, 3], reward: 5000, text: (goal) => t`Record ${goal} epic or legendary videos` },
     { id: 'trade', stat: 'trades', goal: [1, 2], reward: 4000, text: (goal) => t`Finish ${goal} trades with \`/wymiana\`` },
     { id: 'heistWin', stat: 'heistWin', goal: [2, 3], reward: 3000, text: (goal) => t`Pull off ${goal} successful \`/napad\` heists` },
+    // A ticket costs 500 by default, so the mission pays back a part of it, not more.
+    { id: 'lottery', stat: 'lotteryTickets', goal: [3, 5], reward: 300, text: (goal) => t`Buy ${goal} lottery tickets with \`/loteria kup\`` },
+    { id: 'duelWin', stat: 'duelWin', goal: [3, 5], reward: 1200, text: (goal) => t`Win ${goal} duels with \`/pojedynek\`` },
   ],
 };
 export const MISSIONS_PER_PERIOD = 3;
@@ -171,6 +175,9 @@ export const ACHIEVEMENTS = [
   { id: 'missionary', emoji: '🎯', name: t('On a mission'), description: t('Finish 50 missions.'), reward: 10000, progress: counter('missions', 50) },
   { id: 'married', emoji: '💍', name: t('For better or worse'), description: t('Get married with `/slub`.'), reward: 2000, progress: (u) => [u?._joint?.partnerId || stat(u, 'married') ? 1 : 0, 1] },
   { id: 'maxed', emoji: '⬆️', name: t('Maxed out'), description: t('Take any upgrade to level 10.'), reward: 5000, progress: (u) => [maxedUpgrade(u) ? 1 : 0, 1] },
+  { id: 'lottery_win', emoji: '🎟️', name: t('Lucky ticket'), description: t('Win the weekly lottery.'), reward: 2000, progress: counter('lotteryWin', 1) },
+  { id: 'duelist', emoji: '⚔️', name: t('Duelist'), description: t('Win 10 duels.'), reward: 5000, progress: counter('duelWin', 10) },
+  { id: 'daily_month', emoji: '🔥', name: t('Never missed a day'), description: t('Claim /daily 30 days in a row.'), reward: 10000, progress: (u) => [Math.min(30, Math.max(stat(u, 'dailyBestStreak'), Number(u?.dailyStreak) || 0)), 30] },
 ];
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
 export const getAchievement = (id) => ACHIEVEMENT_BY_ID.get(id) ?? null;
@@ -198,7 +205,8 @@ export function checkAchievements(userData, settings, now = Date.now()) {
 // Older tests check exact balances, so the test run keeps progress off unless a test turns it on.
 export const progressOptions = { enabled: process.env.NODE_ENV !== 'test' };
 
-function openBonusPack(userData, packId, random) {
+/** Open a free pack into the member's cards (no money). Returns { pack, drawn }. */
+export function openBonusPack(userData, packId, random = Math.random) {
   const pack = getPack(packId);
   const drawn = [];
   for (let index = 0; index < pack.cards; index += 1) {
@@ -228,8 +236,10 @@ export function recordProgress(userData, events, { settings, now = Date.now(), r
     stats.wordleBest = stats.wordleBest > 0 ? Math.min(stats.wordleBest, events.wordleGuesses) : events.wordleGuesses;
   }
   if (events?.wordleStreak > 0) stats.wordleBestStreak = Math.max(Number(stats.wordleBestStreak) || 0, events.wordleStreak);
+  if (events?.dailyStreak > 0) stats.dailyBestStreak = Math.max(Number(stats.dailyBestStreak) || 0, events.dailyStreak);
   delete stats.wordleGuesses;
   delete stats.wordleStreak;
+  delete stats.dailyStreak;
   userData.stats = stats;
 
   ensureMissions(userData, now, random);
