@@ -420,3 +420,10 @@ change you make, so the next session knows what was done and why.
     the finished result posted in the channel as squares only. Reward `commands.wordle.reward` (default 3,000) x
     1 / 0.85 / 0.7 / 0.55 / 0.4 / 0.25 by guesses, then the server multiplier, Fortune and a "kasa" event.
     My decisions: any five Polish letters count as a guess (no dictionary check), streak for days in a row. 78 commands.
+  - `/quiz pytanie|ustaw` (owner picked idea 13; Manage Server): `src/services/quiz.js`, 123 Polish questions in
+    `src/config/quizQuestions.js` (`a[0]` is right, shuffled when posted), buttons `quiz:<questionId>:<0-3>`
+    (`interactions/buttons/fun/quiz.js`), job `quiz` every minute, `noteQuizActivity` in `featureMessages.js`.
+    Store `guild:{id}:quiz` (channel, auto, everyMinutes, reward 1,500, recent questions). My decisions: one try per
+    member, 45 s per question, the first right answer wins (prize x server multiplier, Fortune, "kasa" event),
+    automatic questions only when a member wrote on the channel since the last one, the running question lives in
+    memory (a restart ends it). 79 commands.
