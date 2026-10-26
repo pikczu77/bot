@@ -1527,7 +1527,7 @@ async function applyChat(guild, body) {
   const range = (min, max) => (value, field) => integer(value, field, min, max);
   part('drops', { enabled: flag, minMinutes: range(5, 1440), maxMinutes: range(5, 1440), minMessages: range(0, 500), reward: range(0, MAX_MONEY) });
   part('deadChat', { enabled: flag, minutes: range(5, 1440), roleId: (value, field) => requireRole(guild, value, field), fromHour: range(0, 23), toHour: range(0, 24), minGapMinutes: range(5, 1440) });
-  part('question', { enabled: flag, hour: range(0, 23), reward: range(0, MAX_MONEY) });
+  part('question', { enabled: flag, hour: range(0, 23), reward: range(0, MAX_MONEY), minutes: range(5, 720) });
   part('happyHour', { enabled: flag, hour: range(0, 23), minutes: range(10, 600), percent: range(110, 500) });
   const current = await getChatSettings(guild.id);
   const drops = { ...current.drops, ...(updates.drops ?? {}) };

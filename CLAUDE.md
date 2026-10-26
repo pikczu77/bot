@@ -568,3 +568,10 @@ change you make, so the next session knows what was done and why.
     wins 2,000. Happy hour 20:00-21:00: messages give x2 XP (`happyHourState.js`, read in `applyXpMultipliers`, not
     voice XP), announcement deleted at the end. Panel API `chat` (PATCH parts + `dropNow`, `questionNow`).
   - New daily mission "catch a chat drop", badge "Gwiazda czatu" (5 best answers). My numbers everywhere above.
+- **2026-10-26 night, later** (owner: "chujowe z pytaniem dnia ze emotki, to ma byc odpowiedz i kto szybciej odpowie w
+  odpowiedzi do wiadomosci czy cos to wygrywa, jedna odpowiedz"). Live after the owner restarts the bot:
+  - Question of the day reworked: 68 short questions with accepted answers (`DAILY_TRIVIA` in `src/config/chatPrompts.js`,
+    answers compared by `foldAnswer`: no case, Polish letters or punctuation). Members answer by **replying** to the bot's
+    message; one answer per person (❌ wrong, ⛔ a second try); the first right one wins `question.reward`, the message is
+    edited with the winner. No right answer within `question.minutes` (default 120, my number): the answer is shown.
+    No more thread and no reactions vote. Panel field "Czas na odpowiedź".

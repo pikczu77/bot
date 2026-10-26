@@ -7,13 +7,14 @@
   "Nobody typed **{0}** in time.": "Nikt nie napisał **{0}** na czas.",
   "💬 The chat fell asleep": "💬 Czat zasnął",
   "Topic to wake it up:\n**{0}**": "Temat na pobudkę:\n**{0}**",
-  "🏆 Yesterday's best answer: <@{0}> ({1} {1|reaction|reactions}) gets **{2}**.\n\n": "🏆 Wczorajsza najlepsza odpowiedź: <@{0}> ({1} {1|reakcja|reakcje|reakcji}) dostaje **{2}**.\n\n",
   "❓ Question of the day": "❓ Pytanie dnia",
-  "Answer in the thread below. The answer with the most reactions tomorrow gets **{0}**.": "Odpowiadaj w wątku poniżej. Odpowiedź z największą liczbą reakcji jutro dostaje **{0}**.",
-  "Answers": "Odpowiedzi",
   "⚡ Happy hour: x{0} XP": "⚡ Szczęśliwa godzina: x{0} XP",
   "Until <t:{0}:t> every message on the server gives **x{1} XP**. Chat away!": "Do <t:{0}:t> każda wiadomość na serwerze daje **x{1} XP**. Piszcie!",
   "Catch a chat drop first": "Złap pierwszy drop na czacie",
   "Chat star": "Gwiazda czatu",
-  "Give the best answer to the question of the day 5 times.": "Daj najlepszą odpowiedź na pytanie dnia 5 razy."
+  "❓ Question of the day - solved": "❓ Pytanie dnia - rozwiązane",
+  "✅ {0} answered first: **{1}** · **+{2}**": "✅ {0} odpowiedział(a) pierwszy(a): **{1}** · **+{2}**",
+  "**Reply to this message** with your answer (a word or a number). One answer per person, the first right one gets **{0}**.\n-# Until <t:{1}:t>": "**Odpowiedz na tę wiadomość** (słowo albo liczba). Każdy ma jedną odpowiedź, pierwsza dobra dostaje **{0}**.\n-# Do <t:{1}:t>",
+  "⏰ Time is up, nobody got it. The answer: **{0}**": "⏰ Koniec czasu, nikt nie trafił. Odpowiedź: **{0}**",
+  "Answer the question of the day first 5 times.": "Odpowiedz pierwszy na pytanie dnia 5 razy."
 }

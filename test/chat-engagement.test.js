@@ -10,8 +10,9 @@ import { initializeDatabase } from '../src/utils/database.js';
 import { getEconomyData } from '../src/utils/economy.js';
 import { updateEconomySettings } from '../src/services/economySettings.js';
 import {
-  chatLive, getChatState, handleChatMessage, happyHourWindow, postDrop, tickChatEngagement, updateChatSettings,
+  chatLive, foldAnswer, getChatState, handleChatMessage, happyHourWindow, isRightAnswer, postDrop, tickChatEngagement, updateChatSettings,
 } from '../src/services/chatEngagement.js';
+import { DAILY_TRIVIA } from '../src/config/chatPrompts.js';
 import { happyHourFactor } from '../src/services/happyHourState.js';
 import { applyXpMultipliers } from '../src/services/leveling/leveling.js';
 
@@ -110,31 +111,68 @@ test('Dead Chat: a ping with a topic after 30 quiet minutes in the daytime, once
   assert.ok(chatLive(guild.id));
 });
 
-test('question of the day at 18:00 with a thread; the next day the most liked answer wins', async () => {
-  await updateChatSettings(guild.id, (settings) => { settings.question = { enabled: true, hour: 18, reward: 2000 }; settings.deadChat = { enabled: false }; });
+test('question of the day at 18:00: replies only, one answer per person, the first right one wins', async () => {
+  await updateChatSettings(guild.id, (settings) => { settings.question = { enabled: true, hour: 18, reward: 2000, minutes: 120 }; settings.deadChat = { enabled: false }; });
   const before = chat.sent.length;
-  await runWithLocale('en', () => tickChatEngagement(guild, at(17, 59)));
+  await runWithLocale('en', () => tickChatEngagement(guild, at(17, 59), () => 0));
   assert.equal(chat.sent.length, before);
-  await runWithLocale('en', () => tickChatEngagement(guild, at(18, 0)));
+  await runWithLocale('en', () => tickChatEngagement(guild, at(18, 0), () => 0));
   const question = chat.sent.at(-1);
   assert.match(question.embeds[0].toJSON().title, /Question of the day/);
-  assert.ok(question.thread);
-  await runWithLocale('en', () => tickChatEngagement(guild, at(18, 1)));
+  assert.match(question.embeds[0].toJSON().description, /Reply to this message/);
+  await runWithLocale('en', () => tickChatEngagement(guild, at(18, 1), () => 0));
   assert.equal(chat.sent.length, before + 1, 'once a day');
+  const state = await getChatState(guild.id);
+  const right = DAILY_TRIVIA[state.question.index].a[0];
 
+  const reply = (member, content, minute, reference = question.id) => {
+    const message = {
+      guild, client, member, author: member.user, channel: chat, channelId: chat.id, content, createdTimestamp: at(18, minute),
+      reference: reference ? { messageId: reference } : undefined, reactions: [],
+    };
+    message.react = async (emoji) => { message.reactions.push(emoji); };
+    return message;
+  };
   const fan = mockMember(guild, mockUser('Fan'));
   const other = mockMember(guild, mockUser('Inny'));
-  const answer = (member, count, ts) => ({ id: snowflake(), author: member.user, createdTimestamp: ts, reactions: { cache: new Collection([['❤️', { count, me: false }]]) } });
-  question.thread.answers = new Collection([['1', answer(other, 2, 1)], ['2', answer(fan, 5, 2)]]);
-  guild.channels.cache.set(question.thread.id, question.thread);
-
-  const tomorrow = at(18) + 86_400_000;
-  await runWithLocale('en', () => tickChatEngagement(guild, tomorrow));
-  const next = chat.sent.at(-1);
-  assert.equal(next.content, `<@${fan.id}>`);
-  assert.match(next.embeds[0].toJSON().description, /best answer: <@\d+> \(5 reactions\) gets \*\*\$2,000\*\*/);
+  const plain = reply(other, right, 2, null);
+  await handleChatMessage(plain);
+  assert.deepEqual(plain.reactions, [], 'a normal message (not a reply) does not count');
+  const wrong = reply(other, 'zla odpowiedz', 3);
+  await handleChatMessage(wrong);
+  assert.deepEqual(wrong.reactions, ['❌']);
+  const again = reply(other, right, 4);
+  await handleChatMessage(again);
+  assert.deepEqual(again.reactions, ['⛔'], 'one answer per person');
+  const win = reply(fan, `  ${right.toUpperCase()}! `, 5);
+  await runWithLocale('en', () => handleChatMessage(win));
+  assert.deepEqual(win.reactions, ['✅']);
   assert.equal((await getEconomyData(client, guild.id, fan.id)).wallet, 2000);
-  assert.equal((await getChatState(guild.id)).question.day, '2026-10-27');
+  assert.match(question.edits.at(-1).embeds[0].toJSON().description, /answered first/);
+  const late = reply(mockMember(guild, mockUser('Spóźniony')), right, 6);
+  await handleChatMessage(late);
+  assert.deepEqual(late.reactions, [], 'solved: no more answers');
+  assert.equal((await getChatState(guild.id)).question.winnerId, fan.id);
+
+  // Next day: nobody right in 120 min, the answer is shown.
+  const tomorrow = at(18) + 86_400_000;
+  await runWithLocale('en', () => tickChatEngagement(guild, tomorrow, () => 0));
+  const second = chat.sent.at(-1);
+  assert.notEqual(second.id, question.id);
+  await runWithLocale('en', () => tickChatEngagement(guild, tomorrow + 121 * 60_000, () => 0));
+  assert.match(second.edits.at(-1).embeds[0].toJSON().description, /nobody got it\. The answer:/);
+  assert.equal((await getChatState(guild.id)).question.closed, true);
+});
+
+test('answers are compared without case, Polish letters and punctuation', () => {
+  assert.equal(foldAnswer('  Wisła!! '), 'wisla');
+  assert.equal(isRightAnswer('WISŁA', { a: ['wisla'] }), true);
+  assert.equal(isRightAnswer('smok wawelski.', { a: ['smok wawelski'] }), true);
+  assert.equal(isRightAnswer('odra', { a: ['wisla'] }), false);
+  for (const trivia of DAILY_TRIVIA) {
+    assert.ok(trivia.q.length > 5 && trivia.a.length > 0, trivia.q);
+    assert.ok(trivia.a.every((answer) => foldAnswer(answer) === answer), `answers already folded: ${trivia.q}`);
+  }
 });
 
 test('happy hour: x2 XP for messages from 20:00 to 21:00, the announcement is deleted at the end', async () => {

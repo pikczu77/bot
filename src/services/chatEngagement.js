@@ -3,15 +3,16 @@
 //
 //   drops      while the chat is lively, now and then: "the first to type <word> gets money"
 //   deadChat   after `minutes` (30) without a message in the daytime: ping the Dead Chat role with a topic
-//   question   every day at `hour`: a question with a thread for answers; at the next question the answer with
-//              the most reactions wins `reward`
+//   question   every day at `hour`: a short question; the first right reply to it wins `reward` (one answer per
+//              person); after `minutes` without a right answer the answer is shown
 //   happyHour  every day from `hour` for `minutes`: messages give more XP (services/happyHourState.js), with an
 //              announcement on the chat that is deleted at the end
 // All of it works on one chat channel (`channelId`). Checked every minute (features.js); messages are seen through
 // handleChatMessage() in featureMessages.js (members only, bots do not count).
 //
 // Store guild:{id}:chat-engagement = { channelId, drops, deadChat, question, happyHour } and
-// guild:{id}:chat-engagement-state = { question: { day, messageId, threadId, channelId }, happyHour: { day, messageId, channelId }, lastDeadPingAt }.
+// guild:{id}:chat-engagement-state = { question: { day, index, messageId, channelId, closesAt, tried, answered, closed, winnerId },
+// happyHour: { day, messageId, channelId }, lastDeadPingAt }.
 
 import { createEmbed } from '../utils/embeds.js';
 import { guildStore } from '../utils/featureKit.js';
@@ -19,7 +20,7 @@ import { logger } from '../utils/logger.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { enterLocale, t } from '../i18n/index.js';
 import { dayKey, midnightOf, warsawHour } from '../utils/warsawTime.js';
-import { DAILY_QUESTIONS, DEAD_CHAT_TOPICS, DROP_WORDS } from '../config/chatPrompts.js';
+import { DAILY_TRIVIA, DEAD_CHAT_TOPICS, DROP_WORDS } from '../config/chatPrompts.js';
 import { getGuildLocale } from './languageService.js';
 import { getEconomySettings, money, scaleEarnings } from './economySettings.js';
 import { withEconomyLock } from './economyUpgrades.js';
@@ -30,7 +31,7 @@ export const CHAT_DEFAULTS = Object.freeze({
   channelId: null,
   drops: { enabled: true, minMinutes: 20, maxMinutes: 60, minMessages: 15, reward: 500 },
   deadChat: { enabled: true, minutes: 30, roleId: null, fromHour: 9, toHour: 23, minGapMinutes: 60 },
-  question: { enabled: true, hour: 18, reward: 2000 },
+  question: { enabled: true, hour: 18, reward: 2000, minutes: 120 },
   happyHour: { enabled: true, hour: 20, minutes: 60, percent: 200 },
 });
 export const DROP_MS = 60_000;
@@ -110,6 +111,7 @@ export async function handleChatMessage(message) {
   entry.lastMessageAt = sentAt;
   entry.messagesSinceDrop += 1;
   entry.deadPinged = false;
+  if (message.reference?.messageId && await answerQuestion(message, settings, sentAt)) return true;
   const drop = entry.drop;
   if (drop && sentAt <= drop.expiresAt && normalize(message.content) === drop.word) {
     await catchDrop(message, entry);
@@ -188,68 +190,129 @@ async function tickDeadChat(guild, settings, now, random) {
 }
 
 // ---------------------------------------------------------------- question of the day
+// Owner on 2026-10-26: "to ma byc odpowiedz i kto szybciej odpowie w odpowiedzi do wiadomosci ... wygrywa, jedna
+// odpowiedz". A short question (a word or a number); members answer by replying to the bot's message; one answer
+// per person; the first right one wins `reward`. Nobody right within `minutes`: the answer is shown.
 
-const reactionCount = (message) => [...(message.reactions?.cache?.values?.() ?? [])]
-  .reduce((sum, reaction) => sum + Math.max(0, (Number(reaction.count) || 0) - (reaction.me ? 1 : 0)), 0);
+/** "Wisła!" -> "wisla": lower case, no Polish letters, no punctuation. */
+export const foldAnswer = (text) => String(text ?? '').toLocaleLowerCase('pl').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, ' ').trim();
 
-/** The most liked answer in yesterday's thread: { userId, count } or null. */
-async function bestAnswer(guild, previous) {
-  if (!previous?.threadId) return null;
-  const thread = guild.channels.cache.get(previous.threadId) ?? await guild.channels.fetch?.(previous.threadId).catch(() => null);
-  const messages = await thread?.messages?.fetch?.({ limit: 100 }).catch(() => null);
-  let best = null;
-  for (const message of [...(messages?.values?.() ?? [])].sort((a, b) => (a.createdTimestamp ?? 0) - (b.createdTimestamp ?? 0))) {
-    if (message.author?.bot) continue;
-    const count = reactionCount(message);
-    if (count > 0 && (!best || count > best.count)) best = { userId: message.author.id, count };
-  }
-  return best;
+export const isRightAnswer = (text, trivia) => trivia.a.some((answer) => foldAnswer(answer) === foldAnswer(text));
+
+const questionLocks = new Map();
+// One answer at a time per server, so two quick right answers cannot both win.
+function withQuestionLock(guildId, task) {
+  const previous = questionLocks.get(guildId) ?? Promise.resolve();
+  const next = previous.then(task, task);
+  questionLocks.set(guildId, next.catch(() => {}));
+  return next;
+}
+
+async function questionMessage(guild, question) {
+  const cached = liveOf(guild.id).questionMessage;
+  if (cached?.id === question.messageId) return cached;
+  const channel = guild.channels.cache.get(question.channelId);
+  return channel?.messages?.fetch?.(question.messageId).catch(() => null) ?? null;
+}
+
+function questionEmbed(guild, question, settings, { note = '', color = '#BF5AF2', solved = false } = {}) {
+  const trivia = DAILY_TRIVIA[question.index];
+  return createEmbed({
+    title: solved ? t('❓ Question of the day - solved') : t('❓ Question of the day'),
+    description: [`**${trivia.q}**`, note].filter(Boolean).join('\n\n'),
+    color,
+    footer: false,
+  });
+}
+
+/** A reply to the question: true when it was one (handled here). */
+async function answerQuestion(message, settings, sentAt) {
+  const guild = message.guild;
+  return withQuestionLock(guild.id, async () => {
+    const state = await getChatState(guild.id);
+    const question = state.question;
+    if (!question || question.messageId !== message.reference?.messageId) return false;
+    if (question.answered || question.closed || sentAt > question.closesAt) return false;
+    if ((question.tried ?? []).includes(message.author.id)) {
+      message.react('⛔').catch(() => {});
+      return true;
+    }
+    const right = isRightAnswer(message.content, DAILY_TRIVIA[question.index]);
+    await updateChatState(guild.id, (data) => {
+      data.question.tried = [...(data.question.tried ?? []), message.author.id];
+      if (right) Object.assign(data.question, { answered: true, winnerId: message.author.id });
+    });
+    if (!right) {
+      message.react('❌').catch(() => {});
+      return true;
+    }
+    const economy = await getEconomySettings(guild.id);
+    const prize = await withEconomyLock(guild.id, message.author.id, async () => {
+      const userData = await getEconomyData(message.client, guild.id, message.author.id);
+      const amount = scaleEarnings(economy, settings.question.reward, userData);
+      userData.wallet = (Number(userData.wallet) || 0) + amount;
+      recordProgress(userData, { questionWin: 1 }, { settings: economy });
+      await setEconomyData(message.client, guild.id, message.author.id, userData);
+      return amount;
+    });
+    message.react('✅').catch(() => {});
+    const original = await questionMessage(guild, question);
+    await original?.edit({
+      embeds: [questionEmbed(guild, question, settings, {
+        solved: true,
+        color: '#30D158',
+        note: t`✅ ${message.author} answered first: **${message.content.trim().slice(0, 100)}** · **+${money(guild.id, prize)}**`,
+      })],
+    }).catch(() => {});
+    return true;
+  });
 }
 
 export async function postQuestion(guild, settings, { now = Date.now(), random = Math.random } = {}) {
   const channel = guild.channels.cache.get(settings.channelId);
   if (!channel?.send) return null;
   const state = await getChatState(guild.id);
-  const winner = await bestAnswer(guild, state.question);
-  let winnerLine = '';
-  if (winner) {
-    const economy = await getEconomySettings(guild.id);
-    const prize = await withEconomyLock(guild.id, winner.userId, async () => {
-      const userData = await getEconomyData(guild.client, guild.id, winner.userId);
-      const amount = scaleEarnings(economy, settings.question.reward, userData);
-      userData.wallet = (Number(userData.wallet) || 0) + amount;
-      recordProgress(userData, { questionWin: 1 }, { settings: economy, now });
-      await setEconomyData(guild.client, guild.id, winner.userId, userData);
-      return amount;
-    });
-    winnerLine = t`🏆 Yesterday's best answer: <@${winner.userId}> (${winner.count} {1|reaction|reactions}) gets **${money(guild.id, prize)}**.\n\n`;
-  }
+  await closeQuestion(guild, settings, state, now);
   const used = new Set(state.recentQuestions ?? []);
-  const fresh = DAILY_QUESTIONS.map((_, index) => index).filter((index) => !used.has(index));
-  const index = pick(fresh.length ? fresh : DAILY_QUESTIONS.map((_, i) => i), random);
+  const fresh = DAILY_TRIVIA.map((_, index) => index).filter((index) => !used.has(index));
+  const index = pick(fresh.length ? fresh : DAILY_TRIVIA.map((_, i) => i), random);
   const economy = await getEconomySettings(guild.id);
+  const closesAt = now + settings.question.minutes * 60_000;
+  const question = { index };
   const message = await channel.send({
-    content: winner ? `<@${winner.userId}>` : undefined,
-    embeds: [createEmbed({
-      title: t('❓ Question of the day'),
-      description: `${winnerLine}**${DAILY_QUESTIONS[index]}**\n\n${t`Answer in the thread below. The answer with the most reactions tomorrow gets **${money(guild.id, scaleEarnings(economy, settings.question.reward))}**.`}`,
-      color: '#BF5AF2',
-      footer: false,
+    embeds: [questionEmbed(guild, question, settings, {
+      note: t`**Reply to this message** with your answer (a word or a number). One answer per person, the first right one gets **${money(guild.id, scaleEarnings(economy, settings.question.reward))}**.\n-# Until <t:${Math.floor(closesAt / 1000)}:t>`,
     })],
-    allowedMentions: { users: winner ? [winner.userId] : [] },
   }).catch((error) => { logger.warn(`Question of the day not posted in guild ${guild.id}: ${error.message}`); return null; });
   if (!message) return null;
-  const thread = await message.startThread?.({ name: t('Answers'), autoArchiveDuration: 1440 }).catch(() => null);
+  liveOf(guild.id, now).questionMessage = message;
   await updateChatState(guild.id, (data) => {
-    data.question = { day: dayKey(now), messageId: message.id, threadId: thread?.id ?? null, channelId: channel.id };
+    data.question = { day: dayKey(now), index, messageId: message.id, channelId: channel.id, closesAt, tried: [], answered: false, closed: false, winnerId: null };
     data.recentQuestions = [...(data.recentQuestions ?? []), index].slice(-40);
   });
-  return { index, winner };
+  return { index };
+}
+
+/** Nobody answered right in time: show the answer. */
+async function closeQuestion(guild, settings, state, now) {
+  const question = state.question;
+  if (!question || question.answered || question.closed || now < question.closesAt) return false;
+  await updateChatState(guild.id, (data) => { data.question.closed = true; });
+  const original = await questionMessage(guild, question);
+  await original?.edit({
+    embeds: [questionEmbed(guild, question, settings, {
+      color: '#8E8E93',
+      note: t`⏰ Time is up, nobody got it. The answer: **${DAILY_TRIVIA[question.index].a[0]}**`,
+    })],
+  }).catch(() => {});
+  return true;
 }
 
 async function tickQuestion(guild, settings, now, random) {
-  if (!settings.question.enabled || warsawHour(now) < settings.question.hour) return false;
   const state = await getChatState(guild.id);
+  await closeQuestion(guild, settings, state, now);
+  if (!settings.question.enabled || warsawHour(now) < settings.question.hour) return false;
   if (state.question?.day === dayKey(now)) return false;
   return Boolean(await postQuestion(guild, settings, { now, random }));
 }
