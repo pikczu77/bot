@@ -762,7 +762,8 @@ function levelingView(config) {
     multiplierPercent: Math.round((Number(config.xpMultiplier) > 0 ? Number(config.xpMultiplier) : 1) * 100),
     announce: config.announceLevelUp !== false,
     // "same" = the channel where the member wrote, null = the server's system channel.
-    levelUpChannel: config.levelUpSameChannel ? 'same' : (config.levelUpChannel ?? null),
+    // No chosen channel = the channel where the member wrote (services/leveling/xpSystem.js).
+    levelUpChannel: config.levelUpSameChannel || !config.levelUpChannel ? 'same' : config.levelUpChannel,
     levelUpMessage: trAny(config.levelUpMessage || DEFAULT_LEVEL_UP_MESSAGE),
     rewards: Object.entries(config.roleRewards ?? {})
       .map(([level, roleId]) => ({ level: Number(level), roleId }))

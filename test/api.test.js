@@ -328,7 +328,7 @@ test('leveling settings and member levels are changed from the panel', async () 
     const overview = (await call('GET', `/guilds/${guild.id}`)).json.modules.leveling;
     assert.deepEqual(
       { xpMin: overview.xpMin, xpMax: overview.xpMax, channel: overview.levelUpChannel, voice: overview.voice.xpPerMinute, clear: overview.clearOnLeave, first: overview.thresholds[0] },
-      { xpMin: 15, xpMax: 25, channel: null, voice: 0, clear: true, first: { level: 1, xp: 50 } },
+      { xpMin: 15, xpMax: 25, channel: 'same', voice: 0, clear: true, first: { level: 1, xp: 50 } },
     );
 
     const saved = await call('PATCH', path, {

@@ -371,6 +371,21 @@ test('leveling follows the server settings: multipliers, exceptions, rewards, vo
   assert.equal((await getEconomyData(client, guild.id, player.id)).wallet, walletBefore + 400);
   assert.equal(talk.sent.at(-1).content, `GG <@${player.id}> poziom 2 400 zł **Poziom 2**`);
   assert.equal((await getUserLevelData(client, guild.id, player.id)).lastMessage, 0);
+
+  // No chosen channel: the channel where the member wrote, never the system channel with the boosts (2026-10-26).
+  const boosts = mockChannel(guild, 'boosty');
+  guild.systemChannel = boosts;
+  try {
+    await saveLevelingConfig(live, guild.id, { ...(await getLevelingConfig(live, guild.id)), levelUpSameChannel: false, levelUpChannel: null, moneyPerLevel: 0 });
+    const before = talk.sent.length;
+    await runWithLocale('en', () => addXp(live, guild, player, getXpForLevel(2), { channel: talk, touchCooldown: false }));
+    assert.equal(talk.sent.length, before + 1);
+    // A level from voice XP has no channel: nothing is posted.
+    await runWithLocale('en', () => addXp(live, guild, player, getXpForLevel(3), { touchCooldown: false }));
+    assert.equal(boosts.sent.length, 0);
+  } finally {
+    delete guild.systemChannel;
+  }
 });
 
 test('/jointocreate interface posts the message with the control buttons', async () => {

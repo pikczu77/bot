@@ -483,3 +483,11 @@ change you make, so the next session knows what was done and why.
   - Guide: new topics "🎮 Gry i napady" and "🎯 Misje i odznaki", games in "Wszystkie komendy" and on the channel message;
     the posted message in #ekonomia-info is edited at the next start (`GUIDE_VERSION` 2), no repost needed.
   - Not tested against the real MatHost server (power and backups use the documented Pterodactyl client API).
+- **2026-10-26 evening** (owner: "jak mam wlaczone powiadomienia discordowe o boostach to bot tam pisze o levelach
+  napraw to"). Live after the owner restarts the bot; panel text deployed with the next site deploy:
+  - Cause: with no level-up channel chosen, `sendLevelUpAnnouncement` (`services/leveling/xpSystem.js`) used
+    `guild.systemChannel`, the channel where Discord posts boosts and joins.
+  - Now: the chosen channel, otherwise the channel where the member wrote; never the system channel. A level
+    from voice XP has no channel, so without a chosen channel it is not announced (my decision).
+  - Panel API returns `levelUpChannel: 'same'` when none is chosen; the panel lost its "Kanał systemowy serwera"
+    option (pikczu `tools/serwer/bot.html`).

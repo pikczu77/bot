@@ -148,10 +148,11 @@ async function payLevelMoney(client, guild, member, config, levelsGained) {
 
 async function sendLevelUpAnnouncement(guild, member, levelData, config, { channel = null, moneyReward = 0, rewardRole = null } = {}) {
   try {
-    const sameChannel = config.levelUpSameChannel && channel ? channel : null;
-    const levelUpChannel = sameChannel ?? (config.levelUpChannel
-      ? guild.channels.cache.get(config.levelUpChannel)
-      : guild.systemChannel);
+    // A chosen channel, otherwise the channel where the member wrote. Never the server's system
+    // channel: Discord posts boosts and joins there (owner, 2026-10-26: level-ups landed among boosts).
+    // A level from voice XP has no channel, so without a chosen channel it is not announced.
+    const chosen = !config.levelUpSameChannel && config.levelUpChannel ? guild.channels.cache.get(config.levelUpChannel) : null;
+    const levelUpChannel = chosen ?? channel;
 
     if (!levelUpChannel || !levelUpChannel.isTextBased()) {
       return;
