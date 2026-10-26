@@ -5,7 +5,7 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { Collection, OverwriteType, PermissionsBitField, PermissionFlagsBits } from 'discord.js';
 import { initializeDatabase } from '../src/utils/database.js';
-import { checkMessage, findSlur, getAutomodConfig, updateAutomodConfig } from '../src/services/automodService.js';
+import { checkMessage, findBannedWord, findSlur, getAutomodConfig, updateAutomodConfig } from '../src/services/automodService.js';
 import { applyNightChannel } from '../src/services/nightChannel.js';
 import { PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
 
@@ -24,6 +24,16 @@ test('slurs: on by default, digits read as letters, innocent words pass', async 
   assert.ok(findSlur('N1GG3R', PRESET_SLURS));
   assert.ok(findSlur('czarnuchy', PRESET_SLURS));
   for (const fine of ['asfalt na drodze', 'bambus', 'Niger to kraj', 'nigdy', 'ciocia', 'night']) assert.equal(findSlur(fine, PRESET_SLURS), null, fine);
+});
+
+// 2026-10-26 (owner): sexual words go too; nudes, pedofil and the like never, also on the night chat.
+test('words for a young audience: swear list or never-list, innocent words pass', () => {
+  for (const bad of ['ty stulejarzu', 'dih', 'pokaz cycki', 'walic konia', 'Seks', 'zboczeniec']) assert.ok(findBannedWord(bad, PRESET_WORDS), bad);
+  for (const bad of ['wyślij nudesy', 'NUDES', 'pedofil', 'ty pedofilu', 'p3d0f1l', 'pornhub', 'r34']) assert.ok(findSlur(bad, PRESET_SLURS), bad);
+  for (const fine of ['nudy na lekcji', 'pedagog', 'zboczenie z trasy', 'cyklon', 'stulecie', 'porcja', 'koktajl', 'sekunda']) {
+    assert.equal(findBannedWord(fine, PRESET_WORDS), null, fine);
+    assert.equal(findSlur(fine, PRESET_SLURS), null, fine);
+  }
 });
 
 test('free hours and the vulgar chat allow swearing, never slurs', () => {

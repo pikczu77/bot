@@ -85,7 +85,8 @@ change you make, so the next session knows what was done and why.
 - `src/services/automodService.js` (`checkMessage`, rules, free hours), lists in `src/config/automodPresets.js`.
 - Rule `slurs` (owner: slurs like the n-word or "cwel" are never allowed, "nawet po 22"): on by
   default, checked before every other rule, ignores the words rule's free hours and free channels,
-  reads digits/symbols as letters (`findSlur`). Keep it that way.
+  reads digits/symbols as letters (`findSlur`). Keep it that way. Since 2026-10-26 its preset also
+  holds sexual words that are never allowed on a server with young members (nudes, pedofil, porn).
 - `rules.words.freeChannels`: channels where swearing is allowed (the owner's #wulgarny-chat).
 - Night channels: `src/services/nightChannel.js`, settings `nightChannels: [{ channelId, from, to }]`
   (max 10, text or voice) in the automod config, job `night_channel` every minute
@@ -318,3 +319,15 @@ change you make, so the next session knows what was done and why.
     🤬｜nocny-chat; slurs stay banned everywhere. Read back after the change: other settings unchanged.
   - If the owner asks for swearing "after 22" again: that is `freeChannels` (+ a night channel), not
     `freeHours`, unless they want it on all channels.
+- **2026-10-26, later** (owner, Discord: "stulejka i takie nieodpowiednie słowa dla młodszej widowni też
+  usuwaj", "dih", "na chacie ma nie być nigdy można pisać, ma być można tylko na tym przekleństwa",
+  "nudes itp", "pedofil"). Live lists changed through the panel API (owner's words kept, new ones
+  appended: words 54 to 87, slurs 21 to 36); presets in `src/config/automodPresets.js` updated for the
+  panel's "Gotowa lista" buttons and new servers:
+  - `PRESET_WORDS` + sexual words (stulej*, dih, dick*, cycki, seks, masturb*, "wal* konia", zboczeniec
+    ...): deleted everywhere except the free channel (🤬｜nocny-chat).
+  - `PRESET_SLURS` + nudes*, pedofil*, porn*, hentai*, r34, onlyfans*, dickpic* ...: never allowed,
+    also on the night chat. My call: the server has young members and these are not swearing.
+    The panel card still describes this list as "rasistowskie i homofobiczne" (site text not changed).
+  - Test: `test/automod-night.test.js` ("words for a young audience"), innocent words checked (nudy,
+    pedagog, zboczenie z trasy, cyklon, stulecie).

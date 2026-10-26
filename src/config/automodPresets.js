@@ -30,6 +30,14 @@ export const PRESET_WORDS = [
   'debil*', 'idiot*', 'kretyn*', 'matol*', 'cwel*', 'frajer*', 'downie',
   'pedal', 'pedale', 'pedaly', 'pedalem', 'pedzio*', 'pedziu*', 'ciota', 'cioto', 'cioty', 'ciote',
   'lachociag*', 'chwdp',
+  // sexual words, not for a young audience (2026-10-26, owner: "stulejka i takie nieodpowiednie
+  // słowa dla młodszej widowni też usuwaj", "dih"). Exact forms where a wildcard would hit innocent
+  // words: `zboczen*` would catch "zboczenie z trasy", `cyc*` "cyklon".
+  'stulej*', 'dih', 'dihh', 'dick*', 'cock', 'cocks', 'penis*',
+  'cycki', 'cycek', 'cyckami', 'cycuszki', 'cycuszek',
+  'seks', 'seksu', 'seksem', 'seksie', 'seksi', 'seksown*', 'sex', 'sexy', 'horny', 'cum',
+  'masturb*', 'wal* konia', 'obciag*', 'sperm*', 'orgazm*',
+  'zboczeniec', 'zboczencu', 'zboczency', 'zbok', 'zboku', 'zboki',
 ];
 
 /**
@@ -45,6 +53,10 @@ export const PRESET_SLURS = [
   // homophobic and transphobic
   'cwel*', 'faggot*', 'fagot*', 'fag', 'fags', 'pedal', 'pedale', 'pedaly', 'pedalem', 'pedalski*',
   'pedzio*', 'pedziu*', 'ciota', 'cioty', 'cioto', 'ciote', 'ciotami', 'ciotowat*', 'tranny', 'trannies',
+  // sexual content and abuse: the server has young members, so never, also on the night chat
+  // (2026-10-26, owner: "nudes itp", "pedofil"; never-instead-of-words is my call)
+  'nudes*', 'pedofil*', 'pedophil*', 'pedo', 'pedos', 'porn*', 'hentai*', 'rule34', 'r34',
+  'onlyfans*', 'dickpic*', 'xvideos*', 'xhamster*', 'sexting*', 'seksting*',
 ];
 
 /** GIF sites and YouTube. Subdomains are allowed too (media.tenor.com, m.youtube.com). */
