@@ -177,14 +177,16 @@ test('/fish counts for missions and shows the note; /misje and /osiagniecia show
   assert.equal(foreign.components.length, 0, 'someone else\'s missions cannot be swapped');
 
   const badges = replyText({ replies: [await run('osiagniecia', angler)] });
-  assert.match(badges, /Badges of Wedkarz · 1\//);
+  // First catch, plus Legend of the seas when that fish was legendary (2%).
+  assert.match(badges, /Badges of Wedkarz · [12]\//);
   assert.match(badges, /First catch/);
   assert.match(badges, /Angler/);
 
-  // The swap menu: only the owner, once a day.
+  // The swap menu: only the owner, once a day. An unfinished mission (one fish may already finish "catch a rare fish").
+  const open = (await data(angler)).missions.daily.list.findIndex((mission) => !mission.done);
   const calls = { reply: [], update: [] };
   const pick = (member) => ({
-    id: snowflake(), client, guild, guildId: guild.id, channel, member, user: member.user, values: ['daily.0'],
+    id: snowflake(), client, guild, guildId: guild.id, channel, member, user: member.user, values: [`daily.${open}`],
     customId: `misje:zmien:${angler.id}`, replied: false, deferred: false,
     reply: async (payload) => { calls.reply.push(payload); },
     update: async (payload) => { calls.update.push(payload); },

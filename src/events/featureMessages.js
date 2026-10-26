@@ -6,6 +6,7 @@ import { handleConsoleMessage } from '../services/minecraftConsole.js';
 import { noteQuizActivity } from '../services/quiz.js';
 import { handleChatBridgeMessage } from '../services/minecraftChat.js';
 import { handleMediaMessage } from '../services/mediaChannels.js';
+import { handleChatMessage } from '../services/chatEngagement.js';
 import { bumpSticky, handleTagMessage } from '../services/tagService.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
 import { logger } from '../utils/logger.js';
@@ -32,6 +33,8 @@ export default {
       if (await handleChatBridgeMessage(message)) return;
       // Picture channels (fan art): reactions under pictures, other messages are deleted.
       if (await handleMediaMessage(message)) return;
+      // Main chat: activity for drops and the Dead Chat ping, catching a drop.
+      if (await handleChatMessage(message)) return;
 
       const guildConfig = await getGuildConfig(client, message.guild.id);
       await handleTagMessage(message, guildConfig?.prefix || getCommandPrefix());

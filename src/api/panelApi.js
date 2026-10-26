@@ -99,6 +99,8 @@ import {
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import { getLottery, potOf, updateLottery } from '../services/lottery.js';
+import { deadChatRole, getChatSettings, postDrop, postQuestion, updateChatSettings } from '../services/chatEngagement.js';
+import { happyHourFactor } from '../services/happyHourState.js';
 import {
   DEFAULT_REACTIONS as DEFAULT_MEDIA_REACTIONS, MAX_MEDIA_CHANNELS, MAX_REACTIONS as MAX_MEDIA_REACTIONS, getMediaChannels,
   parseReactions as parseMediaReactions, updateMediaChannels,
@@ -1499,6 +1501,47 @@ async function applyMediaChannels(guild, body) {
   return mediaChannelsView(guild);
 }
 
+// ---- Chat activity (services/chatEngagement.js): drops, the Dead Chat ping, question of the day, happy hour.
+async function chatView(guild) {
+  const settings = await getChatSettings(guild.id);
+  const role = deadChatRole(guild, settings);
+  return {
+    ...settings,
+    deadChatRoleFound: settings.deadChat.roleId ? null : (role?.id ?? null),
+    happyHourActive: happyHourFactor(guild.id) > 1,
+    limits: { dropReward: [0, MAX_MONEY], questionReward: [0, MAX_MONEY], minutes: [5, 1440], hours: [0, 23], percent: [110, 500] },
+  };
+}
+
+async function applyChat(guild, body) {
+  const updates = {};
+  if ('channelId' in body) updates.channelId = requireTextChannel(guild, body.channelId, 'channelId');
+  const part = (name, fields) => {
+    if (!(name in body)) return;
+    const value = plainObject(body[name], name);
+    updates[name] = {};
+    for (const [key, check] of Object.entries(fields)) if (key in value) updates[name][key] = check(value[key], `${name}.${key}`);
+  };
+  const flag = (value, field) => boolean(value, field);
+  const range = (min, max) => (value, field) => integer(value, field, min, max);
+  part('drops', { enabled: flag, minMinutes: range(5, 1440), maxMinutes: range(5, 1440), minMessages: range(0, 500), reward: range(0, MAX_MONEY) });
+  part('deadChat', { enabled: flag, minutes: range(5, 1440), roleId: (value, field) => requireRole(guild, value, field), fromHour: range(0, 23), toHour: range(0, 24), minGapMinutes: range(5, 1440) });
+  part('question', { enabled: flag, hour: range(0, 23), reward: range(0, MAX_MONEY) });
+  part('happyHour', { enabled: flag, hour: range(0, 23), minutes: range(10, 600), percent: range(110, 500) });
+  const current = await getChatSettings(guild.id);
+  const drops = { ...current.drops, ...(updates.drops ?? {}) };
+  if (drops.minMinutes > drops.maxMinutes) throw new ApiError(400, 'drops: minMinutes cannot be more than maxMinutes');
+  await updateChatSettings(guild.id, (data) => {
+    if ('channelId' in updates) data.channelId = updates.channelId;
+    for (const name of ['drops', 'deadChat', 'question', 'happyHour']) if (updates[name]) data[name] = { ...current[name], ...updates[name] };
+  });
+  const saved = await getChatSettings(guild.id);
+  if ((body.dropNow === true || body.questionNow === true) && !saved.channelId) throw new ApiError(400, 'channelId: pick the chat channel first');
+  if (body.dropNow === true) await postDrop(guild, saved);
+  if (body.questionNow === true) await postQuestion(guild, saved);
+  return chatView(guild);
+}
+
 export function createPanelRouter(client) {
   const apiKey = (process.env.PANEL_API_KEY ?? '').trim();
   if (!apiKey) return null;
@@ -1580,6 +1623,7 @@ export function createPanelRouter(client) {
       modmail: await modmailView(guild),
       warnings: await warningsView(client, guild),
       mediachannels: await mediaChannelsView(guild),
+      chat: await chatView(guild),
     },
   })));
 
@@ -1590,6 +1634,7 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/modmail', route(({ guild, body }) => applyModmail(guild, body)));
   router.patch('/guilds/:guildId/warnings', route(({ guild, body }) => applyWarnings(client, guild, body)));
   router.patch('/guilds/:guildId/mediachannels', route(({ guild, body }) => applyMediaChannels(guild, body)));
+  router.patch('/guilds/:guildId/chat', route(({ guild, body }) => applyChat(guild, body)));
   // Every warning on the server back to zero (the panel asks twice before it calls this).
   router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
     const reset = await resetGuildWarnings(guild.id);

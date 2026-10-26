@@ -13,6 +13,7 @@ import { applyNightChannels } from './nightChannel.js';
 import { runEconomyEvents } from './economyEvents.js';
 import { runQuiz } from './quiz.js';
 import { runLottery } from './lottery.js';
+import { runChatEngagement } from './chatEngagement.js';
 import { syncChatBridges } from './minecraftChat.js';
 import { resetAllWarningsOnce } from './moderation/warningPunishments.js';
 import { runBackups } from './minecraftServer.js';
@@ -26,6 +27,7 @@ const JOBS = [
   { name: 'economy_events', schedule: '* * * * *', run: runEconomyEvents },
   { name: 'quiz', schedule: '* * * * *', run: runQuiz },
   { name: 'lottery', schedule: '* * * * *', run: runLottery },
+  { name: 'chat_engagement', schedule: '* * * * *', run: runChatEngagement },
   { name: 'minecraft_chat', schedule: '* * * * *', run: syncChatBridges },
   { name: 'minecraft_backup', schedule: '* * * * *', run: runBackups },
 ];

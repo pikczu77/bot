@@ -45,3 +45,7 @@ export const nextMidnight = (now = Date.now()) => midnightOf(formatDay(parseDay(
 
 /** When the next Warsaw week (Monday 00:00) starts. */
 export const nextWeekStart = (now = Date.now()) => midnightOf(formatDay(parseDay(weekKey(now)) + 7 * DAY_MS));
+
+const hourFormat = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', hourCycle: 'h23' });
+/** The hour (0-23) in Warsaw at `now`. */
+export const warsawHour = (now = Date.now()) => Number(hourFormat.format(new Date(now))) % 24;

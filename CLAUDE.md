@@ -546,3 +546,16 @@ change you make, so the next session knows what was done and why.
     disappears after 6 s; members with Manage Messages may write. My reading of "wiadomości usuwają się": text
     without a picture is removed, pictures stay. Optional thread for comments under every picture (off by default).
     The owner still has to pick the fan art channel (command or panel).
+- **2026-10-26 night** (owner picked from my chat ideas "1,2,3,5 - zrob i ja chce zeby deadchat byl po 30 minutach bez
+  gadania"). Live after the owner restarts the bot; panel module "Aktywność czatu" deployed:
+  - `src/services/chatEngagement.js` (texts in `src/config/chatPrompts.js`), job `chat_engagement` every minute,
+    `handleChatMessage` in `featureMessages.js`. One chat channel (`channelId`, picked in the panel) for all of it.
+  - Drops: when someone wrote in the last 5 min, at least 15 messages since the last drop and 20-60 min passed: "the
+    first to type <word> gets $500" (server multiplier, Fortune); 60 s, the message is edited with the winner.
+  - Dead Chat: 30 min without a member message (owner) between 9:00 and 23:00 (my hours): ping of the Dead Chat role
+    (picked, or the role named like "Dead Chat") with a topic; once until someone writes, at least 60 min apart.
+    After a restart the quiet time counts from the start.
+  - Question of the day at 18:00 with a thread "Odpowiedzi"; at the next question the answer with the most reactions
+    wins 2,000. Happy hour 20:00-21:00: messages give x2 XP (`happyHourState.js`, read in `applyXpMultipliers`, not
+    voice XP), announcement deleted at the end. Panel API `chat` (PATCH parts + `dropNow`, `questionNow`).
+  - New daily mission "catch a chat drop", badge "Gwiazda czatu" (5 best answers). My numbers everywhere above.

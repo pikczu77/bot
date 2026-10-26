@@ -51,6 +51,7 @@ export const MISSIONS = {
     { id: 'rareFish', stat: 'fishRare', goal: [1, 1], reward: 1500, text: () => t('Catch a rare or better fish') },
     { id: 'heist', stat: 'heist', goal: [1, 1], reward: 1200, text: () => t('Take part in a `/napad` heist') },
     { id: 'duelWin', stat: 'duelWin', goal: [1, 1], reward: 1200, text: () => t('Win a duel with `/pojedynek`') },
+    { id: 'drop', stat: 'drop', goal: [1, 1], reward: 600, text: () => t('Catch a chat drop first') },
   ],
   weekly: [
     { id: 'work', stat: 'work', goal: [20, 30], reward: 450, text: (goal) => t`Work ${goal} shifts with \`/work\`` },
@@ -176,6 +177,7 @@ export const ACHIEVEMENTS = [
   { id: 'married', emoji: '💍', name: t('For better or worse'), description: t('Get married with `/slub`.'), reward: 2000, progress: (u) => [u?._joint?.partnerId || stat(u, 'married') ? 1 : 0, 1] },
   { id: 'maxed', emoji: '⬆️', name: t('Maxed out'), description: t('Take any upgrade to level 10.'), reward: 5000, progress: (u) => [maxedUpgrade(u) ? 1 : 0, 1] },
   { id: 'lottery_win', emoji: '🎟️', name: t('Lucky ticket'), description: t('Win the weekly lottery.'), reward: 2000, progress: counter('lotteryWin', 1) },
+  { id: 'chat_star', emoji: '💬', name: t('Chat star'), description: t('Give the best answer to the question of the day 5 times.'), reward: 5000, progress: counter('questionWin', 5) },
   { id: 'duelist', emoji: '⚔️', name: t('Duelist'), description: t('Win 10 duels.'), reward: 5000, progress: counter('duelWin', 10) },
   { id: 'daily_month', emoji: '🔥', name: t('Never missed a day'), description: t('Claim /daily 30 days in a row.'), reward: 10000, progress: (u) => [Math.min(30, Math.max(stat(u, 'dailyBestStreak'), Number(u?.dailyStreak) || 0)), 30] },
 ];

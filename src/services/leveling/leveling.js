@@ -6,6 +6,7 @@ import { getGuildConfig, setGuildConfig } from '../config/guildConfig.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { addXp } from './xpSystem.js';
 import { getUserLevelKey } from '../../utils/database/keys.js';
+import { happyHourFactor } from '../happyHourState.js';
 import { t } from '../../i18n/index.js';
 
 const BASE_XP = 100;
@@ -245,6 +246,8 @@ export function applyXpMultipliers(config, baseXp, { member, channel, message = 
   if (channelPercent > 0) factor *= channelPercent / 100;
 
   if (message) {
+    // Happy hour on the server (services/chatEngagement.js): x2 XP for messages by default.
+    factor *= happyHourFactor(member?.guild?.id ?? channel?.guild?.id);
     if ((message.content?.length ?? 0) > LONG_MESSAGE_LENGTH) factor *= 1 + (Number(config.longMessageBonusPercent) || 0) / 100;
     if ((message.attachments?.size ?? 0) > 0) factor *= 1 + (Number(config.attachmentBonusPercent) || 0) / 100;
   }
