@@ -144,3 +144,26 @@ test('modmail: needs a category before it can be on', async () => {
   assert.equal((await getModmailConfig(guild.id)).greeting, 'Cześć!');
   assert.equal((await patch('modmail', { categoryId: channel.id })).status, 400);
 });
+
+test('economy events from the panel: settings, start one (announced), stop it (announcement deleted)', async () => {
+  const news = mockChannel(guild, 'eventy');
+  const deleted = [];
+  news.messages.delete = async (id) => { deleted.push(id); };
+  const view = (await call('GET', `/guilds/${guild.id}`)).json.modules.economy;
+  assert.ok(view.eventTypes.some((type) => type.id === 'kasa'));
+  assert.equal(view.events.auto, false);
+  const saved = await call('PATCH', `/guilds/${guild.id}/economy`, { events: { channelId: news.id, auto: true, everyHours: 6, durationMinutes: 30 } });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.events.channelId, news.id);
+  assert.equal(saved.json.events.auto, true);
+  assert.ok(saved.json.events.nextAutoAt > Date.now(), 'the first automatic event is planned');
+  const started = await call('PATCH', `/guilds/${guild.id}/economy`, { eventStart: { type: 'ryby', minutes: 45 } });
+  assert.equal(started.status, 200, started.text);
+  assert.equal(started.json.events.active.type, 'ryby');
+  assert.equal(news.sent.length, 1);
+  const stopped = await call('PATCH', `/guilds/${guild.id}/economy`, { eventStop: true });
+  assert.equal(stopped.json.events.active, null);
+  assert.deepEqual(deleted, [news.sent[0].id]);
+  assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { eventStart: { type: 'nope', minutes: 45 } })).status, 400);
+  assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { events: { everyHours: 0 } })).status, 400);
+});

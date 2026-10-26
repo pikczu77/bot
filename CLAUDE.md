@@ -506,3 +506,7 @@ change you make, so the next session knows what was done and why.
     `serverstats` (PATCH `add: { type, categoryId, voice, name? }` creates the channel, `rename: { id, name }`,
     `remove: id` (+ `deleteChannel: true`)), `modmail` (PATCH `enabled, categoryId, staffRoleId, logChannelId,
     greeting, anonymous`; on needs a category). Tests: `test/panel-modules.test.js`.
+  - Economy events in the panel (Ekonomia > Gry > "Eventy"; before only `/economy event`): `economyView` adds
+    `eventTypes` and limits `eventEveryHours`, `eventMinutes`; `PATCH /economy` takes `events: { channelId, roleId,
+    auto, everyHours, durationMinutes }` (saved with the rest; turning `auto` on plans the first one) and the actions
+    `eventStart: { type, minutes }` / `eventStop: true` (run after the save; they post or delete the announcement).

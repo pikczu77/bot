@@ -98,6 +98,9 @@ import {
   saveServerCounters, updateCounter,
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
+import {
+  EVENT_TYPES as ECONOMY_EVENT_TYPES, MAX_EVENT_MINUTES, MIN_EVENT_MINUTES, endEvent, nextAutoTime, startEvent,
+} from '../services/economyEvents.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -427,6 +430,8 @@ function economyView(settings, guild, premiumRoleId, quiz = null) {
   return {
     ...rest,
     ...(quiz ? { quiz: quizView(quiz) } : {}),
+    // Timed events (services/economyEvents.js): settings in `events`, the types to start one by hand.
+    eventTypes: ECONOMY_EVENT_TYPES.map((type) => ({ id: type.id, emoji: type.emoji, name: tr(type.name), description: tr(type.description) })),
     shop: {
       premiumRoleId: premiumRoleId ?? null,
       items: getShopCatalog(settings, guild).filter((item) => !item.custom).map((item) => ({
@@ -440,7 +445,8 @@ function economyView(settings, guild, premiumRoleId, quiz = null) {
       })),
       roles: shop.roles,
     },
-    limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS, missionRewardPercent: [0, 1000], quizEveryMinutes: [10, 1440], quizReward: [0, 1_000_000] },
+    limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS, missionRewardPercent: [0, 1000], quizEveryMinutes: [10, 1440], quizReward: [0, 1_000_000],
+      eventEveryHours: [1, 168], eventMinutes: [MIN_EVENT_MINUTES, MAX_EVENT_MINUTES] },
   };
 }
 
@@ -458,7 +464,26 @@ async function applyEconomy(client, guild, body) {
     const channelId = 'channelId' in quizPatch ? quizPatch.channelId : (await getQuizSettings(guild.id)).channelId;
     if (quizPatch.auto && !channelId) throw new ApiError(400, 'quiz.auto: pick the quiz channel first');
   }
-  const settings = await updateEconomySettings(guild.id, (data) => {
+  // Events: settings now, start / stop after the save (they post or delete the announcement).
+  let eventsPatch = null;
+  if ('events' in body) {
+    const events = plainObject(body.events, 'events');
+    eventsPatch = {};
+    if ('channelId' in events) eventsPatch.channelId = requireTextChannel(guild, events.channelId, 'events.channelId');
+    if ('roleId' in events) eventsPatch.roleId = requireRole(guild, events.roleId, 'events.roleId');
+    if ('auto' in events) eventsPatch.auto = boolean(events.auto, 'events.auto');
+    if ('everyHours' in events) eventsPatch.everyHours = integer(events.everyHours, 'events.everyHours', 1, 168);
+    if ('durationMinutes' in events) eventsPatch.durationMinutes = integer(events.durationMinutes, 'events.durationMinutes', MIN_EVENT_MINUTES, MAX_EVENT_MINUTES);
+  }
+  let eventStart = null;
+  if ('eventStart' in body) {
+    const start = plainObject(body.eventStart, 'eventStart');
+    eventStart = {
+      type: oneOf(start.type, 'eventStart.type', ECONOMY_EVENT_TYPES.map((type) => type.id)),
+      minutes: integer(start.minutes, 'eventStart.minutes', MIN_EVENT_MINUTES, MAX_EVENT_MINUTES),
+    };
+  }
+  let settings = await updateEconomySettings(guild.id, (data) => {
     if ('currency' in body) {
       const currency = plainObject(body.currency, 'currency');
       if ('symbol' in currency) {
@@ -479,6 +504,11 @@ async function applyEconomy(client, guild, body) {
       if ('enabled' in activity) data.activity.enabled = boolean(activity.enabled, 'activity.enabled');
       if ('amount' in activity) data.activity.amount = integer(activity.amount, 'activity.amount', 0, MAX_MONEY);
       if ('cooldownSeconds' in activity) data.activity.cooldownSeconds = integer(activity.cooldownSeconds, 'activity.cooldownSeconds', 5, 86400);
+    }
+
+    if (eventsPatch) {
+      if (eventsPatch.auto && !data.events.auto) data.events.nextAutoAt = nextAutoTime({ ...data.events, ...eventsPatch });
+      Object.assign(data.events, eventsPatch);
     }
 
     if ('missions' in body) {
@@ -541,6 +571,11 @@ async function applyEconomy(client, guild, body) {
   });
 
   const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
+  if (body.eventStop === true || eventStart) {
+    if (eventStart) await startEvent(guild, eventStart.type, eventStart.minutes);
+    else await endEvent(guild);
+    settings = await getEconomySettings(guild.id);
+  }
   if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz);
   await updateGuildConfig(client, guild.id, { premiumRoleId });
   return economyView(settings, guild, premiumRoleId, quiz);
