@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds } from '../../services/progress.js';
 import { t, tr } from '../../i18n/index.js';
 import { money } from '../../services/economySettings.js';
 import { SLOT_OUTCOMES, chanceLine, luckLines, playRound, spinSlots } from '../../services/casino.js';
@@ -32,7 +33,7 @@ export default {
             const spin = spinSlots(luck.total);
             const payout = spin.outcome ? Math.floor(bet * spin.outcome.payout) : 0;
             userData.wallet = (userData.wallet || 0) - bet + payout;
-            return { ...spin, payout };
+            return { ...spin, payout, events: { casinoWin: spin.outcome ? 1 : 0, jackpot: spin.outcome?.id === 'jackpot' ? 1 : 0 } };
         });
 
         const machine = `🎰 **|** ${round.reels.join(' **|** ')} **|**`;
@@ -47,6 +48,6 @@ export default {
             )
             .setFooter({ text: `${chanceLine(round.base, round.chance, round.luck)}\n${t`Next game in ${formatDuration(round.cooldown)}.`}` });
 
-        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+        await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(round.progress, guildId)] });
     }, { command: 'slots' })
 };

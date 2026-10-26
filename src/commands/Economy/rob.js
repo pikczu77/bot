@@ -3,6 +3,7 @@ import { successEmbed, warningEmbed, buildUserErrorEmbed, formatDuration } from 
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money } from '../../services/economySettings.js';
 import { bankStealPercent, robSuccessBonus, staminaCooldown } from '../../services/economyUpgrades.js';
@@ -153,6 +154,7 @@ export default {
                 );
             }
 
+            const progress = recordProgress(robberData, { rob: 1, robWin: isSuccessful ? 1 : 0 }, { settings: await getEconomySettings(guildId), now });
             await setEconomyData(client, guildId, robberId, robberData);
             await setEconomyData(client, guildId, victimUser.id, victimData);
 
@@ -175,6 +177,6 @@ export default {
                         : t`Success chance: ${successPercent}%. Next robbery in ${formatDuration(ROB_COOLDOWN)}.`,
                 });
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed] });
+            await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed, ...progressEmbeds(progress, guildId)] });
     }, { command: 'rob' })
 };

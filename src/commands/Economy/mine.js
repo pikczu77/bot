@@ -10,6 +10,7 @@ import { assertNotJailed } from '../../services/economyJail.js';
 import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain, takeConsumable, usesInARow } from '../../config/shop/items.js';
 import { againComponents } from './modules/again_button.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 
 // /nagraj — the YouTuber job (was /mine until 2026-10-15; the internal id stays "mine":
 // settings.commands.mine, lastMine, the "mine" upgrade and item chain, so nothing was lost).
@@ -133,6 +134,12 @@ export function runRecord({ client, guild, user }) {
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             userData.wallet += finalEarned;
+            const progress = recordProgress(userData, {
+                nagraj: 1,
+                earned: finalEarned,
+                videoViral: ['epic', 'legendary'].includes(rarity.id) ? 1 : 0,
+                videoLegendary: rarity.id === 'legendary' ? 1 : 0,
+            }, { settings, now });
 
             await setEconomyData(client, guildId, userId, userData);
 
@@ -149,6 +156,6 @@ export function runRecord({ client, guild, user }) {
                     ? t`${use.inARowLeft} more in a row now, then a break of ${formatDuration(COOLDOWN)}.`
                     : t`Next video in ${formatDuration(COOLDOWN)}.` });
 
-            return { embeds: [embed], components: againComponents('nagraj', userId, use.inARowLeft, userData) };
+            return { embeds: [embed, ...progressEmbeds(progress, guildId)], components: againComponents('nagraj', userId, use.inARowLeft, userData) };
     });
 }

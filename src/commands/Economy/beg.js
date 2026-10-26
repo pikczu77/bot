@@ -3,6 +3,7 @@ import { successEmbed, warningEmbed } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
@@ -92,11 +93,13 @@ export default {
                 );
             }
 
+            const begEarned = Math.max(0, newCash - (userData.wallet || 0));
             userData.wallet = newCash;
-userData.lastBeg = Date.now();
+            userData.lastBeg = Date.now();
+            const progress = recordProgress(userData, { beg: 1, earned: begEarned }, { settings });
 
             await setEconomyData(client, guildId, userId, userData);
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [replyEmbed] });
+            await InteractionHelper.safeEditReply(interaction, { embeds: [replyEmbed, ...progressEmbeds(progress, guildId)] });
     }, { command: 'beg' })
 };

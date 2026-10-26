@@ -18,6 +18,7 @@ import { cooldownMs, getEconomySettings, money } from '../../../services/economy
 import { earningMultiplier, spendMoney, staminaCooldown, upgradeBonusLine, withEconomyLock } from '../../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../../services/economyJail.js';
 import { t } from '../../../i18n/index.js';
+import { progressEmbeds, recordProgress } from '../../../services/progress.js';
 
 export const SUE_MAX_CHANCE = 0.6;
 export const SUE_MIN_CHANCE = 0.01;
@@ -118,20 +119,21 @@ export function stepAmount(amount, step) {
 export async function runLawsuit({ client, guildId, plaintiff, defendant, amount, random = Math.random }) {
   return withBothLocks(guildId, plaintiff.id, defendant.id, async () => {
     const now = Date.now();
-    const { sue, plaintiffData, defendantData, defendantMoney } = await checkCase({ client, guildId, plaintiff, defendant, now });
+    const { settings, sue, plaintiffData, defendantData, defendantMoney } = await checkCase({ client, guildId, plaintiff, defendant, now });
     if (amount > defendantMoney) return { preview: true };
 
     const chance = sueChance(amount, defendantMoney);
     plaintiffData.cooldowns = { ...(plaintiffData.cooldowns || {}), sue: now };
     let embed;
+    const won = random() < chance;
 
-    if (random() < chance) {
+    if (won) {
       spendMoney(defendantData, amount);
-      const won = Math.floor(amount * earningMultiplier(plaintiffData, 'crime'));
-      plaintiffData.wallet = (plaintiffData.wallet || 0) + won;
+      const payout = Math.floor(amount * earningMultiplier(plaintiffData, 'crime'));
+      plaintiffData.wallet = (plaintiffData.wallet || 0) + payout;
       embed = createEmbed({
         title: t('⚖️ Case won!'),
-        description: t`The court agreed with **${plaintiff.username}**: **${defendant.username}** pays **${money(guildId, amount)}**.\n${plaintiff.username} gets **${money(guildId, won)}** (chance was ${percent(chance)}).` +
+        description: t`The court agreed with **${plaintiff.username}**: **${defendant.username}** pays **${money(guildId, amount)}**.\n${plaintiff.username} gets **${money(guildId, payout)}** (chance was ${percent(chance)}).` +
           upgradeBonusLine(plaintiffData, 'crime', guildId),
         color: '#30D158',
       });
@@ -156,8 +158,9 @@ export async function runLawsuit({ client, guildId, plaintiff, defendant, amount
       });
     }
 
+    const progress = recordProgress(plaintiffData, { sue: 1, sueWin: won ? 1 : 0 }, { settings, now });
     await setEconomyData(client, guildId, defendant.id, defendantData);
     await setEconomyData(client, guildId, plaintiff.id, plaintiffData);
-    return { result: { content: `<@${defendant.id}>`, embeds: [embed], allowedMentions: { users: [defendant.id] } } };
+    return { result: { content: `<@${defendant.id}>`, embeds: [embed, ...progressEmbeds(progress, guildId)], allowedMentions: { users: [defendant.id] } } };
   });
 }

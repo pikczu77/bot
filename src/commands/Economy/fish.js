@@ -11,6 +11,7 @@ import { FISH_PAY_MULTIPLIERS, addTo, hasAny, indexKey, rarityOf, rollFish } fro
 import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain, usesInARow } from '../../config/shop/items.js';
 import { againComponents } from './modules/again_button.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 
 // A Fishing Rod (or a better rod) is needed to fish; the Carbon Rod adds +50%, the Golden Rod +100%.
 // Since 2026-10-15 the fish decides the pay (services/collections.js): its rarity multiplies a
@@ -100,6 +101,12 @@ export function runFish({ client, guild, user }) {
 
             userData.wallet += finalEarned;
             userData.fishIndex = addTo(userData.fishIndex, indexKey(caught.id, variant));
+            const progress = recordProgress(userData, {
+                fish: 1,
+                earned: finalEarned,
+                fishRare: ['rare', 'epic', 'legendary'].includes(caught.rarity) ? 1 : 0,
+                fishLegendary: caught.rarity === 'legendary' ? 1 : 0,
+            }, { settings, now });
 
             await setEconomyData(client, guildId, userId, userData);
 
@@ -124,6 +131,6 @@ export function runFish({ client, guild, user }) {
                     ? t`${use.inARowLeft} more in a row now, then a break of ${formatDuration(FISH_COOLDOWN)}.`
                     : t`Next fishing trip available in ${formatDuration(FISH_COOLDOWN)}.` });
 
-            return { embeds: [embed], components: againComponents('fish', userId, use.inARowLeft, userData) };
+            return { embeds: [embed, ...progressEmbeds(progress, guildId)], components: againComponents('fish', userId, use.inARowLeft, userData) };
     });
 }

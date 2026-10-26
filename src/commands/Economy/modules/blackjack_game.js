@@ -12,6 +12,7 @@ import { checkBet, formatChance, luckLines, takeLuck } from '../../../services/c
 import { GAME_TIMEOUT_MS, bustChance, deal, dealerPlay, handValue, hit, isBlackjack, settle, standOdds } from '../../../services/blackjack.js';
 import { getItemById } from '../../../config/shop/items.js';
 import { t } from '../../../i18n/index.js';
+import { progressEmbeds, recordProgress } from '../../../services/progress.js';
 
 const showHand = (cards) => cards.map((card) => `\`${card}\``).join(' ');
 
@@ -82,11 +83,11 @@ function buildView({ guildId, user, userData, game, result = null, notice = '' }
     new ButtonBuilder().setCustomId(`bj:stoj:${user.id}`).setLabel(t('Stand')).setEmoji('✋').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`bj:podwoj:${user.id}`).setLabel(t('Double')).setEmoji('💰').setStyle(ButtonStyle.Secondary).setDisabled(!canDouble),
   );
-  return { embeds: [embed], components: [row] };
+  return { embeds: [embed, ...progressEmbeds(result?.progress ?? null, guildId)], components: [row] };
 }
 
 /** Finish the hand: the dealer plays (unless the player busted), the wallet gets the payout. */
-function finish(userData, game, { stand }) {
+function finish(userData, game, { stand, settings }) {
   if (stand) {
     game.stood = standOdds(game.player, game.dealer[0]);
     dealerPlay(game);
@@ -94,6 +95,11 @@ function finish(userData, game, { stand }) {
   const result = settle(game);
   userData.wallet = (userData.wallet || 0) + result.payout;
   userData.blackjack = null;
+  result.progress = recordProgress(userData, {
+    casino: 1,
+    casinoWin: ['win', 'blackjack'].includes(result.outcome) ? 1 : 0,
+    blackjackNatural: result.outcome === 'blackjack' ? 1 : 0,
+  }, { settings });
   return result;
 }
 
@@ -111,7 +117,7 @@ export function startBlackjack({ client, guildId, user, bet }) {
         return buildView({ guildId, user, userData, game: running, notice: t('You already have a game - finish it first.') });
       }
       // Left alone for too long: it stands on what it has.
-      const old = finish(userData, running, { stand: true });
+      const old = finish(userData, running, { stand: true, settings });
       notice = t`Your previous hand stood on its own: ${old.player} against ${old.dealer > 21 ? t('bust') : old.dealer} (+${money(guildId, old.payout)}).`;
     }
 
@@ -126,7 +132,7 @@ export function startBlackjack({ client, guildId, user, bet }) {
     userData.lastGamble = now;
 
     let result = null;
-    if (isBlackjack(game.player) || isBlackjack(game.dealer)) result = finish(userData, game, { stand: false });
+    if (isBlackjack(game.player) || isBlackjack(game.dealer)) result = finish(userData, game, { stand: false, settings });
     else userData.blackjack = game;
 
     await setEconomyData(client, guildId, user.id, userData);
@@ -137,7 +143,7 @@ export function startBlackjack({ client, guildId, user, bet }) {
 /** A button: 'dobierz' (hit), 'stoj' (stand), 'podwoj' (double down). Null when no game is running. */
 export function playBlackjack({ client, guildId, user, action }) {
   return withEconomyLock(guildId, user.id, async () => {
-    await getEconomySettings(guildId);
+    const settings = await getEconomySettings(guildId);
     const userData = await getEconomyData(client, guildId, user.id);
     const game = userData.blackjack;
     if (!game?.player) return null;
@@ -153,14 +159,14 @@ export function playBlackjack({ client, guildId, user, action }) {
       game.bet *= 2;
       game.doubled = true;
       hit(game, luck);
-      result = finish(userData, game, { stand: handValue(game.player).total <= 21 });
+      result = finish(userData, game, { stand: handValue(game.player).total <= 21, settings });
     } else if (action === 'dobierz') {
       hit(game, luck);
       const { total } = handValue(game.player);
-      if (total > 21) result = finish(userData, game, { stand: false });
-      else if (total === 21) result = finish(userData, game, { stand: true });
+      if (total > 21) result = finish(userData, game, { stand: false, settings });
+      else if (total === 21) result = finish(userData, game, { stand: true, settings });
     } else {
-      result = finish(userData, game, { stand: true });
+      result = finish(userData, game, { stand: true, settings });
     }
 
     if (!result) userData.blackjack = game;

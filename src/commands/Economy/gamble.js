@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds } from '../../services/progress.js';
 import { t } from '../../i18n/index.js';
 import { money } from '../../services/economySettings.js';
 import { applyLuck, chanceLine, luckLines, playRound } from '../../services/casino.js';
@@ -35,7 +36,7 @@ export default {
             const amountWon = Math.floor(betAmount * gamble.payoutPercent / 100);
             // The bet was at stake, not taken in advance: a win replaces it with the payout.
             userData.wallet = (userData.wallet || 0) + (win ? amountWon - betAmount : -betAmount);
-            return { base, chance, win, amountWon };
+            return { base, chance, win, amountWon, events: { casinoWin: win ? 1 : 0 } };
         });
 
         const resultEmbed = round.win
@@ -52,6 +53,6 @@ export default {
             .addFields({ name: t("New Cash Balance"), value: money(guildId, round.userData.wallet), inline: true })
             .setFooter({ text: `${chanceLine(round.base, round.chance, round.luck)}\n${t`Next game in ${formatDuration(round.cooldown)}.`}` });
 
-        await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed] });
+        await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed, ...progressEmbeds(round.progress, guildId)] });
     }, { command: 'gamble' })
 };

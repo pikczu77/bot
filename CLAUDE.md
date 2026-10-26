@@ -54,7 +54,17 @@ change you make, so the next session knows what was done and why.
   add or change an economy command, update `GUIDE_TOPICS` and the Polish text in `pl.eco-guide.json`.
   Visual check without Discord: dump the views to JSON and render a Discord-like HTML page, then
   screenshot it with headless Edge (`msedge --headless=new --screenshot=...`).
-- Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`.
+- Missions, badges, stats (since 2026-10-26): `src/services/progress.js`. Every earning command calls
+  `recordProgress(userData, events, { settings, now })` before it saves and adds `progressEmbeds(progress, guildId)`
+  to its reply (casino: `playRound` does it from `result.events`; blackjack: `finish`). Event keys = stat names:
+  work, fish, nagraj, beg, slut, crime, crimeWin, jail, rob, robWin, sue, sueWin, daily, casino, casinoWin, jackpot,
+  rouletteNumber, blackjackNatural, packs, earned (job money), fishRare, fishLegendary, videoViral, videoLegendary,
+  wordle, quiz, trades. A new earning command must send its events too. Missions: 3 daily (new at Warsaw midnight)
+  and 3 weekly (Monday), `MISSIONS`, paid at once times the server multiplier, a full set gives a free pack
+  (`BONUS_PACKS`), one swap per period (`misje:zmien`). Badges: `ACHIEVEMENTS` with `progress(userData)`, paid once.
+  Views: `modules/progress_view.js` (`/misje`, `/osiagniecia`). Day/week keys: `src/utils/warsawTime.js`.
+  `progressOptions.enabled` is false under `NODE_ENV=test` (old tests check exact balances); `test/progress.test.js` turns it on.
+- Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`.
 
 ## Economy rules the owner set (keep them)
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
@@ -386,3 +396,7 @@ change you make, so the next session knows what was done and why.
   - Own Lavalink (owner: "zrob" on my idea list): code and guide only. The owner still has to create the Java
     server, upload `Lavalink.jar` + `lavalink/application.yml` and add `LAVALINK_HOST/PORT/PASSWORD` to the bot's
     `.env`. Until then nothing changes (public nodes).
+  - `/misje` and `/osiagniecia` (owner: "6 zrob", "7,8 zrob" on my list; details in "Economy map"). 76 commands.
+    My decisions: rewards and goals (`MISSIONS`, `ACHIEVEMENTS`), a free Starter pack for all daily missions and a
+    Collector pack for all weekly ones, one free swap a day and a week, badges reached before the release (fish
+    already in /index) are given on the next action, "earned" counts job money only (not casino, robbery, /daily).

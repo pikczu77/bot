@@ -6,6 +6,7 @@ import { formatDuration } from '../../utils/embeds.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, interestPercent, upgradeBonusLine } from '../../services/economyUpgrades.js';
@@ -92,6 +93,7 @@ export default {
 
             userData.wallet = (userData.wallet || 0) + earned;
             userData.lastDaily = now;
+            const progress = recordProgress(userData, { daily: 1 }, { settings, now });
 
             await setEconomyData(client, guildId, userId, userData);
 
@@ -119,6 +121,6 @@ export default {
                         : t`Next claim in ${formatDuration(DAILY_COOLDOWN)}.`,
                 });
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+            await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(progress, guildId)] });
     }, { command: 'daily' })
 };

@@ -4,6 +4,7 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown } from '../../services/economyUpgrades.js';
@@ -162,6 +163,7 @@ export default {
             }
 
             userData.wallet = Math.max(0, (userData.wallet || 0) + outcome.delta);
+            const progress = recordProgress(userData, { slut: 1, earned: Math.max(0, outcome.delta) }, { settings: economySettings, now });
 
             await setEconomyData(client, guildId, userId, userData);
 
@@ -192,6 +194,6 @@ export default {
                 timestamp: true
             });
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+            await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(progress, guildId)] });
     }, { command: 'slut' })
 };

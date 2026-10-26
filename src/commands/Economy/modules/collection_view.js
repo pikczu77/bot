@@ -17,6 +17,7 @@ import {
   hasAllCards, hasAny, indexKey, packExpectedValue, packLegendaryChance, parseIndexKey, rarityOf, rollCard, variantOf, versionsOf,
 } from '../../../services/collections.js';
 import { t, tr } from '../../../i18n/index.js';
+import { progressEmbeds, recordProgress } from '../../../services/progress.js';
 
 const SHORT = { normal: '', golden: '_g', diamond: '_d' };
 const encodeKey = (key) => { const { id, variant } = parseIndexKey(key); return `${id}${SHORT[variant.id]}`; };
@@ -60,8 +61,9 @@ export function openPack({ client, guildId, userId, packId, random = Math.random
       userData.cards = addTo(userData.cards, key);
       drawn.push({ ...roll, key, isNew });
     }
+    const progress = recordProgress(userData, { packs: 1 }, { settings });
     await setEconomyData(client, guildId, userId, userData);
-    return { pack, drawn, userData };
+    return { pack, drawn, userData, progress };
   });
 }
 
@@ -141,7 +143,7 @@ export function buildPackShop({ guildId, ownerId, userData, notice = '' }) {
 }
 
 /** What came out of a pack. */
-export function buildPackView({ guildId, ownerId, pack, drawn, userData, soldTotal = null }) {
+export function buildPackView({ guildId, ownerId, pack, drawn, userData, soldTotal = null, progress = null }) {
   const best = drawn.reduce((top, entry) => (RARITIES.findIndex((r) => r.id === entry.card.rarity) > RARITIES.findIndex((r) => r.id === top.card.rarity) ? entry : top), drawn[0]);
   const lines = drawn.map(({ card, variant, value, isNew }) => {
     const rarity = rarityOf(card.rarity);
@@ -153,7 +155,7 @@ export function buildPackView({ guildId, ownerId, pack, drawn, userData, soldTot
     description: `${lines.join('\n')}\n\n${t`Cards worth **${money(guildId, total)}** (the pack cost ${money(guildId, pack.price)}).`}\n💵 **${money(guildId, userData.wallet || 0)}** · 🏦 **${money(guildId, userData.bank || 0)}**`,
     color: rarityOf(best.card.rarity).color,
   });
-  return { embeds: [embed], components: packButtons(ownerId, guildId, { sellKeys: soldTotal === null ? drawn.map((entry) => entry.key) : [], soldTotal }) };
+  return { embeds: [embed, ...progressEmbeds(progress, guildId)], components: packButtons(ownerId, guildId, { sellKeys: soldTotal === null ? drawn.map((entry) => entry.key) : [], soldTotal }) };
 }
 
 // ---------------------------------------------------------------- /index

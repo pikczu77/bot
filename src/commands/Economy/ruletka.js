@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { successEmbed, warningEmbed, formatDuration } from '../../utils/embeds.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds } from '../../services/progress.js';
 import { t, tr } from '../../i18n/index.js';
 import { money } from '../../services/economySettings.js';
 import { ROULETTE_BETS, chanceLine, luckLines, playRound, rouletteColor, spinRoulette } from '../../services/casino.js';
@@ -67,7 +68,7 @@ export default {
             const spin = spinRoulette(betId, number, luck.total);
             const payout = spin.win ? Math.floor(bet * spin.bet.payout) : 0;
             userData.wallet = (userData.wallet || 0) - bet + payout;
-            return { ...spin, payout };
+            return { ...spin, payout, events: { casinoWin: spin.win ? 1 : 0, rouletteNumber: spin.win && spin.bet.payout === 36 ? 1 : 0 } };
         });
 
         const target = betId === 'liczba' ? t`number ${number}` : tr(round.bet.name);
@@ -80,6 +81,6 @@ export default {
             .addFields({ name: t("New Cash Balance"), value: money(guildId, round.userData.wallet), inline: true })
             .setFooter({ text: `${chanceLine(round.base, round.chance, round.luck)}\n${t`Next game in ${formatDuration(round.cooldown)}.`}` });
 
-        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+        await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(round.progress, guildId)] });
     }, { command: 'ruletka' })
 };

@@ -3,6 +3,7 @@ import { createEmbed, successEmbed, infoEmbed, warningEmbed, formatDuration } fr
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { progressEmbeds, recordProgress } from '../../services/progress.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { assertNotJailed, bailOffer } from '../../services/economyJail.js';
@@ -88,6 +89,7 @@ export default {
 
             if (isSuccess) {
                 userData.wallet = (userData.wallet || 0) + amountEarned;
+                const progress = recordProgress(userData, { crime: 1, crimeWin: 1, earned: amountEarned }, { settings: economySettings, now });
                 
                 await setEconomyData(client, guildId, userId, userData);
                 
@@ -97,7 +99,7 @@ export default {
                     + earningsLine(economySettings, userData) + (usedBalaclava ? t`\n🥷 **Balaclava** used: +15% success chance.` : '')
                 );
                 
-                await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+                await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(progress, guildId)] });
             } else {
                 // Fine is based on the potential haul of the attempted crime
                 const potentialHaul = Math.floor((crime.min + crime.max) / 2 * settings.payoutPercent / 100);
@@ -106,6 +108,7 @@ export default {
                 if (insured) userData.inventory = { ...userData.inventory, insurance: userData.inventory.insurance - 1 };
                 else userData.wallet = Math.max(0, (userData.wallet || 0) - fine);
                 userData.jailedUntil = JAIL_TIME > 0 ? now + JAIL_TIME : 0;
+                const progress = recordProgress(userData, { crime: 1, jail: JAIL_TIME > 0 ? 1 : 0 }, { settings: economySettings, now });
                 
                 await setEconomyData(client, guildId, userId, userData);
 
@@ -119,7 +122,7 @@ export default {
                     + bail.text
                 );
 
-                await InteractionHelper.safeEditReply(interaction, { embeds: [embed], components: bail.components });
+                await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(progress, guildId)], components: bail.components });
             }
     }, { command: 'crime' })
 };

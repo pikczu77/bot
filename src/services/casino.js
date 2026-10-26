@@ -19,6 +19,7 @@ import { LUCK_PER_LEVEL, getUpgradeLevel, staminaCooldown, withEconomyLock } fro
 import { assertNotJailed } from './economyJail.js';
 import { bestInChain, getItemById } from '../config/shop/items.js';
 import { t, tr } from '../i18n/index.js';
+import { recordProgress } from './progress.js';
 
 export const MAX_WIN_CHANCE = 0.95;
 export const MAX_LUCK = 25;
@@ -118,8 +119,10 @@ export function playRound({ client, guildId, userId, bet }, resolve) {
     const luck = takeLuck(userData);
     const result = await resolve({ settings, userData, luck });
     userData.lastGamble = now;
+    // `events` from the game (wins, jackpots) for missions and badges (services/progress.js).
+    const progress = recordProgress(userData, { casino: 1, ...(result.events ?? {}) }, { settings, now });
     await setEconomyData(client, guildId, userId, userData);
-    return { ...result, settings, userData, luck, cooldown };
+    return { ...result, settings, userData, luck, cooldown, progress };
   });
 }
 

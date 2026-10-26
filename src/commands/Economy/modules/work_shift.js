@@ -13,6 +13,7 @@ import { assertNotJailed } from '../../../services/economyJail.js';
 import { bestInChain } from '../../../config/shop/items.js';
 import { itemLabel } from './buy.js';
 import { againComponents } from './again_button.js';
+import { progressEmbeds, recordProgress } from '../../../services/progress.js';
 import { t, tr } from '../../../i18n/index.js';
 
 /** What one shift pays on top of the job's base pay: best work tool × Career. scaleEarnings adds the server multiplier and Fortune. */
@@ -97,8 +98,9 @@ export function workShift({ settings, userData, job, guildId, now = Date.now(), 
         userData.jobOffers = [];
     }
 
+    const progress = recordProgress(userData, { work: 1, earned }, { settings, now });
     const inARowLeft = Math.max(0, allowed - streak);
-    return { earned, extras, ended, nextAt: inARowLeft > 0 ? null : now + cooldown, inARowLeft, shiftsLeft: userData.job?.shiftsLeft ?? 0 };
+    return { earned, extras, ended, progress, nextAt: inARowLeft > 0 ? null : now + cooldown, inARowLeft, shiftsLeft: userData.job?.shiftsLeft ?? 0 };
 }
 
 function shiftView({ guildId, userData, user, job, result, notice = '' }) {
@@ -117,7 +119,7 @@ function shiftView({ guildId, userData, user, job, result, notice = '' }) {
             { name: t("New Balance"), value: money(guildId, userData.wallet), inline: true },
             { name: t("Next Work"), value: nextWork, inline: true },
             { name: t('Contract'), value: result.ended ? t('finished') : t`${job.emoji} ${result.shiftsLeft}/${JOB_SHIFTS} shifts left`, inline: true },
-        ).setFooter({ text: t`Requested by ${user.tag ?? user.username}`, iconURL: user.displayAvatarURL?.() })],
+        ).setFooter({ text: t`Requested by ${user.tag ?? user.username}`, iconURL: user.displayAvatarURL?.() }), ...progressEmbeds(result.progress, guildId)],
         components: againComponents('work', user.id, result.inARowLeft, userData),
     };
 }
