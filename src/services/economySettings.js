@@ -50,7 +50,11 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     gamble: { cooldownMinutes: 5, winPercent: 40, payoutPercent: 170, maxBet: 0 },
     // /wordle (services/wordle.js): a word solved in one guess pays this, fewer for more guesses.
     wordle: { reward: 3000 },
+    // /napad (commands/Economy/modules/heist.js): a team heist; payoutPercent scales the loot table.
+    heist: { cooldownMinutes: 180, payoutPercent: 100 },
   },
+  // Missions (services/progress.js): off = no daily/weekly missions; rewardPercent scales their rewards.
+  missions: { enabled: true, rewardPercent: 100 },
   // Timed events (services/economyEvents.js): announcement channel, optional role ping, automatic
   // events every `everyHours` lasting `durationMinutes`, and the running one.
   events: { channelId: null, roleId: null, auto: false, everyHours: 24, durationMinutes: 60, active: null, nextAutoAt: 0 },
@@ -81,6 +85,7 @@ export const COMMAND_LIMITS = Object.freeze({
   rob: { cooldownMinutes: [0, MAX_COOLDOWN], successPercent: [0, 100], stealPercent: [1, 100], finePercent: [0, 100], minVictimCash: [0, MAX_MONEY] },
   gamble: { cooldownMinutes: [0, MAX_COOLDOWN], winPercent: [1, 99], payoutPercent: [101, 10_000], maxBet: [0, MAX_MONEY] },
   wordle: { reward: [0, MAX_MONEY] },
+  heist: { cooldownMinutes: [0, MAX_COOLDOWN], payoutPercent: [1, 10_000] },
 });
 
 export const CURRENCY_POSITIONS = ['left', 'right'];
@@ -101,7 +106,7 @@ function normalize(stored) {
   for (const key of ['startingWallet', 'startingBank', 'clearOnLeave', 'payTaxPercent', 'earningsPercent']) {
     if (key in stored) settings[key] = stored[key];
   }
-  for (const key of ['currency', 'activity', 'channels', 'roles', 'events']) {
+  for (const key of ['currency', 'activity', 'channels', 'roles', 'events', 'missions']) {
     if (isPlainObject(stored[key])) Object.assign(settings[key], stored[key]);
   }
   for (const name of Object.keys(settings.commands)) {

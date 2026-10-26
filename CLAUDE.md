@@ -64,7 +64,14 @@ change you make, so the next session knows what was done and why.
   (`BONUS_PACKS`), one swap per period (`misje:zmien`). Badges: `ACHIEVEMENTS` with `progress(userData)`, paid once.
   Views: `modules/progress_view.js` (`/misje`, `/osiagniecia`). Day/week keys: `src/utils/warsawTime.js`.
   `progressOptions.enabled` is false under `NODE_ENV=test` (old tests check exact balances); `test/progress.test.js` turns it on.
-- Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`.
+- `/napad` (team heist, since 2026-10-26): `modules/heist.js` (`HEIST_TARGETS`, `heistChance`, lobbies in memory),
+  buttons `napad:dolacz|zapros|start|wyjdz:<id>` (`interactions/buttons/economy/heist.js`), invite picker `napad:kogo:<id>`
+  (`selectMenus/economy/heist.js`). Settings `commands.heist` (cooldownMinutes, payoutPercent). Events heist, heistWin, earned, jail.
+- Missions switch: `settings.missions` { enabled, rewardPercent } (`missionsEnabled`, `missionReward` in progress.js).
+  Off = no missions are handed out or paid; stats and badges still count.
+- Guide: bump `GUIDE_VERSION` in `economy_guide.js` when the channel message or the topic list changes; `refreshEconomyGuides`
+  (ready event) edits the posted guides once.
+- Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`.
 
 ## Economy rules the owner set (keep them)
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
@@ -139,7 +146,13 @@ change you make, so the next session knows what was done and why.
   `chatEvents` in `minecraftView` / `applyMinecraft`. Chat plugins that change the console format are not read.
 - Tests: `test/minecraft-whitelist.test.js` (fake panel and fake Mojang API through `globalThis.fetch`),
   `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel), `test/minecraft-console.test.js`
-  (fake websocket through `consoleSocket.create`), `test/minecraft-chat.test.js`.
+  (fake websocket through `consoleSocket.create`), `test/minecraft-chat.test.js`, `test/minecraft-server.test.js`.
+- Power and backups (since 2026-10-26): `src/services/minecraftServer.js` (`serverStatus`, `sendPower`, `createBackup`,
+  `tickBackup`), `/minecraft serwer` + `/minecraft kopie [co_ile]` in `src/commands/Minecraft/modules/server.js`, buttons
+  `mcserwer:start|restart|stop[:tak]|kopia|odswiez` (`src/interactions/buttons/minecraft/server.js`). Administrator only
+  (`canUseConsole`). Store fields `backupEveryHours`, `lastAutoBackupAt`, `lastBackup`. Job `minecraft_backup` every minute.
+  Automatic backups are named `Discord auto ...`; a full plan deletes only the oldest unlocked automatic backup. Panel API:
+  `backupEveryHours` (0-168) in PATCH, `chatRecent` (last 30 chat lines, memory) and `lastBackup` in the view.
 
 ## Music map
 - Riffy 1.0.12 + public Lavalink v4 nodes from `lavalink/nodes.json` (no own Lavalink server).
@@ -450,3 +463,23 @@ change you make, so the next session knows what was done and why.
   - Not tested against the real MatHost server (no access); the websocket part is the one the console already
     uses there. Each Discord message is one panel API call (Pterodactyl allows about 240 a minute).
   - 79 commands (a subcommand, no new top-level command).
+- **2026-10-26 ~15:00** (owner picked from my list: "2,3,9 (dodaj przed rozpoczeciem napadu ze mozna kogos zaprosic),
+  15,16 - dodaj tez zeby o tych grach bylo wiadomo w tej wiadomosci info o ekonomii"). Live after the owner restarts the bot:
+  - 2: `/minecraft serwer`: private status (state, CPU, RAM, disk, uptime, backups) with Start / Restart / Stop (Stop and
+    Restart ask a second time) and "Kopia teraz". Administrator only, like the console.
+  - 3: `/minecraft kopie co_ile:` automatic backups every 1-168 h (first one after a full period). My decision: when the
+    plan's backup slots are full, the oldest unlocked automatic backup is deleted (what Pterodactyl's own schedules do);
+    hand-made and locked backups are never deleted, a backup by hand on a full plan is refused with an explanation.
+    A failed automatic backup is retried after 30 min and shown in `/minecraft serwer`.
+  - 9: `/napad cel:sklep|kantor|bank [tylko_zaproszeni]`: lobby with Join / Invite / Start / Leave; the leader invites up
+    to 4 people at a time from a private picker, they are pinged in the channel under the lobby. My numbers: crew 1+/2+/3+,
+    chance 55/45/35% +8 per extra member (max 85%), loot per person 2-4k / 5-9k / 12-22k (x Street smarts, server
+    multiplier, Fortune), gear 500 / 1,500 / 4,000 each paid at the start, caught = gear lost + `/crime` jail time for
+    everyone (bail works), break 180 min (Stamina). Lobby 5 min in memory. New missions: daily "take part in a heist",
+    weekly "2-3 successful heists". 80 commands.
+  - 15: panel API for games: `commands.heist`, `missions` { enabled, rewardPercent 0-1000 }, `quiz` { channelId, auto,
+    everyMinutes, reward } (quiz store, validated before anything is saved). `commands.wordle` was already there.
+  - 16: `chatRecent` for the panel's chat preview (both directions, events when `chatEvents` is on, memory only).
+  - Guide: new topics "🎮 Gry i napady" and "🎯 Misje i odznaki", games in "Wszystkie komendy" and on the channel message;
+    the posted message in #ekonomia-info is edited at the next start (`GUIDE_VERSION` 2), no repost needed.
+  - Not tested against the real MatHost server (power and backups use the documented Pterodactyl client API).

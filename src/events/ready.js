@@ -7,6 +7,7 @@ import { reconcileLevelRoles } from "../services/leveling/levelRoleSyncService.j
 import { initRiffyAfterReady } from "../services/music/riffySetup.js";
 import { initFeatures } from "../services/features.js";
 import { startAutoRoleSchedule } from "../services/autoRoleService.js";
+import { refreshEconomyGuides } from "../commands/Economy/modules/economy_guide.js";
 
 export default {
   name: Events.ClientReady,
@@ -22,6 +23,10 @@ export default {
 
       await initFeatures(client);
       startAutoRoleSchedule(client);
+      // New guide topics reach the posted #ekonomia-info message without a repost.
+      refreshEconomyGuides(client)
+        .then((edited) => { if (edited) startupLog(`Economy guide refreshed in ${edited} channel(s)`); })
+        .catch((error) => logger.warn(`Economy guide refresh failed: ${error.message}`));
 
       if (client.config?.features?.music) {
         initRiffyAfterReady(client);

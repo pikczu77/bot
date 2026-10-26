@@ -653,3 +653,39 @@ test('the message with the temporary channel buttons is posted from the panel', 
   assert.equal((await call('PATCH', path, { body: { interfaceChannelId: voice.id } })).status, 400);
   await call('PATCH', path, { body: { triggerChannelId: null } });
 });
+
+test('games from the panel: wordle, heist, missions and the quiz (own store) are saved and validated', async () => {
+  const { getEconomySettings } = await import('../src/services/economySettings.js');
+  const { getQuizSettings } = await import('../src/services/quiz.js');
+  const path = `/guilds/${guild.id}/economy`;
+  const quizChannel = mockChannel(guild, 'quiz');
+
+  const overview = await call('GET', `/guilds/${guild.id}`);
+  const economy = overview.json.modules.economy;
+  assert.deepEqual(economy.missions, { enabled: true, rewardPercent: 100 });
+  assert.deepEqual(economy.commands.heist, { cooldownMinutes: 180, payoutPercent: 100 });
+  assert.deepEqual(economy.quiz, { channelId: null, auto: false, everyMinutes: 60, reward: 1500 });
+
+  const saved = await call('PATCH', path, {
+    body: {
+      commands: { wordle: { reward: 5000 }, heist: { cooldownMinutes: 90, payoutPercent: 150 } },
+      missions: { enabled: false, rewardPercent: 200 },
+      quiz: { channelId: quizChannel.id, auto: true, everyMinutes: 30, reward: 2500 },
+    },
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.json));
+  assert.equal(saved.json.commands.wordle.reward, 5000);
+  assert.deepEqual(saved.json.commands.heist, { cooldownMinutes: 90, payoutPercent: 150 });
+  assert.deepEqual(saved.json.missions, { enabled: false, rewardPercent: 200 });
+  assert.deepEqual(saved.json.quiz, { channelId: quizChannel.id, auto: true, everyMinutes: 30, reward: 2500 });
+  assert.equal((await getEconomySettings(guild.id)).missions.enabled, false);
+  assert.equal((await getQuizSettings(guild.id)).everyMinutes, 30);
+
+  // A bad quiz value refuses the whole save: nothing else changes.
+  const bad = await call('PATCH', path, { body: { commands: { wordle: { reward: 1 } }, quiz: { everyMinutes: 5 } } });
+  assert.equal(bad.status, 400);
+  assert.equal((await getEconomySettings(guild.id)).commands.wordle.reward, 5000);
+  assert.equal((await call('PATCH', path, { body: { quiz: { channelId: null, auto: true } } })).status, 400, 'automatic quiz needs a channel');
+  assert.equal((await call('PATCH', path, { body: { missions: { rewardPercent: 5000 } } })).status, 400);
+  assert.equal((await call('PATCH', path, { body: { commands: { heist: { gear: 1 } } } })).status, 400);
+});

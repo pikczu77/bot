@@ -13,7 +13,7 @@ import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { earningsLine, getEconomySettings, scaleEarnings, updateEconomySettings } from '../src/services/economySettings.js';
 import { getUpgrade, staminaCooldown, upgradePrice } from '../src/services/economyUpgrades.js';
-import { GUIDE_TOPICS } from '../src/commands/Economy/modules/economy_guide.js';
+import { GUIDE_TOPICS, GUIDE_VERSION, refreshEconomyGuides } from '../src/commands/Economy/modules/economy_guide.js';
 
 const client = { guilds: { cache: new Collection() }, users: { fetch: async () => null } };
 let guild;
@@ -261,7 +261,7 @@ test('guide menu: every topic opens privately, fits Discord limits and the menu 
   }
 
   const all = everything.join('\n');
-  for (const command of ['/work', '/daily', '/nagraj', '/fish', '/beg', '/crime', '/slut', '/rob', '/gamble', '/ruletka', '/slots', '/blackjack', '/sklep', '/ulepszenia', '/hajs', '/bank wplac', '/pay', '/topkasa', '/ekwipunek', '/randka', '/slub']) {
+  for (const command of ['/work', '/daily', '/nagraj', '/fish', '/beg', '/crime', '/slut', '/rob', '/gamble', '/ruletka', '/slots', '/blackjack', '/sklep', '/ulepszenia', '/hajs', '/bank wplac', '/pay', '/topkasa', '/ekwipunek', '/randka', '/slub', '/napad', '/wordle', '/misje', '/osiagniecia', '/wymiana']) {
     assert.ok(all.includes(command), command);
   }
   assert.match(all, /Fortune/);
@@ -272,4 +272,21 @@ test('guide menu: every topic opens privately, fits Discord limits and the menu 
   await runWithLocale('en', () => menuHandler.execute(interaction, client, ['zmien']));
   assert.equal(calls.followUp.length, 0);
   assert.match(text(calls.update[0]), /Casino/);
+});
+
+test('a guide posted before the games topics is edited at startup, once', async () => {
+  const info = mockChannel(guild, 'stary-poradnik');
+  const message = await info.send({ content: 'old menu' });
+  const edits = [];
+  message.edit = async (payload) => { edits.push(payload); };
+  info.messages = { fetch: async (id) => (id === message.id ? message : null) };
+  await client.db.set(`guild:${guild.id}:economy-guide`, { channelId: info.id, messageIds: [message.id] });
+
+  assert.equal(await refreshEconomyGuides(client), 1);
+  const menu = edits[0].components[0].toJSON().components[0];
+  assert.ok(menu.options.some((option) => option.value === 'gry'));
+  assert.ok(menu.options.some((option) => option.value === 'misje'));
+  assert.ok(JSON.stringify(edits[0].embeds[0].toJSON()).includes('/napad'));
+  assert.equal((await client.db.get(`guild:${guild.id}:economy-guide`)).version, GUIDE_VERSION);
+  assert.equal(await refreshEconomyGuides(client), 0, 'not again');
 });

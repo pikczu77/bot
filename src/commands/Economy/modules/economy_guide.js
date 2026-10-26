@@ -20,16 +20,23 @@ import {
 } from '../../../services/economyUpgrades.js';
 import { JOBS, JOB_SHIFTS } from '../../../services/economyJobs.js';
 import { VIDEO_RARITIES } from '../mine.js';
-import { FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, PACKS, packExpectedValue, packLegendaryChance } from '../../../services/collections.js';
+import { FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, PACKS, getPack, packExpectedValue, packLegendaryChance } from '../../../services/collections.js';
 import { bailPrice } from '../../../services/economyJail.js';
 import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../../services/casino.js';
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
+import { BONUS_PACKS, MISSIONS_PER_PERIOD, missionsEnabled } from '../../../services/progress.js';
+import { EVENT_TYPES } from '../../../services/economyEvents.js';
+import { CREW_BONUS, HEIST_TARGETS, MAX_CHANCE, MAX_CREW } from './heist.js';
 import { getLevelingConfig } from '../../../services/leveling/leveling.js';
 import { ITEM_CHAINS, getItemById, tierEffect } from '../../../config/shop/items.js';
 import { itemLabel } from './buy.js';
-import { t, tr } from '../../../i18n/index.js';
+import { enterLocale, t, tr } from '../../../i18n/index.js';
+import { getGuildLocale } from '../../../services/languageService.js';
 
-const store = guildStore('economy-guide', { channelId: null, messageIds: [] });
+const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
+
+// Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
+export const GUIDE_VERSION = 2;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -223,13 +230,48 @@ function love() {
   };
 }
 
+function games({ guildId, settings }) {
+  const { heist, wordle } = settings.commands;
+  const bank = HEIST_TARGETS.at(-1);
+  return {
+    description: t('Games for money, alone or together. They also count for missions.'),
+    fields: [
+      field(t('🦹 /napad'), t`a heist with a crew of up to **${MAX_CREW}**\n📨 the leader **invites** people before the start\nevery extra member **+${CREW_BONUS}%** chance (max ${MAX_CHANCE}%)\nbreak **${waitMinutes(heist.cooldownMinutes)}**`),
+      field(t('🎯 Heist targets'), HEIST_TARGETS.map((target) => t`${target.emoji} ${tr(target.name)}: **${target.minCrew}+** {2|person|people}`).join('\n')
+        + t`\n-# ${bank.emoji} up to **${money(guildId, Math.floor(bank.loot[1] * heist.payoutPercent / 100))}** per person`),
+      field(t('🚔 Caught in a heist'), t`gear is lost\nthe whole crew goes to jail\n**${waitMinutes(settings.commands.crime.jailMinutes)}**, bail works`),
+      field(t('🟩 /wordle'), t`one Polish word a day\n6 guesses, up to **${money(guildId, wordle.reward)}**\nfewer guesses = more money`),
+      field(t('🧠 Quiz'), t('a question in the quiz channel\nthe **first right answer** wins\none try per person')),
+      field(t('🤝 /wymiana @someone'), t("swap Club'o'mony cards\nand money with another member")),
+      field(t('⏱️ Events'), t`${EVENT_TYPES.map((type) => type.emoji).join(' ')} for a limited time\ne.g. double pay or half-price packs\nannounced on the events channel`),
+    ],
+  };
+}
+
+const packName = (id) => `${getPack(id)?.emoji ?? ''} **${tr(getPack(id)?.name ?? id)}**`;
+
+function missions({ settings }) {
+  const on = missionsEnabled(settings);
+  return {
+    description: on
+      ? t`**${MISSIONS_PER_PERIOD}** missions a day and **${MISSIONS_PER_PERIOD}** a week. They pay at once when done.`
+      : t('Missions are turned off on this server. Badges still work.'),
+    fields: [
+      on ? field(t('🎯 /misje'), t('new daily ones at midnight\nnew weekly ones on Monday\none free swap of each')) : null,
+      on ? field(t('🎁 All done'), t`daily: free ${packName(BONUS_PACKS.daily)}\nweekly: free ${packName(BONUS_PACKS.weekly)}`) : null,
+      field(t('🏅 /osiagniecia'), t('badges for big goals\neach pays once\nshown on your profile')),
+    ].filter(Boolean),
+  };
+}
+
 function commands() {
   return {
     description: t('Every economy command in one place.'),
     fields: [
       field(t('💵 Money'), '`/hajs` `/balans`\n`/bank wplac` `/bank wyplac`\n`/pay` `/topkasa`'),
       field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij`'),
-      field(t('🎴 Collection'), '`/paczka` `/index`'),
+      field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
+      field(t('🎮 Games'), '`/napad` `/wordle`\n`/misje` `/osiagniecia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
       field(t('💍 Relationships'), '`/randka` `/slub`'),
@@ -248,6 +290,8 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'sklep', emoji: '🛒', name: t('Shop and items'), hint: t('Tools and one-use items'), color: '#64D2FF', build: shop },
   { id: 'wiezienie', emoji: '🚔', name: t('Jail and breaks'), hint: t('Jail, Stamina, skipping a break'), color: '#FF453A', build: jail },
   { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
+  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, quiz, trades, events'), color: '#30D158', build: games },
+  { id: 'misje', emoji: '🎯', name: t('Missions and badges'), hint: t('/misje and /osiagniecia'), color: '#F1C40F', build: missions },
   { id: 'zwiazki', emoji: '💍', name: t('Dates and marriage'), hint: t('/randka and /slub'), color: '#FF375F', build: love },
   { id: 'komendy', emoji: '📋', name: t('All commands'), hint: t('The full list'), color: '#8E8E93', build: commands },
 ]);
@@ -281,6 +325,7 @@ export function buildGuideMessage(guild = null) {
       field(t('🚀 Start'), '`/daily` · `/work`'),
       field(t('💵 Balance'), '`/hajs`'),
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
+      field(t('🎮 Games'), '`/napad` · `/wordle` · `/misje`'),
     ],
     thumbnail: guild?.iconURL?.({ size: 128 }) ?? null,
     footer: { text: t('The tutorials always show the current server settings.') },
@@ -331,9 +376,33 @@ export async function postEconomyGuide({ guild, channel }) {
     message = await channel.send(payload);
   }
 
-  await store.set(guild.id, { channelId: channel.id, messageIds: [message.id] });
+  await store.set(guild.id, { channelId: channel.id, messageIds: [message.id], version: GUIDE_VERSION });
   logger.info(`[ECONOMY] Economy guide ${edited ? 'edited' : 'posted'} in ${channel.id}`, { guildId: guild.id });
   return { edited };
+}
+
+/**
+ * Startup: edit every posted guide that is older than GUIDE_VERSION, so new topics reach the channel menu
+ * without an admin posting it again. Returns how many messages were edited.
+ */
+export async function refreshEconomyGuides(client) {
+  let edited = 0;
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const stored = await store.get(guild.id);
+      if (!stored.channelId || stored.messageIds?.length !== 1 || (Number(stored.version) || 1) >= GUIDE_VERSION) continue;
+      const channel = guild.channels.cache.get(stored.channelId);
+      const message = await channel?.messages?.fetch(stored.messageIds[0]).catch(() => null);
+      if (!message) continue;
+      enterLocale(await getGuildLocale(guild.id));
+      await message.edit(buildGuideMessage(guild));
+      await store.set(guild.id, { ...stored, version: GUIDE_VERSION });
+      edited += 1;
+    } catch (error) {
+      logger.warn(`[ECONOMY] Guide not refreshed in guild ${guild.id}: ${error.message}`);
+    }
+  }
+  return edited;
 }
 
 export default {

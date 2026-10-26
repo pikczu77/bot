@@ -97,6 +97,9 @@ test('the panel sees the settings and the members, never the API key', async () 
     consolePublic: false,
     chatChannelId: null,
     chatEvents: true,
+    chatRecent: [],
+    backupEveryHours: 0,
+    lastBackup: null,
   });
   assert.ok(!view.text.includes(MC_KEY));
 
@@ -237,4 +240,22 @@ test('chat channel from the panel: needs a key, not the nick or console channel;
   assert.equal(off.json.chatChannelId, null);
   await updateWhitelistConfig(guild.id, (data) => { Object.assign(data, { apiKey: null, enabled: false }); });
   assert.match((await patch({ chatChannelId: chatChannel.id })).json.error, /^chatChannelId: connect the server panel/);
+});
+
+test('backups from the panel: every N hours needs a key; the chat preview lists the latest lines', async () => {
+  const { handleConsoleLine } = await import('../src/services/minecraftChat.js');
+  const set = await patch({ backupEveryHours: 12 });
+  assert.equal(set.status, 200, set.text);
+  assert.equal(set.json.backupEveryHours, 12);
+  assert.ok((await getWhitelistConfig(guild.id)).lastAutoBackupAt > 0);
+  assert.equal((await patch({ backupEveryHours: 500 })).status, 400);
+  assert.equal((await patch({ backupEveryHours: 0 })).json.backupEveryHours, 0);
+
+  handleConsoleLine({ guild, events: true, queue: [], flushTimer: true }, '[12:00:00 INFO]: <Steve> siema');
+  handleConsoleLine({ guild, events: false, queue: [], flushTimer: true }, '[12:00:01 INFO]: Steve joined the game');
+  const view = await patch({});
+  assert.deepEqual(view.json.chatRecent.map((item) => [item.type, item.name, item.text]), [['chat', 'Steve', 'siema']]);
+
+  await updateWhitelistConfig(guild.id, (data) => { Object.assign(data, { apiKey: null, enabled: false }); });
+  assert.match((await patch({ backupEveryHours: 6 })).json.error, /^backupEveryHours: connect the server panel/);
 });

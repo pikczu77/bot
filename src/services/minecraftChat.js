@@ -26,6 +26,19 @@ const WEBHOOK_NAME = 'Minecraft';
 export const chatTiming = { flushMs: FLUSH_MS };
 
 const bridges = new Map(); // guildId -> bridge
+// Last chat lines both ways for the web panel (pikczu.pl/bot, Minecraft module); memory only, a restart clears it.
+export const HISTORY_SIZE = 30;
+const history = new Map(); // guildId -> [{ at, type, name, text }]
+
+function remember(guildId, item) {
+  const list = history.get(guildId) ?? [];
+  list.push({ at: Date.now(), ...item });
+  if (list.length > HISTORY_SIZE) list.splice(0, list.length - HISTORY_SIZE);
+  history.set(guildId, list);
+}
+
+/** Newest last: chat from the game (`chat`), from Discord (`discord`) and events (join, leave, death...). */
+export const chatHistory = (guildId) => (history.get(guildId) ?? []).map((item) => ({ ...item }));
 
 const NICK = '[A-Za-z0-9_]{1,16}';
 const CHAT_RE = new RegExp(`^(?:\\[Not Secure\\] )?<(${NICK})> (.+)$`);
@@ -139,6 +152,9 @@ async function flush(bridge) {
 export function handleConsoleLine(bridge, line) {
   const event = parseChatLine(line);
   if (!event) return;
+  if (event.type === 'chat' || bridge.events) {
+    remember(bridge.guild.id, { type: event.type, name: event.name ?? null, text: event.text ?? null });
+  }
   if (event.type === 'chat') bridge.queue.push(event);
   else if (bridge.events) bridge.queue.push({ type: event.type, line: eventLine(event) });
   else return;
@@ -251,10 +267,13 @@ export async function handleChatBridgeMessage(message) {
   const config = await getWhitelistConfig(message.guild.id);
   if (!config.apiKey || !config.chatChannelId || message.channelId !== config.chatChannelId) return false;
   const attachments = message.attachments?.size ? ` ${t('[attachment]')}` : '';
-  const command = tellrawCommand(message.member?.displayName ?? message.author.username, `${message.cleanContent ?? message.content ?? ''}${attachments}`);
+  const author = message.member?.displayName ?? message.author.username;
+  const text = `${message.cleanContent ?? message.content ?? ''}${attachments}`;
+  const command = tellrawCommand(author, text);
   if (!command) return true;
   try {
     await sendCommand(panelOf(config), command);
+    remember(message.guild.id, { type: 'discord', name: String(author).slice(0, 32), text: text.replace(/\s+/g, ' ').trim().slice(0, 200) });
   } catch (error) {
     logger.debug(`Minecraft chat: message not sent to the game (${error.message})`);
     message.react('❌').catch(() => {});

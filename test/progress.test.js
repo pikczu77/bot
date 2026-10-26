@@ -195,3 +195,23 @@ test('/fish counts for missions and shows the note; /misje and /osiagniecia show
   assert.match(replyText({ replies: [calls.update[0]] }), /New mission/);
   assert.equal((await data(angler)).missions.daily.rerolled, true);
 });
+
+test('panel switches: missions off pay nothing (stats still count), the mission percent scales rewards', () => {
+  const missions = () => ({
+    daily: { period: '2026-10-26', rerolled: false, bonus: true, list: [{ id: 'heist', goal: 1, reward: 1200, progress: 0, done: false }] },
+    weekly: { period: '2026-10-26', rerolled: false, bonus: true, list: [] },
+  });
+  const off = { wallet: 0, missions: missions() };
+  recordProgress(off, { heist: 1 }, { settings: { ...settings, missions: { enabled: false, rewardPercent: 100 } }, now: MONDAY });
+  assert.equal(off.wallet, 0);
+  assert.equal(off.stats.heist, 1);
+  assert.equal(off.missions.daily.list[0].done, false);
+
+  const half = { wallet: 0, missions: missions() };
+  recordProgress(half, { heist: 1 }, { settings: { ...settings, missions: { enabled: true, rewardPercent: 50 } }, now: MONDAY });
+  assert.equal(half.wallet, 600);
+  const none = { wallet: 0, missions: missions() };
+  recordProgress(none, { heist: 1 }, { settings: { ...settings, missions: { enabled: true, rewardPercent: 0 } }, now: MONDAY });
+  assert.equal(none.wallet, 0);
+  assert.equal(none.missions.daily.list[0].done, true);
+});

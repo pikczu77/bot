@@ -84,7 +84,9 @@ import {
   updateWhitelistSettings,
 } from '../services/minecraftWhitelist.js';
 import { consoleGuideEmbed } from '../services/minecraftConsole.js';
-import { syncChatBridge } from '../services/minecraftChat.js';
+import { chatHistory, syncChatBridge } from '../services/minecraftChat.js';
+import { MAX_BACKUP_HOURS } from '../services/minecraftServer.js';
+import { getQuizSettings, updateQuizSettings } from '../services/quiz.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -406,10 +408,14 @@ function applyIdList(target, patch, field, known) {
   }
 }
 
-function economyView(settings, guild, premiumRoleId) {
+// Quiz settings live in their own store (src/services/quiz.js); the panel shows them in Ekonomia > Gry.
+const quizView = (quiz) => ({ channelId: quiz.channelId ?? null, auto: Boolean(quiz.auto), everyMinutes: quiz.everyMinutes, reward: quiz.reward });
+
+function economyView(settings, guild, premiumRoleId, quiz = null) {
   const { shop, balanceVersion, ...rest } = settings;
   return {
     ...rest,
+    ...(quiz ? { quiz: quizView(quiz) } : {}),
     shop: {
       premiumRoleId: premiumRoleId ?? null,
       items: getShopCatalog(settings, guild).filter((item) => !item.custom).map((item) => ({
@@ -423,12 +429,24 @@ function economyView(settings, guild, premiumRoleId) {
       })),
       roles: shop.roles,
     },
-    limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS },
+    limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS, missionRewardPercent: [0, 1000], quizEveryMinutes: [10, 1440], quizReward: [0, 1_000_000] },
   };
 }
 
 async function applyEconomy(client, guild, body) {
   let premiumRoleId;
+  // Quiz first: a bad value refuses the whole save before anything is stored.
+  let quizPatch = null;
+  if ('quiz' in body) {
+    const quiz = plainObject(body.quiz, 'quiz');
+    quizPatch = {};
+    if ('channelId' in quiz) quizPatch.channelId = quiz.channelId === null ? null : requireTextChannel(guild, quiz.channelId, 'quiz.channelId');
+    if ('auto' in quiz) quizPatch.auto = boolean(quiz.auto, 'quiz.auto');
+    if ('everyMinutes' in quiz) quizPatch.everyMinutes = integer(quiz.everyMinutes, 'quiz.everyMinutes', 10, 1440);
+    if ('reward' in quiz) quizPatch.reward = integer(quiz.reward, 'quiz.reward', 0, 1_000_000);
+    const channelId = 'channelId' in quizPatch ? quizPatch.channelId : (await getQuizSettings(guild.id)).channelId;
+    if (quizPatch.auto && !channelId) throw new ApiError(400, 'quiz.auto: pick the quiz channel first');
+  }
   const settings = await updateEconomySettings(guild.id, (data) => {
     if ('currency' in body) {
       const currency = plainObject(body.currency, 'currency');
@@ -450,6 +468,12 @@ async function applyEconomy(client, guild, body) {
       if ('enabled' in activity) data.activity.enabled = boolean(activity.enabled, 'activity.enabled');
       if ('amount' in activity) data.activity.amount = integer(activity.amount, 'activity.amount', 0, MAX_MONEY);
       if ('cooldownSeconds' in activity) data.activity.cooldownSeconds = integer(activity.cooldownSeconds, 'activity.cooldownSeconds', 5, 86400);
+    }
+
+    if ('missions' in body) {
+      const missions = plainObject(body.missions, 'missions');
+      if ('enabled' in missions) data.missions.enabled = boolean(missions.enabled, 'missions.enabled');
+      if ('rewardPercent' in missions) data.missions.rewardPercent = integer(missions.rewardPercent, 'missions.rewardPercent', 0, 1000);
     }
 
     if ('channels' in body) applyIdList(data.channels, body.channels, 'channels', guild.channels.cache);
@@ -505,9 +529,10 @@ async function applyEconomy(client, guild, body) {
     }
   });
 
-  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId);
+  const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
+  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz);
   await updateGuildConfig(client, guild.id, { premiumRoleId });
-  return economyView(settings, guild, premiumRoleId);
+  return economyView(settings, guild, premiumRoleId, quiz);
 }
 
 // List of role IDs, each at most once. `assignable` also refuses roles the bot can never give (managed ones).
@@ -972,6 +997,11 @@ function minecraftView(client, guild, config) {
     // Chat link with the game (src/services/minecraftChat.js).
     chatChannelId: config.chatChannelId ?? null,
     chatEvents: config.chatEvents !== false,
+    // Last chat lines both ways (memory only), for the panel's chat preview.
+    chatRecent: chatHistory(guild.id),
+    // Backups (src/services/minecraftServer.js): automatic every N hours, 0 = off; the last result.
+    backupEveryHours: Number(config.backupEveryHours) || 0,
+    lastBackup: config.lastBackup ?? null,
   };
 }
 
@@ -1017,6 +1047,12 @@ async function applyMinecraft(client, guild, body) {
   if ('consoleChannelId' in body) updates.consoleChannelId = requireTextChannel(guild, body.consoleChannelId, 'consoleChannelId');
   if ('chatChannelId' in body) updates.chatChannelId = requireTextChannel(guild, body.chatChannelId, 'chatChannelId');
   if ('chatEvents' in body) updates.chatEvents = boolean(body.chatEvents, 'chatEvents');
+  if ('backupEveryHours' in body) {
+    updates.backupEveryHours = integer(body.backupEveryHours, 'backupEveryHours', 0, MAX_BACKUP_HOURS);
+    if (updates.backupEveryHours > 0 && !current.apiKey) throw new ApiError(400, 'backupEveryHours: connect the server panel first with /minecraft whitelista ustaw on Discord');
+    // The first automatic backup comes a full period after turning it on (same as /minecraft kopie).
+    if (updates.backupEveryHours !== (Number(current.backupEveryHours) || 0)) updates.lastAutoBackupAt = Date.now();
+  }
 
   const next = { ...current, ...updates };
   // A saved key only ever goes back to the panel it was typed for.
@@ -1149,7 +1185,7 @@ export function createPanelRouter(client) {
       automod: automodView(await getAutomodConfig(guild.id, { fresh: true })),
       invites: await getInviteConfig(guild.id),
       youtube: (await getFeeds(guild.id)).map(feedView),
-      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId),
+      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id)),
       leveling: levelingView(await getLevelingConfig(client, guild.id)),
       autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
       tickets: await ticketsView(client, guild),

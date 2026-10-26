@@ -14,6 +14,7 @@ import {
 import { addWhitelistGroup, autocompleteWhitelist, runWhitelist } from './modules/whitelist.js';
 import { consoleSubcommand, runConsole } from './modules/console.js';
 import { chatSubcommand, runChat } from './modules/chat.js';
+import { backupSubcommand, runBackups, runServer, serverSubcommand } from './modules/server.js';
 import { t } from '../../i18n/index.js';
 
 export default {
@@ -48,7 +49,9 @@ export default {
         )
         .addSubcommand((sub) => sub.setName('list').setDescription('Show tracked servers'))
         .addSubcommand(consoleSubcommand)
-        .addSubcommand(chatSubcommand)),
+        .addSubcommand(chatSubcommand)
+        .addSubcommand(serverSubcommand)
+        .addSubcommand(backupSubcommand)),
     slashOnly: true,
 
     async autocomplete(interaction) {
@@ -69,6 +72,8 @@ export default {
         const subcommand = interaction.options.getSubcommand();
         if (subcommand === 'konsola') return runConsole(interaction);
         if (subcommand === 'czat') return runChat(interaction);
+        if (subcommand === 'serwer') return runServer(interaction);
+        if (subcommand === 'kopie') return runBackups(interaction);
         const servers = await getMinecraftServers(guild.id);
 
         if (subcommand === 'list') {

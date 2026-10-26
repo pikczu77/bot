@@ -40,6 +40,10 @@ const store = guildStore('minecraft-whitelist', {
   // Chat link with the game (src/services/minecraftChat.js); chatEvents = also joins, deaths, advancements.
   chatChannelId: null,
   chatEvents: true,
+  // Backups (src/services/minecraftServer.js): automatic every N hours (0 = off), the last result.
+  backupEveryHours: 0,
+  lastAutoBackupAt: 0,
+  lastBackup: null,
 });
 
 const lastTry = new Map();

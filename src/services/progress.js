@@ -49,6 +49,7 @@ export const MISSIONS = {
     { id: 'wordle', stat: 'wordle', goal: [1, 1], reward: 1500, text: () => t('Solve today\'s `/wordle`') },
     { id: 'quiz', stat: 'quiz', goal: [1, 1], reward: 1500, text: () => t('Answer a quiz question first') },
     { id: 'rareFish', stat: 'fishRare', goal: [1, 1], reward: 1500, text: () => t('Catch a rare or better fish') },
+    { id: 'heist', stat: 'heist', goal: [1, 1], reward: 1200, text: () => t('Take part in a `/napad` heist') },
   ],
   weekly: [
     { id: 'work', stat: 'work', goal: [20, 30], reward: 450, text: (goal) => t`Work ${goal} shifts with \`/work\`` },
@@ -64,11 +65,21 @@ export const MISSIONS = {
     { id: 'quiz', stat: 'quiz', goal: [3, 5], reward: 2500, text: (goal) => t`Win ${goal} quiz questions` },
     { id: 'viral', stat: 'videoViral', goal: [2, 3], reward: 5000, text: (goal) => t`Record ${goal} epic or legendary videos` },
     { id: 'trade', stat: 'trades', goal: [1, 2], reward: 4000, text: (goal) => t`Finish ${goal} trades with \`/wymiana\`` },
+    { id: 'heistWin', stat: 'heistWin', goal: [2, 3], reward: 3000, text: (goal) => t`Pull off ${goal} successful \`/napad\` heists` },
   ],
 };
 export const MISSIONS_PER_PERIOD = 3;
 // A finished set of missions gives a free pack (opened at once, cards go to /index).
 export const BONUS_PACKS = { daily: 'startowa', weekly: 'kolekcjonera' };
+
+/** Missions on in the server's economy settings (panel: Ekonomia > Gry). */
+export const missionsEnabled = (settings) => settings?.missions?.enabled !== false;
+
+/** What a mission pays: its reward x the panel's mission percent x the server multiplier. */
+export function missionReward(settings, mission) {
+  const percent = Number(settings?.missions?.rewardPercent ?? 100);
+  return scaleEarnings(settings, Math.round((Number(mission.reward) || 0) * (Number.isFinite(percent) ? percent : 100) / 100));
+}
 
 const periodOf = (scope, now) => (scope === 'daily' ? dayKey(now) : weekKey(now));
 export const periodEnd = (scope, now = Date.now()) => (scope === 'daily' ? nextMidnight(now) : nextWeekStart(now));
@@ -222,7 +233,7 @@ export function recordProgress(userData, events, { settings, now = Date.now(), r
   userData.stats = stats;
 
   ensureMissions(userData, now, random);
-  for (const scope of ['daily', 'weekly']) {
+  for (const scope of missionsEnabled(settings) ? ['daily', 'weekly'] : []) {
     const state = userData.missions[scope];
     let changed = false;
     const list = state.list.map((mission) => {
@@ -232,7 +243,7 @@ export function recordProgress(userData, events, { settings, now = Date.now(), r
       changed = true;
       const progress = Math.min(mission.goal, (mission.progress || 0) + amount);
       if (progress < mission.goal) return { ...mission, progress };
-      const reward = scaleEarnings(settings, mission.reward);
+      const reward = missionReward(settings, mission);
       userData.wallet = (Number(userData.wallet) || 0) + reward;
       userData.stats.missions = (Number(userData.stats.missions) || 0) + 1;
       result.missions.push({ scope, mission: { ...mission, progress }, reward });

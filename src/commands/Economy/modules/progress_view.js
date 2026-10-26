@@ -9,7 +9,7 @@ import { getEconomySettings, money, scaleEarnings } from '../../../services/econ
 import { withEconomyLock } from '../../../services/economyUpgrades.js';
 import { getPack } from '../../../services/collections.js';
 import {
-  ACHIEVEMENTS, BONUS_PACKS, ensureMissions, isUnlocked, missionText, periodEnd, rerollMission, unlockedCount,
+  ACHIEVEMENTS, BONUS_PACKS, ensureMissions, isUnlocked, missionReward, missionText, missionsEnabled, periodEnd, rerollMission, unlockedCount,
 } from '../../../services/progress.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -23,7 +23,7 @@ const short = (value) => (value >= 1000 ? `${Math.floor(value / 100) / 10}k`.rep
 
 function missionLines(scope, state, guildId, settings) {
   return state.list.map((mission) => {
-    const reward = money(guildId, scaleEarnings(settings, mission.reward));
+    const reward = money(guildId, missionReward(settings, mission));
     if (mission.done) return t`✅ ~~${missionText(scope, mission, guildId)}~~ · ${reward}`;
     return t`▫️ ${missionText(scope, mission, guildId)} · **${reward}**\n-# ${progressBar(mission.progress, mission.goal)} ${short(mission.progress)}/${short(mission.goal)}`;
   }).join('\n');
@@ -60,6 +60,9 @@ function swapMenu(userData, ownerId, guildId) {
 /** The /misje view of `user`. Missions are handed out here when a new day or week began. */
 export function buildMissionsView({ guildId, settings, user, userData, viewerId, notice = '' }) {
   const own = viewerId === user.id;
+  if (!missionsEnabled(settings)) {
+    return { embeds: [createEmbed({ title: t('🎯 Missions'), description: t('Missions are turned off on this server.'), color: '#8E8E93', footer: false })], components: [] };
+  }
   const { daily, weekly } = userData.missions;
   const embed = createEmbed({
     title: t`🎯 Missions of ${user.username}`,
