@@ -376,3 +376,7 @@ change you make, so the next session knows what was done and why.
   - I could not change the live setting through the panel API myself (reading the key file was blocked).
   - Math for the owner: 50% x1.7 = 85% return; with the best luck (+24) 74% x1.7 = 126%, still a profit.
     Break-even at 50% base is about +9 luck.
+  - Panel (pikczu.pl/bot, Minecraft): card "Konsola serwera". `minecraftView` returns `consoleChannelId` and
+    `consolePublic` (@everyone sees the channel); PATCH takes `consoleChannelId` (null = off) with the same rules
+    as `/minecraft konsola`: a saved key, not the nick channel while the whitelist is on, bot permissions; a new
+    channel gets the console guide. Running commands still needs Administrator on Discord.

@@ -93,6 +93,8 @@ test('the panel sees the settings and the members, never the API key', async () 
     serverId: SERVER_ID,
     hasKey: true,
     members: { [player.id]: { name: 'Pikczu', at: 1760000000000, user: 'Gracz1' } },
+    consoleChannelId: null,
+    consolePublic: false,
   });
   assert.ok(!view.text.includes(MC_KEY));
 
@@ -196,4 +198,27 @@ test('the whitelist cannot be turned on without a key, a channel or a role the b
   const blind = mockChannel(guild, 'tajny', { permissionsFor: () => null });
   assert.match((await patch({ channelId: blind.id })).json.error, /the bot needs to see the channel/);
   assert.equal((await getWhitelistConfig(guild.id)).channelId, channel.id);
+});
+
+test('console channel from the panel: needs a key, never the nick channel, posts the guide, null turns it off', async () => {
+  const consoleChannel = mockChannel(guild, 'konsola');
+  const on = await patch({ consoleChannelId: consoleChannel.id });
+  assert.equal(on.status, 200, on.text);
+  assert.equal(on.json.consoleChannelId, consoleChannel.id);
+  assert.equal(on.json.consolePublic, true, 'the mock channel is visible to @everyone');
+  assert.equal(consoleChannel.sent.length, 1, 'the console guide is posted');
+  assert.equal((await getWhitelistConfig(guild.id)).consoleChannelId, consoleChannel.id);
+
+  // Saving the same channel again does not post the guide again.
+  assert.equal((await patch({ consoleChannelId: consoleChannel.id })).status, 200);
+  assert.equal(consoleChannel.sent.length, 1);
+
+  assert.match((await patch({ consoleChannelId: channel.id })).json.error, /^consoleChannelId: this is the whitelist channel/);
+  const off = await patch({ consoleChannelId: null });
+  assert.equal(off.status, 200, off.text);
+  assert.equal(off.json.consoleChannelId, null);
+
+  await updateWhitelistConfig(guild.id, (data) => { Object.assign(data, { apiKey: null, enabled: false }); });
+  assert.match((await patch({ consoleChannelId: consoleChannel.id })).json.error, /^consoleChannelId: connect the server panel/);
+  assert.equal((await getWhitelistConfig(guild.id)).consoleChannelId, null);
 });

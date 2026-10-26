@@ -83,6 +83,7 @@ import {
   panelErrorText,
   updateWhitelistSettings,
 } from '../services/minecraftWhitelist.js';
+import { consoleGuideEmbed } from '../services/minecraftConsole.js';
 
 const MIN_KEY_LENGTH = 24;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -964,7 +965,18 @@ function minecraftView(client, guild, config) {
     serverId: config.serverId ?? null,
     hasKey: Boolean(config.apiKey),
     members,
+    // Console channel (src/services/minecraftConsole.js): only Administrators can run commands there.
+    consoleChannelId: config.consoleChannelId ?? null,
+    consolePublic: isPublicChannel(guild, config.consoleChannelId),
   };
+}
+
+// Everyone sees the console output on a channel @everyone can view.
+function isPublicChannel(guild, channelId) {
+  const channel = channelId ? guild.channels.cache.get(channelId) : null;
+  const everyone = guild.roles?.everyone ?? guild.roles?.cache?.get(guild.id);
+  if (!channel || !everyone) return false;
+  return Boolean(channel.permissionsFor?.(everyone)?.has(PermissionFlagsBits.ViewChannel));
 }
 
 // The bot reads nicks, reacts and answers on this channel.
@@ -998,6 +1010,7 @@ async function applyMinecraft(client, guild, body) {
   if ('roleId' in body) updates.roleId = requireWhitelistRole(guild, body.roleId);
   if ('panelUrl' in body) updates.panelUrl = normalizePanelUrl(body.panelUrl);
   if ('serverId' in body) updates.serverId = normalizeServerId(body.serverId);
+  if ('consoleChannelId' in body) updates.consoleChannelId = requireTextChannel(guild, body.consoleChannelId, 'consoleChannelId');
 
   const next = { ...current, ...updates };
   // A saved key only ever goes back to the panel it was typed for.
@@ -1012,6 +1025,14 @@ async function applyMinecraft(client, guild, body) {
   const postGuide = body.postGuide === true;
   if (postGuide && !next.channelId) throw new ApiError(400, 'channelId: choose the channel for nicks first');
   if (next.channelId && (moved || postGuide)) requireWhitelistChannel(guild, next.channelId, 'channelId');
+
+  // Same rules as /minecraft konsola: a connected panel, not the nick channel, the bot can answer there.
+  const consoleMoved = 'consoleChannelId' in updates && updates.consoleChannelId !== (current.consoleChannelId ?? null);
+  if (consoleMoved && next.consoleChannelId) {
+    if (!current.apiKey) throw new ApiError(400, 'consoleChannelId: connect the server panel first with /minecraft whitelista ustaw on Discord');
+    if (next.enabled && next.consoleChannelId === next.channelId) throw new ApiError(400, 'consoleChannelId: this is the whitelist channel, pick another channel for the console');
+    requireWhitelistChannel(guild, next.consoleChannelId, 'consoleChannelId');
+  }
 
   // Another server on the same panel: the saved key must open it before it is stored.
   if (current.apiKey && next.serverId !== current.serverId) {
@@ -1033,6 +1054,10 @@ async function applyMinecraft(client, guild, body) {
         logger.warn(`Panel: Minecraft whitelist guide not posted in guild ${guild.id}: ${error.message}`);
         return false;
       });
+  }
+  if (consoleMoved && saved.consoleChannelId) {
+    await guild.channels.cache.get(saved.consoleChannelId).send({ embeds: [consoleGuideEmbed()] })
+      .catch((error) => logger.warn(`Panel: Minecraft console guide not posted in guild ${guild.id}: ${error.message}`));
   }
   return { ...minecraftView(client, guild, saved), ...(guidePosted === undefined ? {} : { guidePosted }) };
 }
