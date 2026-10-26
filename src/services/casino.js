@@ -20,6 +20,7 @@ import { assertNotJailed } from './economyJail.js';
 import { bestInChain, getItemById } from '../config/shop/items.js';
 import { t, tr } from '../i18n/index.js';
 import { recordProgress } from './progress.js';
+import { eventLuck } from './economyEvents.js';
 
 export const MAX_WIN_CHANCE = 0.95;
 export const MAX_LUCK = 25;
@@ -45,11 +46,15 @@ export function useLuckItem(userData) {
   return null;
 }
 
-/** Luck for one game: permanent luck plus one consumable, which is used up here. */
-export function takeLuck(userData) {
+/**
+ * Luck for one game: permanent luck plus one consumable, which is used up here, plus the luck
+ * of a running "szczescie" event (`eventBonus`, it goes above the cap).
+ */
+export function takeLuck(userData, eventBonus = 0) {
   const permanent = permanentLuck(userData);
   const item = useLuckItem(userData);
-  return { ...permanent, item, total: Math.min(MAX_LUCK, permanent.total + (item?.luckPercent ?? 0)) };
+  const total = Math.min(MAX_LUCK, permanent.total + (item?.luckPercent ?? 0)) + eventBonus;
+  return { ...permanent, item, event: eventBonus, total };
 }
 
 /** Points of luck a bet paying `payout` times the stake gets: all of them up to x2, fewer above. */
@@ -79,6 +84,7 @@ export function luckLines(luck) {
   if (luck.upgrade > 0) lines.push(t`🍀 Luck upgrade: +${luck.upgrade}%`);
   if (luck.clover) lines.push(`${luck.clover.emoji} ${tr(luck.clover.name)}: +${luck.clover.bonusPercent}%`);
   if (luck.item) lines.push(t`${luck.item.emoji} ${tr(luck.item.name)} used: +${luck.item.luckPercent}%`);
+  if (luck.event > 0) lines.push(t`🎉 Event: +${luck.event}%`);
   return lines.length ? `\n-# ${lines.join(' · ')}` : '';
 }
 
@@ -116,7 +122,7 @@ export function playRound({ client, guildId, userId, bet }, resolve) {
     const userData = await getEconomyData(client, guildId, userId);
     const now = Date.now();
     const cooldown = checkBet({ settings, userData, bet, guildId, now });
-    const luck = takeLuck(userData);
+    const luck = takeLuck(userData, eventLuck(settings, now));
     const result = await resolve({ settings, userData, luck });
     userData.lastGamble = now;
     // `events` from the game (wins, jackpots) for missions and badges (services/progress.js).

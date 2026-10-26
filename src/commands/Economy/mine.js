@@ -11,6 +11,7 @@ import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain, takeConsumable, usesInARow } from '../../config/shop/items.js';
 import { againComponents } from './modules/again_button.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
+import { eventLine, eventLuck, eventPackPrice, eventPayFactor, eventVariantBoost } from '../../services/economyEvents.js';
 
 // /nagraj — the YouTuber job (was /mine until 2026-10-15; the internal id stays "mine":
 // settings.commands.mine, lastMine, the "mine" upgrade and item chain, so nothing was lost).
@@ -129,8 +130,9 @@ export function runRecord({ client, guild, user }) {
                 views *= 2;
                 multiplierMessage += t`\n**${itemLabel(thumbnail)}** used - double views and pay!`;
             }
+            finalEarned *= eventPayFactor(settings, 'mine', now);
             finalEarned = scaleEarnings(settings, finalEarned, userData);
-            multiplierMessage += earningsLine(settings, userData);
+            multiplierMessage += earningsLine(settings, userData) + eventLine(settings, 'mine', now);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
 
             userData.wallet += finalEarned;

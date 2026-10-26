@@ -13,6 +13,7 @@ import { GAME_TIMEOUT_MS, bustChance, deal, dealerPlay, handValue, hit, isBlackj
 import { getItemById } from '../../../config/shop/items.js';
 import { t } from '../../../i18n/index.js';
 import { progressEmbeds, recordProgress } from '../../../services/progress.js';
+import { eventLuck } from '../../../services/economyEvents.js';
 
 const showHand = (cards) => cards.map((card) => `\`${card}\``).join(' ');
 
@@ -21,6 +22,7 @@ const gameLuck = (game) => ({
   upgrade: game.luck?.upgrade ?? 0,
   clover: getItemById(game.luck?.cloverId) ?? null,
   item: getItemById(game.luck?.itemId) ?? null,
+  event: game.luck?.event ?? 0,
   total: game.luck?.total ?? 0,
 });
 
@@ -122,11 +124,11 @@ export function startBlackjack({ client, guildId, user, bet }) {
     }
 
     checkBet({ settings, userData, bet, guildId, now });
-    const luck = takeLuck(userData);
+    const luck = takeLuck(userData, eventLuck(settings, now));
     const game = {
       ...deal(bet),
       startedAt: now,
-      luck: { upgrade: luck.upgrade, cloverId: luck.clover?.id ?? null, itemId: luck.item?.id ?? null, total: luck.total },
+      luck: { upgrade: luck.upgrade, cloverId: luck.clover?.id ?? null, itemId: luck.item?.id ?? null, event: luck.event, total: luck.total },
     };
     userData.wallet -= bet;
     userData.lastGamble = now;

@@ -112,8 +112,9 @@ export function rollFrom(chances, random = Math.random) {
   return entries[entries.length - 1][0];
 }
 
-export const rollVariant = (random = Math.random) =>
-  variantOf(rollFrom(Object.fromEntries(VARIANTS.map((variant) => [variant.id, variant.chance])), random));
+/** `boost` multiplies the golden and diamond chances (the "ryby" event, services/economyEvents.js). */
+export const rollVariant = (random = Math.random, boost = 1) =>
+  variantOf(rollFrom(Object.fromEntries(VARIANTS.map((variant) => [variant.id, variant.id === 'normal' ? variant.chance : variant.chance * boost])), random));
 
 function pickWeighted(list, random) {
   const total = list.reduce((sum, entry) => sum + (entry.weight ?? 1), 0);
@@ -126,10 +127,10 @@ function pickWeighted(list, random) {
 }
 
 /** One fish: `{ fish, variant }`. */
-export function rollFish(random = Math.random) {
+export function rollFish(random = Math.random, variantBoost = 1) {
   const rarity = rollFrom(FISH_RARITY_CHANCES, random);
   const fish = pickWeighted(FISH.filter((entry) => entry.rarity === rarity), random);
-  return { fish, variant: rollVariant(random) };
+  return { fish, variant: rollVariant(random, variantBoost) };
 }
 
 export const cardValue = (card, variant = VARIANTS[0]) => Math.round(card.value * variant.multiplier);

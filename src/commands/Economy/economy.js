@@ -4,6 +4,7 @@ import economyDashboard from './modules/economy_dashboard.js';
 import shopConfigSetrole from './modules/shop_config_setrole.js';
 import economyGuide from './modules/economy_guide.js';
 import { buildAdminView } from './modules/economy_admin.js';
+import { eventSubcommandGroup, runEventCommand } from './modules/economy_events.js';
 import { warningEmbed } from '../../utils/embeds.js';
 import { t } from '../../i18n/index.js';
 
@@ -52,10 +53,14 @@ export default {
                         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
                         .setRequired(false),
                 ),
-        ),
+        )
+        .addSubcommandGroup(eventSubcommandGroup),
     category: 'Economy',
 
     async execute(interaction, config, client) {
+        if (interaction.options.getSubcommandGroup(false) === 'event') {
+            return runEventCommand(interaction);
+        }
         const subcommand = interaction.options.getSubcommand();
 
         // Answers on its own (a private reply).

@@ -10,6 +10,7 @@ import { refreshMinecraftServers } from './minecraftService.js';
 import { liftExpiredBans } from './moderation/tempbanService.js';
 import { awardVoiceXp } from './leveling/voiceXp.js';
 import { applyNightChannels } from './nightChannel.js';
+import { runEconomyEvents } from './economyEvents.js';
 
 const JOBS = [
   { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
@@ -17,6 +18,7 @@ const JOBS = [
   { name: 'minecraft_status', schedule: '*/2 * * * *', run: refreshMinecraftServers },
   { name: 'tempban_expiry', schedule: '* * * * *', run: liftExpiredBans },
   { name: 'voice_xp', schedule: '* * * * *', run: awardVoiceXp },
+  { name: 'economy_events', schedule: '* * * * *', run: runEconomyEvents },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */

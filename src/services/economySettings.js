@@ -49,6 +49,9 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     // payoutPercent 170 = a won bet pays x1.7 (owner, 2026-10-26; was x2). maxBet 0 = no limit.
     gamble: { cooldownMinutes: 5, winPercent: 40, payoutPercent: 170, maxBet: 0 },
   },
+  // Timed events (services/economyEvents.js): announcement channel, optional role ping, automatic
+  // events every `everyHours` lasting `durationMinutes`, and the running one.
+  events: { channelId: null, roleId: null, auto: false, everyHours: 24, durationMinutes: 60, active: null, nextAutoAt: 0 },
   // items: { [itemId]: { enabled, price } } overrides for the built-in items.
   // roles: [{ roleId, price, description }] roles members can buy.
   shop: { items: {}, roles: [] },
@@ -95,7 +98,7 @@ function normalize(stored) {
   for (const key of ['startingWallet', 'startingBank', 'clearOnLeave', 'payTaxPercent', 'earningsPercent']) {
     if (key in stored) settings[key] = stored[key];
   }
-  for (const key of ['currency', 'activity', 'channels', 'roles']) {
+  for (const key of ['currency', 'activity', 'channels', 'roles', 'events']) {
     if (isPlainObject(stored[key])) Object.assign(settings[key], stored[key]);
   }
   for (const name of Object.keys(settings.commands)) {
@@ -138,7 +141,17 @@ export function fortuneLevel(userData) {
  */
 export const scaleEarnings = (settings, amount, userData = null) =>
   Math.floor((Number(amount) || 0) * (Number(settings?.earningsPercent) || 100) / 100
-    * (100 + fortuneLevel(userData) * FORTUNE_PERCENT_PER_LEVEL) / 100);
+    * (100 + fortuneLevel(userData) * FORTUNE_PERCENT_PER_LEVEL) / 100
+    * (userData && activeEventType(settings) === 'kasa' ? 2 : 1));
+
+/**
+ * Id of the running economy event (services/economyEvents.js), or null. The "kasa" event doubles
+ * scaleEarnings() for payouts to a member (with `userData`); prices and rewards stay as they are.
+ */
+export function activeEventType(settings, now = Date.now()) {
+  const active = settings?.events?.active;
+  return active && Number(active.endsAt) > now ? active.type : null;
+}
 
 /**
  * "\n💰 **Fortune 2/5:** +20% all earnings" when the member has Fortune and
@@ -149,6 +162,7 @@ export function earningsLine(settings, userData = null) {
   let text = level > 0 ? t`\n💰 **Fortune ${level}/${FORTUNE_MAX_LEVEL}:** +${level * FORTUNE_PERCENT_PER_LEVEL}% all earnings` : '';
   const percent = Number(settings?.earningsPercent) || 100;
   if (percent !== 100) text += t`\n🌟 **Server multiplier:** x${percent / 100}`;
+  if (userData && activeEventType(settings) === 'kasa') text += t('\n🎉 **Event: double money** x2');
   return text;
 }
 
@@ -205,6 +219,9 @@ export function formatMoney(settings, amount) {
  * the last getEconomySettings() call for that guild (every economy command and
  * getEconomyData() load them first).
  */
+/** The settings loaded by the last getEconomySettings() for that guild (defaults before that). */
+export const cachedEconomySettings = (guildId) => cache.get(guildId) ?? ECONOMY_DEFAULTS;
+
 export function money(guildId, amount) {
   return formatMoney(cache.get(guildId) ?? ECONOMY_DEFAULTS, amount);
 }

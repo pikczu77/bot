@@ -405,3 +405,11 @@ change you make, so the next session knows what was done and why.
     both sides are checked again at the swap. My decisions: only cards and money (fish are sold when caught, so
     there is nothing to trade); offers live 15 min in memory (gone after a restart); own accounts only, no joint
     bank of a marriage. 77 commands.
+  - Economy events (owner: "9 fajne, niech bedzie info na osobnym kanale i niech usuwa sie po skonczeniu"):
+    `src/services/economyEvents.js`, `/economy event start|stop|ustaw` (`modules/economy_events.js`), job
+    `economy_events` every minute. Settings `events` in the economy settings (channel, role ping, automatic
+    events every ~`everyHours` for `durationMinutes`, the running one in `active`). Types: kasa (x2 every payout
+    to a member through `scaleEarnings` with `userData`, not prices or rewards), ryby (/fish x2, golden and diamond
+    x3 as often), youtube (/nagraj x2), szczescie (+5 casino luck, above the 25 cap), paczki (packs half price).
+    The announcement is deleted when the event ends or is stopped. My decisions: the types, one event at a time,
+    automatic events off by default (random type, the next one 0.75-1.25 x `everyHours` later).

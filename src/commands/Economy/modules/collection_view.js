@@ -9,7 +9,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder }
 import { createEmbed } from '../../../utils/embeds.js';
 import { createError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { getEconomyData, setEconomyData } from '../../../utils/economy.js';
-import { getEconomySettings, money } from '../../../services/economySettings.js';
+import { cachedEconomySettings, getEconomySettings, money } from '../../../services/economySettings.js';
 import { spendMoney, withEconomyLock } from '../../../services/economyUpgrades.js';
 import { assertNotJailed } from '../../../services/economyJail.js';
 import {
@@ -18,6 +18,7 @@ import {
 } from '../../../services/collections.js';
 import { t, tr } from '../../../i18n/index.js';
 import { progressEmbeds, recordProgress } from '../../../services/progress.js';
+import { eventLine, eventPackPrice } from '../../../services/economyEvents.js';
 
 const SHORT = { normal: '', golden: '_g', diamond: '_d' };
 const encodeKey = (key) => { const { id, variant } = parseIndexKey(key); return `${id}${SHORT[variant.id]}`; };
@@ -29,6 +30,9 @@ export function decodeKey(code) {
 
 const versionText = (variant) => (variant.label ? ` ${variant.emoji} *${tr(variant.label)}*` : '');
 const percent = (value) => `${Number((value * 100).toFixed(value < 0.01 ? 2 : 1))}%`;
+
+/** What a pack costs on this server right now (half during the "paczki" event). */
+export const packPrice = (guildId, pack) => eventPackPrice(cachedEconomySettings(guildId), pack.price);
 
 /** "📦 Starter Pack" */
 export const packLabel = (pack) => `${pack.emoji} ${tr(pack.name)}`;
@@ -47,9 +51,10 @@ export function openPack({ client, guildId, userId, packId, random = Math.random
     const settings = await getEconomySettings(guildId);
     const userData = await getEconomyData(client, guildId, userId);
     assertNotJailed(userData, Date.now(), { settings, guildId });
-    if (!spendMoney(userData, pack.price)) {
+    const price = eventPackPrice(settings, pack.price);
+    if (!spendMoney(userData, price)) {
       throw createError('Not enough money for a pack', ErrorTypes.VALIDATION,
-        t`❌ **${packLabel(pack)}** costs **${money(guildId, pack.price)}** - you do not have that much (cash and bank).`,
+        t`❌ **${packLabel(pack)}** costs **${money(guildId, price)}** - you do not have that much (cash and bank).`,
         { packId, expected: true });
     }
 
@@ -120,7 +125,7 @@ function packButtons(ownerId, guildId, { sellKeys = [], soldTotal = null } = {})
     .setStyle(ButtonStyle.Secondary));
   const packs = new ActionRowBuilder().addComponents(PACKS.map((pack) => new ButtonBuilder()
     .setCustomId(`paczka:otworz:${ownerId}:${pack.id}`)
-    .setLabel(`${tr(pack.name)} · ${money(guildId, pack.price)}`)
+    .setLabel(`${tr(pack.name)} · ${money(guildId, packPrice(guildId, pack))}`)
     .setEmoji(pack.emoji)
     .setStyle(ButtonStyle.Primary)));
   return [row, packs];
@@ -129,7 +134,7 @@ function packButtons(ownerId, guildId, { sellKeys = [], soldTotal = null } = {})
 /** /paczka without a choice: the three packs with their odds. */
 export function buildPackShop({ guildId, ownerId, userData, notice = '' }) {
   const fields = PACKS.map((pack) => ({
-    name: `${packLabel(pack)} · ${money(guildId, pack.price)}`,
+    name: `${packLabel(pack)} · ${money(guildId, packPrice(guildId, pack))}`,
     value: t`**${pack.cards}** {0|card|cards}\nlegendary: **${percent(packLegendaryChance(pack))}** a pack\nreturn on average: **${Math.round(packExpectedValue(pack) / pack.price * 100)}%**`,
     inline: true,
   }));
@@ -152,7 +157,7 @@ export function buildPackView({ guildId, ownerId, pack, drawn, userData, soldTot
   const total = drawn.reduce((sum, entry) => sum + entry.value, 0);
   const embed = createEmbed({
     title: t`🎴 ${packLabel(pack)} opened!`,
-    description: `${lines.join('\n')}\n\n${t`Cards worth **${money(guildId, total)}** (the pack cost ${money(guildId, pack.price)}).`}\n💵 **${money(guildId, userData.wallet || 0)}** · 🏦 **${money(guildId, userData.bank || 0)}**`,
+    description: `${lines.join('\n')}\n\n${t`Cards worth **${money(guildId, total)}** (the pack cost ${money(guildId, packPrice(guildId, pack))}).`}${eventLine(cachedEconomySettings(guildId), 'pack')}\n💵 **${money(guildId, userData.wallet || 0)}** · 🏦 **${money(guildId, userData.bank || 0)}**`,
     color: rarityOf(best.card.rarity).color,
   });
   return { embeds: [embed, ...progressEmbeds(progress, guildId)], components: packButtons(ownerId, guildId, { sellKeys: soldTotal === null ? drawn.map((entry) => entry.key) : [], soldTotal }) };

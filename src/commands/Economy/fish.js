@@ -12,6 +12,7 @@ import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain, usesInARow } from '../../config/shop/items.js';
 import { againComponents } from './modules/again_button.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
+import { eventLine, eventLuck, eventPackPrice, eventPayFactor, eventVariantBoost } from '../../services/economyEvents.js';
 
 // A Fishing Rod (or a better rod) is needed to fish; the Carbon Rod adds +50%, the Golden Rod +100%.
 // Since 2026-10-15 the fish decides the pay (services/collections.js): its rarity multiplies a
@@ -71,7 +72,7 @@ export function runFish({ client, guild, user }) {
                 );
             }
 
-            const { fish: caught, variant } = rollFish();
+            const { fish: caught, variant } = rollFish(Math.random, eventVariantBoost(settings, now));
             const rarity = rarityOf(caught.rarity);
             const base = Math.floor(Math.random() * (fish.max - fish.min + 1)) + fish.min;
             const baseEarned = Math.floor(base * FISH_PAY_MULTIPLIERS[caught.rarity] * variant.multiplier);
@@ -91,8 +92,9 @@ export function runFish({ client, guild, user }) {
                 finalEarned *= 2;
                 multiplierMessage += t`\n🕸️ **Fishing Net** used - double catch!`;
             }
+            finalEarned *= eventPayFactor(settings, 'fish', now);
             finalEarned = scaleEarnings(settings, finalEarned, userData);
-            multiplierMessage += earningsLine(settings, userData);
+            multiplierMessage += earningsLine(settings, userData) + eventLine(settings, 'fish', now);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
             if (variant.label) multiplierMessage += t`\n${variant.emoji} **${tr(variant.label)}**: x${variant.multiplier}!`;
             if (!hasAny(userData.fishIndex, caught.id)) multiplierMessage += t('\n📖 New in your `/index`!');
