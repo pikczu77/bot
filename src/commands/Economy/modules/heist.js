@@ -19,6 +19,7 @@ import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../../s
 import { earningMultiplier, spendMoney, staminaCooldown, withEconomyLock } from '../../../services/economyUpgrades.js';
 import { jailTimeLeft } from '../../../services/economyJail.js';
 import { progressEmbeds, recordProgress } from '../../../services/progress.js';
+import { clubCrewBonus } from '../../../services/clubs.js';
 import { logger } from '../../../utils/logger.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -234,7 +235,9 @@ export async function startHeist({ client, lobby, now = Date.now(), random = Mat
 
       lobbies.delete(lobby.id);
       clearTimeout(lobby.timer);
-      const chance = heistChance(target, crew.length);
+      // Two or more members of one club with the "Heist crew" upgrade (services/clubs.js) add its bonus.
+      const clubBonus = clubCrewBonus(crew.map((member) => member.userData));
+      const chance = Math.min(MAX_CHANCE, heistChance(target, crew.length) + clubBonus);
       const success = random() * 100 < chance;
       const jailMs = cooldownMs(settings.commands.crime.jailMinutes);
       const lines = [];
@@ -264,7 +267,8 @@ export async function startHeist({ client, lobby, now = Date.now(), random = Mat
         content: '',
         embeds: [createEmbed({
           title: t`🚨 ${tr(target.name)}: the heist is on...`,
-          description: t`${crew.map((member) => `<@${member.id}>`).join(' ')} go in. Chance **${chance}%**.`,
+          description: t`${crew.map((member) => `<@${member.id}>`).join(' ')} go in. Chance **${chance}%**.`
+            + (clubBonus > 0 ? t`\n-# 🛡️ Club crew: +${clubBonus}%` : ''),
           color: '#FF9F0A',
           footer: false,
         })],

@@ -1,5 +1,5 @@
 // Buttons of /wymiana (commands/Economy/modules/trade.js).
-//   wymiana:ok:<offerId>      only the partner: accept and swap
+//   wymiana:ok:<offerId>      only the partner (an open offer: anyone but the author): accept and swap
 //   wymiana:nie:<offerId>     only the partner: decline
 //   wymiana:anuluj:<offerId>  only the author: withdraw
 
@@ -33,6 +33,15 @@ export default {
       if (action === 'anuluj') {
         if (interaction.user.id !== offer.fromId) return privately(interaction, t('Only the author can withdraw this offer.'));
         await interaction.update(closeOffer(offer, 'withdrawn'));
+        return;
+      }
+      if (offer.open) {
+        if (interaction.user.id === offer.fromId) return privately(interaction, t('This is your own offer. Others accept it; you can withdraw it.'));
+        if (action !== 'ok') return;
+        const result = await acceptOffer({ client, offer, taker: { id: interaction.user.id, username: interaction.user.username } });
+        if (!result) return privately(interaction, t('Someone was faster: this offer is taken.'));
+        if (result.notice) return privately(interaction, `❌ ${result.notice}`);
+        await interaction.update(result);
         return;
       }
       if (interaction.user.id !== offer.toId) return privately(interaction, t('This offer is not for you. Use `/wymiana` to make your own.'));

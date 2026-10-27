@@ -33,11 +33,14 @@ import { itemLabel } from './buy.js';
 import { enterLocale, t, tr } from '../../../i18n/index.js';
 import { getGuildLocale } from '../../../services/languageService.js';
 import { CHEST_EVERY } from '../../../services/dailyStreak.js';
+import { COMPANIES } from '../../../services/stockMarket.js';
+import { BASE_MEMBERS, BONUS_PER_LEVEL, CLUB_UPGRADES, CREW_PER_LEVEL, MEMBERS_PER_LEVEL } from '../../../services/clubs.js';
+import { LEVEL_INCOME_PERCENT, MAX_PROPERTY_LEVEL, PROPERTIES } from '../../../services/properties.js';
 
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 3;
+export const GUIDE_VERSION = 4;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -251,6 +254,28 @@ function games({ guildId, settings }) {
   };
 }
 
+// Stock market, clubs and buildings (2026-10-27).
+function investments({ guildId, settings }) {
+  const { stocks, clubs, property } = settings.commands;
+  const cheapest = PROPERTIES[0];
+  const castle = PROPERTIES.at(-1);
+  const maxBonus = CLUB_UPGRADES.find((upgrade) => upgrade.id === 'bonus').prices.length * BONUS_PER_LEVEL;
+  const maxCrew = CLUB_UPGRADES.find((upgrade) => upgrade.id === 'crew').prices.length * CREW_PER_LEVEL;
+  const maxMembers = BASE_MEMBERS + CLUB_UPGRADES.find((upgrade) => upgrade.id === 'size').prices.length * MEMBERS_PER_LEVEL;
+  return {
+    description: t('Ways to grow money you already have. Shares, buildings and the club treasury are safe from `/rob`.'),
+    fields: [
+      field(t('📈 /gielda'), t`${COMPANIES.length} companies: ${COMPANIES.map((company) => company.emoji).join(' ')}\nprices change **every hour**\nbuy cheap, sell dear\nfee **${stocks.feePercent}%** on every trade`),
+      field(t('📰 News'), t('sometimes a headline moves\none company by 8-25%\n`/gielda ceny` shows the news')),
+      field(t('🛡️ /klub'), t`found one for **${money(guildId, clubs.foundPrice)}**\n${BASE_MEMBERS} to ${maxMembers} members\nshared treasury: \`/klub wplac\``),
+      field(t('⬆️ Club upgrades'), t`💰 up to **+${maxBonus}%** job pay\n🦹 up to **+${maxCrew}%** heist chance\n🏠 more members\npaid from the treasury`),
+      field(t('🏆 Club ranking'), t`points = job money of the week\n🥇 **${money(guildId, clubs.weeklyPrize)}** to the treasury\nevery Monday`),
+      field(t('🏘️ /nieruchomosci'), t`${cheapest.emoji} from **${money(guildId, cheapest.price)}** to ${castle.emoji} **${money(guildId, castle.price)}**\nrent **every hour**, also offline\ncollect at least every **${property.maxHours} h**\n${MAX_PROPERTY_LEVEL} upgrades, +${LEVEL_INCOME_PERCENT}% each`),
+      field(t('🤝 /wymiana without a person'), t('an offer for everyone\nthe first to accept gets it\nsell a card for money')),
+    ],
+  };
+}
+
 const packName = (id) => `${getPack(id)?.emoji ?? ''} **${tr(getPack(id)?.name ?? id)}**`;
 
 function missions({ settings }) {
@@ -274,6 +299,7 @@ function commands() {
       field(t('💵 Money'), '`/hajs` `/balans`\n`/bank wplac` `/bank wyplac`\n`/pay` `/topkasa`'),
       field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij`'),
       field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
+      field(t('📈 Investing'), '`/gielda` `/klub`\n`/nieruchomosci`'),
       field(t('🎮 Games'), '`/napad` `/wordle`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
@@ -294,6 +320,7 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'wiezienie', emoji: '🚔', name: t('Jail and breaks'), hint: t('Jail, Stamina, skipping a break'), color: '#FF453A', build: jail },
   { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
   { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, duels, lottery, quiz, events'), color: '#30D158', build: games },
+  { id: 'inwestycje', emoji: '📈', name: t('Stocks, clubs, buildings'), hint: t('/gielda, /klub, /nieruchomosci'), color: '#0A84FF', build: investments },
   { id: 'misje', emoji: '🎯', name: t('Missions and badges'), hint: t('/misje and /osiagniecia'), color: '#F1C40F', build: missions },
   { id: 'zwiazki', emoji: '💍', name: t('Dates and marriage'), hint: t('/randka and /slub'), color: '#FF375F', build: love },
   { id: 'komendy', emoji: '📋', name: t('All commands'), hint: t('The full list'), color: '#8E8E93', build: commands },
@@ -329,6 +356,7 @@ export function buildGuideMessage(guild = null) {
       field(t('💵 Balance'), '`/hajs`'),
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
       field(t('🎮 Games'), '`/napad` · `/wordle` · `/pojedynek` · `/loteria`'),
+      field(t('📈 Investing'), '`/gielda` · `/klub` · `/nieruchomosci`'),
     ],
     thumbnail: guild?.iconURL?.({ size: 128 }) ?? null,
     footer: { text: t('The tutorials always show the current server settings.') },

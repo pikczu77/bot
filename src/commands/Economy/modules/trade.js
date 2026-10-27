@@ -7,6 +7,10 @@
 //   wymiana:anuluj:<offerId>  the author withdraws it
 // Offers live in memory for OFFER_TTL_MS; after a restart the buttons say the offer is gone.
 // Both accounts are read without the joint bank of a marriage (own cash and own bank only).
+//
+// Open offers (2026-10-27, owner picked "card auctions" but "jako trade zwykłe"): /wymiana without a person
+// is offered to everyone in the channel for OPEN_OFFER_TTL_MS; the first member who accepts and has the
+// wanted part gets the trade (sell a card for money, buy one, or swap). No Decline button on those.
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../../utils/embeds.js';
@@ -14,12 +18,13 @@ import { createError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { getEconomyData, setEconomyData } from '../../../utils/economy.js';
 import { getEconomySettings, money } from '../../../services/economySettings.js';
 import { spendMoney, withEconomyLock } from '../../../services/economyUpgrades.js';
-import { addTo, cardValue, getCard, parseIndexKey } from '../../../services/collections.js';
+import { CARDS, VARIANTS, addTo, cardValue, getCard, indexKey, parseIndexKey } from '../../../services/collections.js';
 import { progressEmbeds, recordProgress } from '../../../services/progress.js';
 import { fold } from './buy.js';
 import { t, tr } from '../../../i18n/index.js';
 
 export const OFFER_TTL_MS = 15 * 60 * 1000;
+export const OPEN_OFFER_TTL_MS = 60 * 60 * 1000;
 const offers = new Map(); // offerId -> offer
 let lastId = 0;
 
@@ -47,6 +52,17 @@ export function cardChoices(userData, query = '') {
     .map((entry) => ({ name: `${entry.label} ×${entry.count}`.slice(0, 100), value: entry.key }));
 }
 
+/** Every card in every version, for the wanted card of an open offer: `[{ name, value }]`, at most 25. */
+export function catalogChoices(query = '') {
+  const wanted = fold(query);
+  return CARDS.flatMap((card) => VARIANTS.map((variant) => ({ key: indexKey(card.id, variant), value: cardValue(card, variant) })))
+    .map((entry) => ({ ...entry, label: cardLabel(entry.key) }))
+    .filter((entry) => !wanted || fold(entry.label).includes(wanted))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 25)
+    .map((entry) => ({ name: entry.label.slice(0, 100), value: entry.key }));
+}
+
 function sideText(guildId, side) {
   const parts = [];
   if (side.card) parts.push(`🃏 ${cardLabel(side.card)}`);
@@ -61,10 +77,10 @@ function missingPart(guildId, userData, side, name) {
   return null;
 }
 
-function offerButtons(offerId, { disabled = false } = {}) {
+function offerButtons(offerId, { disabled = false, open = false } = {}) {
   return [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`wymiana:ok:${offerId}`).setLabel(t('Accept')).setEmoji('🤝').setStyle(ButtonStyle.Success).setDisabled(disabled),
-    new ButtonBuilder().setCustomId(`wymiana:nie:${offerId}`).setLabel(t('Decline')).setStyle(ButtonStyle.Danger).setDisabled(disabled),
+    ...(open ? [] : [new ButtonBuilder().setCustomId(`wymiana:nie:${offerId}`).setLabel(t('Decline')).setStyle(ButtonStyle.Danger).setDisabled(disabled)]),
     new ButtonBuilder().setCustomId(`wymiana:anuluj:${offerId}`).setLabel(t('Withdraw')).setStyle(ButtonStyle.Secondary).setDisabled(disabled),
   )];
 }
@@ -77,16 +93,16 @@ function offerEmbed(guildId, offer, { title, note = '', color = '#5865F2' }) {
     footer: false,
   }).addFields(
     { name: t`${offer.fromName} gives`, value: sideText(guildId, offer.give), inline: true },
-    { name: t`${offer.toName} gives`, value: sideText(guildId, offer.want), inline: true },
+    { name: offer.toName ? t`${offer.toName} gives` : t('Whoever accepts gives'), value: sideText(guildId, offer.want), inline: true },
   );
 }
 
 /**
  * /wymiana: check the offer and post it. `give` / `want` = { card: indexKey | null, money: number }.
- * Returns the public message payload.
+ * `to` null = an open offer for everyone. Returns the public message payload.
  */
-export async function createOffer({ client, guildId, from, to, give, want, now = Date.now() }) {
-  if (to.bot || to.id === from.id) {
+export async function createOffer({ client, guildId, from, to = null, give, want, now = Date.now() }) {
+  if (to && (to.bot || to.id === from.id)) {
     throw createError('Bad trade partner', ErrorTypes.VALIDATION, t('Pick another member to trade with.'), { expected: true });
   }
   if (!give.card && !want.card && !(give.money > 0) && !(want.money > 0)) {
@@ -100,22 +116,39 @@ export async function createOffer({ client, guildId, from, to, give, want, now =
   }
   await getEconomySettings(guildId);
   const fromData = await getEconomyData(client, guildId, from.id, { joint: false });
-  const toData = await getEconomyData(client, guildId, to.id, { joint: false });
-  const problem = missingPart(guildId, fromData, give, from.username) ?? missingPart(guildId, toData, want, to.username);
+  const toData = to ? await getEconomyData(client, guildId, to.id, { joint: false }) : null;
+  const problem = missingPart(guildId, fromData, give, from.username) ?? (to ? missingPart(guildId, toData, want, to.username) : null);
   if (problem) throw createError('Trade not possible', ErrorTypes.VALIDATION, problem, { expected: true });
 
-  for (const [id, offer] of offers) if (now - offer.createdAt > OFFER_TTL_MS) offers.delete(id);
+  for (const [id, offer] of offers) if (now > offer.expiresAt) offers.delete(id);
   lastId = (lastId + 1) % 1_000_000;
   const offerId = `${now.toString(36)}${lastId.toString(36)}`;
-  const offer = { id: offerId, guildId, fromId: from.id, toId: to.id, fromName: from.username, toName: to.username, give, want, createdAt: now };
+  const open = !to;
+  const expiresAt = now + (open ? OPEN_OFFER_TTL_MS : OFFER_TTL_MS);
+  const offer = {
+    id: offerId, guildId, fromId: from.id, toId: to?.id ?? null, fromName: from.username, toName: to?.username ?? null,
+    give, want, open, createdAt: now, expiresAt,
+  };
   offers.set(offerId, offer);
 
   const lastCopy = give.card && (fromData.cards?.[give.card] ?? 0) === 1 ? t('\n-# This is your last copy of the card.') : '';
+  const until = Math.floor(expiresAt / 1000);
+  if (open) {
+    return {
+      content: '',
+      embeds: [offerEmbed(guildId, offer, {
+        title: t('🤝 Trade offer for everyone'),
+        note: t`**${from.username}** offers a trade to everyone here. The first to accept gets it, until <t:${until}:t>.` + lastCopy,
+      })],
+      components: offerButtons(offerId, { open: true }),
+      allowedMentions: { parse: [] },
+    };
+  }
   return {
     content: `<@${to.id}>`,
     embeds: [offerEmbed(guildId, offer, {
       title: t('🤝 Trade offer'),
-      note: t`**${from.username}** offers **${to.username}** a trade. Only ${to.username} can accept, until <t:${Math.floor((now + OFFER_TTL_MS) / 1000)}:t>.` + lastCopy,
+      note: t`**${from.username}** offers **${to.username}** a trade. Only ${to.username} can accept, until <t:${until}:t>.` + lastCopy,
     })],
     components: offerButtons(offerId),
     allowedMentions: { users: [to.id] },
@@ -124,7 +157,7 @@ export async function createOffer({ client, guildId, from, to, give, want, now =
 
 export const getOffer = (offerId, now = Date.now()) => {
   const offer = offers.get(offerId);
-  if (!offer || now - offer.createdAt > OFFER_TTL_MS) return null;
+  if (!offer || now > offer.expiresAt) return null;
   return offer;
 };
 
@@ -132,7 +165,7 @@ export const getOffer = (offerId, now = Date.now()) => {
 export function closeOffer(offer, reason) {
   offers.delete(offer.id);
   const title = reason === 'declined' ? t('🤝 Trade declined') : t('🤝 Trade withdrawn');
-  return { content: '', embeds: [offerEmbed(offer.guildId, offer, { title, color: '#8E8E93' })], components: offerButtons(offer.id, { disabled: true }) };
+  return { content: '', embeds: [offerEmbed(offer.guildId, offer, { title, color: '#8E8E93' })], components: offerButtons(offer.id, { disabled: true, open: offer.open }) };
 }
 
 function withBothLocks(guildId, firstId, secondId, task) {
@@ -140,18 +173,28 @@ function withBothLocks(guildId, firstId, secondId, task) {
   return withEconomyLock(guildId, a, () => withEconomyLock(guildId, b, task));
 }
 
-/** The partner accepted: check both sides again and swap. Returns the message payload. */
-export function acceptOffer({ client, offer, now = Date.now() }) {
+/**
+ * The partner (or, for an open offer, `taker` = { id, username }) accepted: check both sides again and swap.
+ * Returns the message payload, `{ notice }` when the taker of an open offer lacks their part, or null when the
+ * offer is already gone.
+ */
+export function acceptOffer({ client, offer, taker = null, now = Date.now() }) {
   const { guildId } = offer;
-  return withBothLocks(guildId, offer.fromId, offer.toId, async () => {
+  const toId = offer.open ? taker.id : offer.toId;
+  const toName = offer.open ? taker.username : offer.toName;
+  return withBothLocks(guildId, offer.fromId, toId, async () => {
     if (!offers.has(offer.id)) return null;
     const settings = await getEconomySettings(guildId);
     const fromData = await getEconomyData(client, guildId, offer.fromId, { joint: false });
-    const toData = await getEconomyData(client, guildId, offer.toId, { joint: false });
-    const problem = missingPart(guildId, fromData, offer.give, offer.fromName) ?? missingPart(guildId, toData, offer.want, offer.toName);
+    const toData = await getEconomyData(client, guildId, toId, { joint: false });
+    const authorProblem = missingPart(guildId, fromData, offer.give, offer.fromName);
+    const takerProblem = missingPart(guildId, toData, offer.want, toName);
+    if (offer.open && !authorProblem && takerProblem) return { notice: takerProblem };
+    if (offer.open) Object.assign(offer, { toId, toName });
+    const problem = authorProblem ?? takerProblem;
     if (problem) {
       offers.delete(offer.id);
-      return { content: '', embeds: [offerEmbed(guildId, offer, { title: t('🤝 Trade failed'), note: `❌ ${problem}`, color: '#FF453A' })], components: offerButtons(offer.id, { disabled: true }) };
+      return { content: '', embeds: [offerEmbed(guildId, offer, { title: t('🤝 Trade failed'), note: `❌ ${problem}`, color: '#FF453A' })], components: offerButtons(offer.id, { disabled: true, open: offer.open }) };
     }
 
     const move = (side, giver, taker) => {
@@ -169,11 +212,12 @@ export function acceptOffer({ client, offer, now = Date.now() }) {
     const fromProgress = recordProgress(fromData, { trades: 1 }, { settings, now });
     const toProgress = recordProgress(toData, { trades: 1 }, { settings, now });
     await setEconomyData(client, guildId, offer.fromId, fromData);
-    await setEconomyData(client, guildId, offer.toId, toData);
+    await setEconomyData(client, guildId, toId, toData);
     offers.delete(offer.id);
 
     return {
-      content: '',
+      content: offer.open ? `<@${offer.fromId}>` : '',
+      allowedMentions: { users: offer.open ? [offer.fromId] : [] },
       embeds: [
         offerEmbed(guildId, offer, { title: t('✅ Trade done'), color: '#30D158' }),
         ...progressEmbeds(fromProgress, guildId),

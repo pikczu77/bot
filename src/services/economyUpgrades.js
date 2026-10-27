@@ -72,8 +72,10 @@ export function upgradeCost(upgrade, level, userData) {
 
 // Bonuses read by the commands.
 // The upgrade of `id` plus the collection bonuses (services/collections.js), added together.
+/** "Club bonus" of the member's club (services/clubs.js keeps `userData.club` current); not on /daily. */
+export const clubBonusPercent = (userData, id) => (id === 'daily' ? 0 : Math.max(0, Number(userData?.club?.bonus) || 0));
 export const earningMultiplier = (userData, id) =>
-  1 + (getUpgradeLevel(userData, id) * (BY_ID.get(id)?.step ?? 10) + collectionBonusPercent(userData, id)) / 100;
+  1 + (getUpgradeLevel(userData, id) * (BY_ID.get(id)?.step ?? 10) + collectionBonusPercent(userData, id) + clubBonusPercent(userData, id)) / 100;
 export const bankStealPercent = (userData) =>
   Math.max(BANK_STEAL_MIN_PERCENT, BANK_STEAL_BASE_PERCENT - getUpgradeLevel(userData, 'bank_security') * BANK_STEAL_STEP_PERCENT);
 export const extraBankCapacity = (userData) => getUpgradeLevel(userData, 'bank_capacity') * BANK_CAPACITY_PER_LEVEL;

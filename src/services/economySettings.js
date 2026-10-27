@@ -52,6 +52,12 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     wordle: { reward: 3000 },
     // /napad (commands/Economy/modules/heist.js): a team heist; payoutPercent scales the loot table.
     heist: { cooldownMinutes: 180, payoutPercent: 100 },
+    // /gielda (services/stockMarket.js): fee on every buy and sell, most shares of one company per member.
+    stocks: { feePercent: 1, maxShares: 10_000 },
+    // /klub (services/clubs.js): price of a new club, prize of the club of the week (2nd 40%, 3rd 20%).
+    clubs: { foundPrice: 25_000, weeklyPrize: 25_000 },
+    // /nieruchomosci (services/properties.js): rent scale, hours of rent a building holds, share returned on a sale.
+    property: { incomePercent: 100, maxHours: 48, sellPercent: 60 },
   },
   // Missions (services/progress.js): off = no daily/weekly missions; rewardPercent scales their rewards.
   missions: { enabled: true, rewardPercent: 100 },
@@ -86,6 +92,9 @@ export const COMMAND_LIMITS = Object.freeze({
   gamble: { cooldownMinutes: [0, MAX_COOLDOWN], winPercent: [1, 99], payoutPercent: [101, 10_000], maxBet: [0, MAX_MONEY] },
   wordle: { reward: [0, MAX_MONEY] },
   heist: { cooldownMinutes: [0, MAX_COOLDOWN], payoutPercent: [1, 10_000] },
+  stocks: { feePercent: [0, 20], maxShares: [1, 1_000_000] },
+  clubs: { foundPrice: [0, MAX_MONEY], weeklyPrize: [0, MAX_MONEY] },
+  property: { incomePercent: [0, 1000], maxHours: [1, 168], sellPercent: [0, 100] },
 });
 
 export const CURRENCY_POSITIONS = ['left', 'right'];

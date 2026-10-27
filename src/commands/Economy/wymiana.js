@@ -2,10 +2,11 @@ import { SlashCommandBuilder } from 'discord.js';
 import { getEconomyData } from '../../utils/economy.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { cardChoices, createOffer } from './modules/trade.js';
+import { cardChoices, catalogChoices, createOffer } from './modules/trade.js';
 
 // /wymiana — offer another member a swap of Club'o'mony cards and money (2026-10-26).
-// Code and buttons: modules/trade.js, interactions/buttons/economy/trade.js.
+// Without `osoba` the offer is open to everyone in the channel (2026-10-27). Code and buttons:
+// modules/trade.js, interactions/buttons/economy/trade.js.
 
 export default {
     data: new SlashCommandBuilder()
@@ -14,8 +15,8 @@ export default {
         .addUserOption(option =>
             option
                 .setName('osoba')
-                .setDescription('Who you trade with')
-                .setRequired(true)
+                .setDescription('Who you trade with (empty = an offer for everyone)')
+                .setRequired(false)
         )
         .addStringOption(option =>
             option
@@ -49,7 +50,8 @@ export default {
     async autocomplete(interaction, client) {
         const focused = interaction.options.getFocused(true);
         const ownerId = focused.name === 'chce' ? interaction.options.get('osoba')?.value : interaction.user.id;
-        if (!ownerId) return interaction.respond([]);
+        // An open offer can ask for any card: the one who accepts must have it.
+        if (!ownerId) return interaction.respond(focused.name === 'chce' ? catalogChoices(focused.value) : []);
         const userData = await getEconomyData(client ?? interaction.client, interaction.guildId, String(ownerId), { joint: false });
         await interaction.respond(cardChoices(userData, focused.value));
     },

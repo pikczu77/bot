@@ -71,7 +71,21 @@ change you make, so the next session knows what was done and why.
   Off = no missions are handed out or paid; stats and badges still count.
 - Guide: bump `GUIDE_VERSION` in `economy_guide.js` when the channel message or the topic list changes; `refreshEconomyGuides`
   (ready event) edits the posted guides once.
-- Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`.
+- `/gielda` (since 2026-10-27): `src/services/stockMarket.js` (`COMPANIES`: 6 made-up companies, `advanceMarket` once an hour,
+  log-price pulled 3% an hour towards the base, limits 20%-500% of the base, a headline shock 8-25% in 8% of hours; store
+  `guild:{id}:stock-market`; job `stock_market`). Member data `stocks = { [id]: { shares, cost } }`. Settings `commands.stocks`
+  { feePercent, maxShares }. Events stockTrades, stockProfit. Shares are safe from /rob; no multiplier or Fortune on prices.
+- `/klub` (since 2026-10-27): `src/services/clubs.js` (store `guild:{id}:clubs`, lock key `#clubs` before member locks), invite buttons
+  `klub:tak|nie:<clubId>:<userId>` (`interactions/buttons/economy/club.js`). Members carry `userData.club = { id, bonus, crew }`
+  (`syncMembers`): `clubBonusPercent` in `earningMultiplier` (not /daily), `clubCrewBonus` in /napad. Weekly points = stat `earned`
+  minus each member's `baseline`; job `clubs_week` pays the top 3 on Monday (`settleClubWeek`, posted on the events channel).
+  Settings `commands.clubs` { foundPrice, weeklyPrize }. Events clubJoin, clubDeposit.
+- `/nieruchomosci` (since 2026-10-27): `src/services/properties.js` (`PROPERTIES`, rent by the full hour, at most
+  `commands.property.maxHours` waits, 3 upgrades +30% each, sale returns `sellPercent` of everything spent). Member data
+  `properties = { [id]: { level, collectedAt, spent } }`. Rent: server multiplier and `incomePercent`, no Fortune or events.
+  Events propertyBuy, propertyCollect, propertyIncome.
+- Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`,
+  `test/market.test.js` (stocks, clubs, buildings, open trade offers).
 
 ## Economy rules the owner set (keep them)
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
@@ -582,3 +596,21 @@ change you make, so the next session knows what was done and why.
   - `knownQuestion` in `chatEngagement.js`: a question without a valid `index` is only marked closed (nothing to
     reveal, its message is left as it is) and replies to it are ignored; the next question is posted normally.
   - Test "a question saved by the old version (no index) ..." in `test/chat-engagement.test.js` (fails without the fix).
+- **2026-10-27 evening** (owner picked from my idea list: "8,9(nazwij kluby),10,11(ale wole zebys zrobil to jako trade zwykle)").
+  Live after the owner restarts the bot; panel cards deployed with the site. Details in "Economy map". 86 commands:
+  - 8 `/gielda ceny|kup|sprzedaj|portfel`: six made-up companies (Kebab u Stefana, Creeper Corp, Club'o'mony, Pikczu Media,
+    Diamentowa Kopalnia, Ender Energia; names, base prices and moves are mine), prices every hour with a 24 h sparkline and news,
+    buy by count or by budget (`za_kwote`), 1% fee each way, at most 10,000 shares of one company per member.
+  - 9 `/klub zaloz|info|zapros|wplac|wyplac|ulepsz|ranking|wyrzuc|oddaj|wyjdz` (owner: call them clubs, not gangs). Founding 25,000,
+    5 members (+3 per Clubhouse level, max 20), any member invites (24 h), the owner pays out, upgrades and kicks; upgrades from the
+    treasury: Clubhouse, Club bonus (+2% job pay per level, max +10%), Heist crew (+4% /napad chance with 2+ members, max +12%).
+    Weekly ranking = job money since Monday; prizes 25,000 / 10,000 / 5,000 to the treasury (x server multiplier). The owner who
+    leaves hands the club to the earliest member; the last member closes it and gets the treasury. All numbers mine.
+  - 10 `/nieruchomosci lista|kup|odbierz|ulepsz|sprzedaj`: Tent 5,000 (250 a day) ... Castle 1,000,000 (36,000 a day), each owned
+    once, pays back in about 20-28 days; rent waits at most 48 h; upgrades 50/75/100% of the price for +30% each; sale 60%.
+  - 11 (owner: card auctions, but "as a normal trade"): `/wymiana` without `osoba` is an open offer for everyone in the channel
+    for 60 min; the first member who has the wanted part gets it (sell a card for money, buy one, swap). The wanted card can be
+    any card (`catalogChoices`). A taker without the part gets a private note and the offer stays open. No Decline button there.
+  - Missions: daily "trade on /gielda", "collect rent"; weekly club deposit, stock profit, rent. Badges: Club member, Market shark
+    (50,000 stock profit), Landlord (3 buildings), Lord of the castle. Guide topic "📈 Giełda, kluby, budynki" (`GUIDE_VERSION` 4).
+  - Panel API: `commands.stocks|clubs|property` through `COMMAND_LIMITS` (no new endpoint); site cards in Ekonomia > Gry.

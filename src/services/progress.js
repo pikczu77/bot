@@ -52,6 +52,8 @@ export const MISSIONS = {
     { id: 'heist', stat: 'heist', goal: [1, 1], reward: 1200, text: () => t('Take part in a `/napad` heist') },
     { id: 'duelWin', stat: 'duelWin', goal: [1, 1], reward: 1200, text: () => t('Win a duel with `/pojedynek`') },
     { id: 'drop', stat: 'drop', goal: [1, 1], reward: 600, text: () => t('Catch a chat drop first') },
+    { id: 'stocks', stat: 'stockTrades', goal: [1, 2], reward: 400, text: (goal) => t`Make ${goal} {0|trade|trades} on \`/gielda\`` },
+    { id: 'rent', stat: 'propertyCollect', goal: [1, 1], reward: 500, text: () => t('Collect rent with `/nieruchomosci odbierz`') },
   ],
   weekly: [
     { id: 'work', stat: 'work', goal: [20, 30], reward: 450, text: (goal) => t`Work ${goal} shifts with \`/work\`` },
@@ -71,6 +73,10 @@ export const MISSIONS = {
     // A ticket costs 500 by default, so the mission pays back a part of it, not more.
     { id: 'lottery', stat: 'lotteryTickets', goal: [3, 5], reward: 300, text: (goal) => t`Buy ${goal} lottery tickets with \`/loteria kup\`` },
     { id: 'duelWin', stat: 'duelWin', goal: [3, 5], reward: 1200, text: (goal) => t`Win ${goal} duels with \`/pojedynek\`` },
+    // Pays a small part of the deposit back, so it never makes money from nothing.
+    { id: 'clubDeposit', stat: 'clubDeposit', goal: [5_000, 10_000], reward: 0.2, text: (goal, guildId) => t`Put ${money(guildId, goal)} into your club treasury (\`/klub wplac\`)` },
+    { id: 'stockProfit', stat: 'stockProfit', goal: [2_000, 5_000], reward: 0.5, text: (goal, guildId) => t`Make ${money(guildId, goal)} profit on \`/gielda\`` },
+    { id: 'rent', stat: 'propertyIncome', goal: [5_000, 10_000], reward: 0.2, text: (goal, guildId) => t`Collect ${money(guildId, goal)} of rent from \`/nieruchomosci\`` },
   ],
 };
 export const MISSIONS_PER_PERIOD = 3;
@@ -180,6 +186,10 @@ export const ACHIEVEMENTS = [
   { id: 'chat_star', emoji: '💬', name: t('Chat star'), description: t('Answer the question of the day first 5 times.'), reward: 5000, progress: counter('questionWin', 5) },
   { id: 'duelist', emoji: '⚔️', name: t('Duelist'), description: t('Win 10 duels.'), reward: 5000, progress: counter('duelWin', 10) },
   { id: 'daily_month', emoji: '🔥', name: t('Never missed a day'), description: t('Claim /daily 30 days in a row.'), reward: 10000, progress: (u) => [Math.min(30, Math.max(stat(u, 'dailyBestStreak'), Number(u?.dailyStreak) || 0)), 30] },
+  { id: 'club_member', emoji: '🛡️', name: t('Club member'), description: t('Join or found a club with `/klub`.'), reward: 1000, progress: (u) => [u?.club?.id || stat(u, 'clubJoin') ? 1 : 0, 1] },
+  { id: 'stock_shark', emoji: '📈', name: t('Market shark'), description: t('Make 50,000 profit on the stock market.'), reward: 10000, progress: counter('stockProfit', 50_000) },
+  { id: 'landlord', emoji: '🏘️', name: t('Landlord'), description: t('Own 3 buildings at once.'), reward: 5000, progress: (u) => [Math.min(3, Object.keys(u?.properties ?? {}).length), 3] },
+  { id: 'castle', emoji: '🏰', name: t('Lord of the castle'), description: t('Buy the castle.'), reward: 25000, progress: (u) => [u?.properties?.zamek ? 1 : 0, 1] },
 ];
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
 export const getAchievement = (id) => ACHIEVEMENT_BY_ID.get(id) ?? null;
