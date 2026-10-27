@@ -575,3 +575,10 @@ change you make, so the next session knows what was done and why.
     message; one answer per person (❌ wrong, ⛔ a second try); the first right one wins `question.reward`, the message is
     edited with the winner. No right answer within `question.minutes` (default 120, my number): the answer is shown.
     No more thread and no reactions vote. Panel field "Czas na odpowiedź".
+- **2026-10-27** (owner sent a screenshot of a crash: `TypeError: Cannot read properties of undefined (reading 'a')`
+  at `closeQuestion`, from `postQuestion` / `applyChat`). Live after the owner restarts the bot:
+  - Cause: the live store still held a question saved by 4092fcc (thread + reactions), which has no `index`;
+    `closeQuestion` read `DAILY_TRIVIA[undefined].a` while editing the old message.
+  - `knownQuestion` in `chatEngagement.js`: a question without a valid `index` is only marked closed (nothing to
+    reveal, its message is left as it is) and replies to it are ignored; the next question is posted normally.
+  - Test "a question saved by the old version (no index) ..." in `test/chat-engagement.test.js` (fails without the fix).

@@ -200,6 +200,9 @@ export const foldAnswer = (text) => String(text ?? '').toLocaleLowerCase('pl').n
 
 export const isRightAnswer = (text, trivia) => trivia.a.some((answer) => foldAnswer(answer) === foldAnswer(text));
 
+// A question saved before 23e93b5 (thread + reactions) has no `index`: it is only marked closed, nothing to reveal.
+const knownQuestion = (question) => Boolean(question && Number.isInteger(question.index) && DAILY_TRIVIA[question.index]);
+
 const questionLocks = new Map();
 // One answer at a time per server, so two quick right answers cannot both win.
 function withQuestionLock(guildId, task) {
@@ -232,7 +235,7 @@ async function answerQuestion(message, settings, sentAt) {
   return withQuestionLock(guild.id, async () => {
     const state = await getChatState(guild.id);
     const question = state.question;
-    if (!question || question.messageId !== message.reference?.messageId) return false;
+    if (!knownQuestion(question) || question.messageId !== message.reference?.messageId) return false;
     if (question.answered || question.closed || sentAt > question.closesAt) return false;
     if ((question.tried ?? []).includes(message.author.id)) {
       message.react('⛔').catch(() => {});
@@ -297,7 +300,12 @@ export async function postQuestion(guild, settings, { now = Date.now(), random =
 /** Nobody answered right in time: show the answer. */
 async function closeQuestion(guild, settings, state, now) {
   const question = state.question;
-  if (!question || question.answered || question.closed || now < question.closesAt) return false;
+  if (!question || question.answered || question.closed) return false;
+  if (!knownQuestion(question)) {
+    await updateChatState(guild.id, (data) => { data.question.closed = true; });
+    return false;
+  }
+  if (now < question.closesAt) return false;
   await updateChatState(guild.id, (data) => { data.question.closed = true; });
   const original = await questionMessage(guild, question);
   await original?.edit({

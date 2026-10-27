@@ -234,3 +234,23 @@ test('panel: chat channel and the four parts, drop now; the Dead Chat role is fo
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('a question saved by the old version (no index) does not break the next question', async () => {
+  const oldGuild = mockGuild(client, 'Stary zapis');
+  oldGuild.client = client;
+  const room = mockChannel(oldGuild, 'chat');
+  // Like Discord: the old question message can still be fetched (the crash came from editing it).
+  room.messages.fetch = async (id) => ({ id, edit: async () => {} });
+  await updateChatSettings(oldGuild.id, (settings) => {
+    settings.channelId = room.id;
+    settings.drops = { enabled: false }; settings.deadChat = { enabled: false }; settings.happyHour = { enabled: false };
+    settings.question = { enabled: true, hour: 18, reward: 2000, minutes: 120 };
+  });
+  // The shape saved before 23e93b5 (thread + reactions vote).
+  await client.db.set(`guild:${oldGuild.id}:chat-engagement-state`, { question: { day: '2026-10-26', messageId: '1', threadId: '2', channelId: room.id }, happyHour: null, lastDeadPingAt: 0 });
+  await runWithLocale('en', () => tickChatEngagement(oldGuild, at(18) + 86_400_000, () => 0));
+  assert.equal(room.sent.length, 1, 'the new question is posted');
+  const state = await getChatState(oldGuild.id);
+  assert.ok(Number.isInteger(state.question.index));
+  assert.equal(state.question.day, '2026-10-27');
+});
