@@ -100,7 +100,7 @@ import {
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import { getLottery, potOf, updateLottery } from '../services/lottery.js';
-import { deadChatRole, getChatSettings, postDrop, postQuestion, updateChatSettings } from '../services/chatEngagement.js';
+import { CHAT_PARTS, deadChatRole, getChatSettings, postAnnouncement, postDrop, postQuestion, updateChatSettings } from '../services/chatEngagement.js';
 import { happyHourFactor } from '../services/happyHourState.js';
 import {
   DEFAULT_REACTIONS as DEFAULT_MEDIA_REACTIONS, MAX_MEDIA_CHANNELS, MAX_REACTIONS as MAX_MEDIA_REACTIONS, getMediaChannels,
@@ -1529,17 +1529,20 @@ async function applyChat(guild, body) {
   part('deadChat', { enabled: flag, minutes: range(5, 1440), roleId: (value, field) => requireRole(guild, value, field), fromHour: range(0, 23), toHour: range(0, 24), minGapMinutes: range(5, 1440) });
   part('question', { enabled: flag, hour: range(0, 23), reward: range(0, MAX_MONEY), minutes: range(5, 720) });
   part('happyHour', { enabled: flag, hour: range(0, 23), minutes: range(10, 600), percent: range(110, 500) });
+  part('announce', { enabled: flag, hour: range(0, 23), channelId: (value, field) => requireTextChannel(guild, value, field) });
   const current = await getChatSettings(guild.id);
   const drops = { ...current.drops, ...(updates.drops ?? {}) };
   if (drops.minMinutes > drops.maxMinutes) throw new ApiError(400, 'drops: minMinutes cannot be more than maxMinutes');
   await updateChatSettings(guild.id, (data) => {
     if ('channelId' in updates) data.channelId = updates.channelId;
-    for (const name of ['drops', 'deadChat', 'question', 'happyHour']) if (updates[name]) data[name] = { ...current[name], ...updates[name] };
+    for (const name of CHAT_PARTS) if (updates[name]) data[name] = { ...current[name], ...updates[name] };
   });
   const saved = await getChatSettings(guild.id);
   if ((body.dropNow === true || body.questionNow === true) && !saved.channelId) throw new ApiError(400, 'channelId: pick the chat channel first');
+  if (body.announceNow === true && !(saved.announce.channelId || saved.channelId)) throw new ApiError(400, 'announce.channelId: pick a channel first');
   if (body.dropNow === true) await postDrop(guild, saved);
   if (body.questionNow === true) await postQuestion(guild, saved);
+  if (body.announceNow === true) await postAnnouncement(guild, saved);
   return chatView(guild);
 }
 

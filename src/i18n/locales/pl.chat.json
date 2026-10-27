@@ -16,5 +16,13 @@
   "✅ {0} answered first: **{1}** · **+{2}**": "✅ {0} odpowiedział(a) pierwszy(a): **{1}** · **+{2}**",
   "**Reply to this message** with your answer (a word or a number). One answer per person, the first right one gets **{0}**.\n-# Until <t:{1}:t>": "**Odpowiedz na tę wiadomość** (słowo albo liczba). Każdy ma jedną odpowiedź, pierwsza dobra dostaje **{0}**.\n-# Do <t:{1}:t>",
   "⏰ Time is up, nobody got it. The answer: **{0}**": "⏰ Koniec czasu, nikt nie trafił. Odpowiedź: **{0}**",
-  "Answer the question of the day first 5 times.": "Odpowiedz pierwszy na pytanie dnia 5 razy."
+  "Answer the question of the day first 5 times.": "Odpowiedz pierwszy na pytanie dnia 5 razy.",
+  "🟩 **Wordle #{0}** is ready: `/wordle`, up to **{1}**": "🟩 **Wordle #{0}** już czeka: `/wordle`, do **{1}**",
+  "🎯 **New daily and weekly missions**: `/misje`": "🎯 **Nowe misje dzienne i tygodniowe**: `/misje`",
+  "🎯 **New daily missions**: `/misje`": "🎯 **Nowe misje dzienne**: `/misje`",
+  "🎁 Collect your `/daily` and keep the streak going": "🎁 Odbierz `/daily` i nie przerywaj serii",
+  "❓ **Question of the day** at **{0}:00** on <#{1}>": "❓ **Pytanie dnia** o **{0}:00** na <#{1}>",
+  "🎟️ **Lottery draw** today at **{0}:00**: `/loteria`": "🎟️ **Losowanie loterii** dziś o **{0}:00**: `/loteria`",
+  "☀️ A new week on the server": "☀️ Nowy tydzień na serwerze",
+  "☀️ A new day on the server": "☀️ Nowy dzień na serwerze"
 }

@@ -7,12 +7,15 @@
 //              person); after `minutes` without a right answer the answer is shown
 //   happyHour  every day from `hour` for `minutes`: messages give more XP (services/happyHourState.js), with an
 //              announcement on the chat that is deleted at the end
+//   announce   every day at `hour` (2026-10-27, owner: "ogloszenia ze dostepne jest wordle i daily questy"): the new
+//              Wordle, the new missions, /daily, the question time and the lottery on Sunday; yesterday's one is deleted.
+//              On `announce.channelId`, or the chat channel when none is picked.
 // All of it works on one chat channel (`channelId`). Checked every minute (features.js); messages are seen through
 // handleChatMessage() in featureMessages.js (members only, bots do not count).
 //
-// Store guild:{id}:chat-engagement = { channelId, drops, deadChat, question, happyHour } and
+// Store guild:{id}:chat-engagement = { channelId, drops, deadChat, question, happyHour, announce } and
 // guild:{id}:chat-engagement-state = { question: { day, index, messageId, channelId, closesAt, tried, answered, closed, winnerId },
-// happyHour: { day, messageId, channelId }, lastDeadPingAt }.
+// happyHour: { day, messageId, channelId }, announce: { day, messageId, channelId }, lastDeadPingAt }.
 
 import { createEmbed } from '../utils/embeds.js';
 import { guildStore } from '../utils/featureKit.js';
@@ -24,8 +27,10 @@ import { DAILY_TRIVIA, DEAD_CHAT_TOPICS, DROP_WORDS } from '../config/chatPrompt
 import { getGuildLocale } from './languageService.js';
 import { getEconomySettings, money, scaleEarnings } from './economySettings.js';
 import { withEconomyLock } from './economyUpgrades.js';
-import { recordProgress } from './progress.js';
+import { missionsEnabled, recordProgress } from './progress.js';
 import { setHappyHour } from './happyHourState.js';
+import { puzzleNumber } from './wordle.js';
+import { DRAW_HOUR } from './lottery.js';
 
 export const CHAT_DEFAULTS = Object.freeze({
   channelId: null,
@@ -33,19 +38,21 @@ export const CHAT_DEFAULTS = Object.freeze({
   deadChat: { enabled: true, minutes: 30, roleId: null, fromHour: 9, toHour: 23, minGapMinutes: 60 },
   question: { enabled: true, hour: 18, reward: 2000, minutes: 120 },
   happyHour: { enabled: true, hour: 20, minutes: 60, percent: 200 },
+  announce: { enabled: true, hour: 10, channelId: null },
 });
+export const CHAT_PARTS = Object.freeze(['drops', 'deadChat', 'question', 'happyHour', 'announce']);
 export const DROP_MS = 60_000;
 const DEAD_ROLE_RE = /dead\s*-?\s*chat|martwy\s*czat/i;
 
 const store = guildStore('chat-engagement', structuredClone(CHAT_DEFAULTS));
-const stateStore = guildStore('chat-engagement-state', { question: null, happyHour: null, lastDeadPingAt: 0 });
+const stateStore = guildStore('chat-engagement-state', { question: null, happyHour: null, announce: null, lastDeadPingAt: 0 });
 
 /** Settings with every part filled in (older stored settings miss new fields). */
 export async function getChatSettings(guildId) {
   const stored = await store.get(guildId);
   const settings = structuredClone(CHAT_DEFAULTS);
   settings.channelId = stored.channelId ?? null;
-  for (const part of ['drops', 'deadChat', 'question', 'happyHour']) Object.assign(settings[part], stored[part] ?? {});
+  for (const part of CHAT_PARTS) Object.assign(settings[part], stored[part] ?? {});
   return settings;
 }
 export const updateChatSettings = (guildId, mutate) => store.update(guildId, mutate);
@@ -360,11 +367,64 @@ async function tickHappyHour(guild, settings, now) {
   }
 }
 
+// ---------------------------------------------------------------- daily announcement
+
+/** The day's announcement embed: what is new today and what happens later. */
+export async function announcementEmbed(guild, settings, now = Date.now()) {
+  const day = dayKey(now);
+  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay(); // 0 Sunday, 1 Monday
+  const economy = await getEconomySettings(guild.id);
+  const wordleReward = scaleEarnings(economy, economy.commands.wordle.reward);
+  const lines = [
+    t`🟩 **Wordle #${puzzleNumber(day)}** is ready: \`/wordle\`, up to **${money(guild.id, wordleReward)}**`,
+    missionsEnabled(economy)
+      ? (weekday === 1 ? t('🎯 **New daily and weekly missions**: `/misje`') : t('🎯 **New daily missions**: `/misje`'))
+      : null,
+    t('🎁 Collect your `/daily` and keep the streak going'),
+    settings.question.enabled && settings.channelId
+      ? t`❓ **Question of the day** at **${settings.question.hour}:00** on <#${settings.channelId}>`
+      : null,
+    weekday === 0 ? t`🎟️ **Lottery draw** today at **${DRAW_HOUR}:00**: \`/loteria\`` : null,
+  ].filter(Boolean);
+  return createEmbed({
+    title: weekday === 1 ? t('☀️ A new week on the server') : t('☀️ A new day on the server'),
+    description: lines.join('\n'),
+    color: '#30D158',
+    footer: false,
+  });
+}
+
+/** Post today's announcement (also the panel's "announce now"); yesterday's one is deleted. Returns the message or null. */
+export async function postAnnouncement(guild, settings, now = Date.now()) {
+  const channelId = settings.announce.channelId || settings.channelId;
+  const channel = channelId ? guild.channels.cache.get(channelId) : null;
+  if (!channel?.send) return null;
+  const message = await channel.send({ embeds: [await announcementEmbed(guild, settings, now)] })
+    .catch((error) => { logger.warn(`Daily announcement not posted in guild ${guild.id}: ${error.message}`); return null; });
+  const state = await getChatState(guild.id);
+  const old = state.announce;
+  if (message && old?.messageId && old.messageId !== message.id) {
+    await guild.channels.cache.get(old.channelId)?.messages?.delete?.(old.messageId).catch(() => {});
+  }
+  await updateChatState(guild.id, (data) => {
+    data.announce = { day: dayKey(now), messageId: message?.id ?? null, channelId: message ? channel.id : null };
+  });
+  return message;
+}
+
+async function tickAnnounce(guild, settings, now) {
+  if (!settings.announce.enabled || warsawHour(now) < settings.announce.hour) return false;
+  const state = await getChatState(guild.id);
+  if (state.announce?.day === dayKey(now)) return false;
+  return Boolean(await postAnnouncement(guild, settings, now));
+}
+
 // ---------------------------------------------------------------- job
 
 export async function tickChatEngagement(guild, now = Date.now(), random = Math.random) {
   const settings = await getChatSettings(guild.id);
   await tickHappyHour(guild, settings, now);
+  await tickAnnounce(guild, settings, now);
   if (!settings.channelId) return;
   await tickDrops(guild, settings, now, random);
   await tickDeadChat(guild, settings, now, random);

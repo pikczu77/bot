@@ -614,3 +614,14 @@ change you make, so the next session knows what was done and why.
   - Missions: daily "trade on /gielda", "collect rent"; weekly club deposit, stock profit, rent. Badges: Club member, Market shark
     (50,000 stock profit), Landlord (3 buildings), Lord of the castle. Guide topic "📈 Giełda, kluby, budynki" (`GUIDE_VERSION` 4).
   - Panel API: `commands.stocks|clubs|property` through `COMMAND_LIMITS` (no new endpoint); site cards in Ekonomia > Gry.
+- **2026-10-27, later** (owner: "dodaj wiecej ogolnych pytan i ogloszenia ze dostepne jest wordle i daily questy, wiecej ogolnych
+  wordle i ogolnych pytan"; they first said the Dead Chat pings do not work, then "jednak pomin to o deadchat" - not looked into).
+  Live after the owner restarts the bot; panel card deployed:
+  - Daily announcement: new part `announce` { enabled, hour 10, channelId } of `chatEngagement.js` (`postAnnouncement`,
+    `announcementEmbed`, `tickAnnounce`): "new Wordle #N, up to <reward>", new daily missions (Monday: daily and weekly, title
+    "new week"), `/daily`, the question-of-the-day hour, on Sunday the lottery draw. Posted on `announce.channelId` or the chat
+    channel; yesterday's announcement is deleted. State `announce: { day, messageId, channelId }`. Panel: card "Ogłoszenie dnia"
+    in Aktywność czatu (`announce` in PATCH, `announceNow`). On by default (owner asked for it), 10:00 is my pick.
+  - Question of the day: 95 more general questions (`DAILY_TRIVIA` 68 -> 163). Quiz: 67 more general questions (123 -> 190).
+  - Wordle: 161 more everyday words (243 -> 404), appended. `LIST_SIZES` in `services/wordle.js` keeps days before 2026-10-28 on the
+    first 243 words, so today's word does not change when the bot restarts mid-day. New words only at the end + a new LIST_SIZES line.

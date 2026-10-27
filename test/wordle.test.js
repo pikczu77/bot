@@ -48,9 +48,14 @@ test('colours: right place, elsewhere, missing; repeated letters count once per 
 });
 
 test('a new word every Warsaw day, different on another server, no repeat for the whole list', () => {
-  const days = Array.from({ length: WORDLE_WORDS.length }, (_, index) => dayKey(Date.UTC(2026, 9, 26, 12) + index * 86_400_000));
+  const days = Array.from({ length: WORDLE_WORDS.length }, (_, index) => dayKey(Date.UTC(2026, 9, 28, 12) + index * 86_400_000));
   const words = days.map((day) => wordOfDay(guild.id, day));
   assert.equal(new Set(words).size, WORDLE_WORDS.length);
+  // Days before the list grew keep their words (the first 243, the same walk as before).
+  const first = WORDLE_WORDS.slice(0, 243);
+  const salt = [...String(guild.id)].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 1_000_003, 0);
+  assert.equal(wordOfDay(guild.id, '2026-10-27'), first[(97 + salt) % 243]);
+  assert.equal(wordOfDay(guild.id, '2026-10-26'), first[salt % 243]);
   assert.equal(puzzleNumber('2026-10-26'), 1);
   assert.equal(puzzleNumber('2026-10-27'), 2);
   const other = days.slice(0, 10).map((day) => wordOfDay('999999999999999999', day));

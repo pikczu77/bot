@@ -18,7 +18,14 @@ export const GUESS_RE = /^[a-ząćęłńóśźż]{5}$/u;
 const EPOCH = '2026-10-26';
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 // A step that shares no factor with the list length walks through every word before one repeats.
-const STEP = [97, 89, 83, 79, 73, 71, 67].find((prime) => gcd(prime, WORDLE_WORDS.length) === 1) ?? 1;
+const stepFor = (size) => [97, 89, 83, 79, 73, 71, 67].find((prime) => gcd(prime, size) === 1) ?? 1;
+// How many words of the list each day may use: the list grew on 2026-10-28, earlier days keep the first 243,
+// so the word of a day never changes when the bot restarts in the middle of it.
+export const LIST_SIZES = Object.freeze([
+  { from: EPOCH, size: 243 },
+  { from: '2026-10-28', size: WORDLE_WORDS.length },
+]);
+const listSizeOn = (day) => LIST_SIZES.filter((entry) => entry.from <= day).at(-1)?.size ?? WORDLE_WORDS.length;
 
 function guildSalt(guildId) {
   let hash = 0;
@@ -31,7 +38,8 @@ export function puzzleNumber(day) {
   return daysBetween(EPOCH, day) + 1;
 }
 export function wordOfDay(guildId, day) {
-  const index = ((daysBetween(EPOCH, day) * STEP + guildSalt(guildId)) % WORDLE_WORDS.length + WORDLE_WORDS.length) % WORDLE_WORDS.length;
+  const size = listSizeOn(day);
+  const index = ((daysBetween(EPOCH, day) * stepFor(size) + guildSalt(guildId)) % size + size) % size;
   return WORDLE_WORDS[index];
 }
 

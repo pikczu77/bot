@@ -12,6 +12,7 @@ import { updateEconomySettings } from '../src/services/economySettings.js';
 import {
   chatLive, foldAnswer, getChatState, handleChatMessage, happyHourWindow, isRightAnswer, postDrop, tickChatEngagement, updateChatSettings,
 } from '../src/services/chatEngagement.js';
+import { puzzleNumber } from '../src/services/wordle.js';
 import { DAILY_TRIVIA } from '../src/config/chatPrompts.js';
 import { happyHourFactor } from '../src/services/happyHourState.js';
 import { applyXpMultipliers } from '../src/services/leveling/leveling.js';
@@ -45,7 +46,8 @@ before(async () => {
   };
   deadRole = mockRole(guild, 'Dead Chat');
   await updateEconomySettings(guild.id, (settings) => { settings.currency = { symbol: '$', position: 'left', separator: ',' }; });
-  await updateChatSettings(guild.id, (settings) => { settings.channelId = chat.id; });
+  // The daily announcement has its own test at the end; the others count the messages on the chat.
+  await updateChatSettings(guild.id, (settings) => { settings.channelId = chat.id; settings.announce = { enabled: false }; });
 });
 
 function say(member, content, now) {
@@ -230,6 +232,12 @@ test('panel: chat channel and the four parts, drop now; the Dead Chat role is fo
     assert.equal(chat.sent.length, before + 1);
     assert.equal((await call('PATCH', `/guilds/${guild.id}/chat`, { drops: { minMinutes: 90, maxMinutes: 30 } })).status, 400);
     assert.equal((await call('PATCH', `/guilds/${guild.id}/chat`, { happyHour: { percent: 1000 } })).status, 400);
+    // Daily announcement (2026-10-27): hour and channel; "announce now" posts on the chat when no channel is picked.
+    const announce = await call('PATCH', `/guilds/${guild.id}/chat`, { announce: { enabled: false, hour: 9, channelId: null }, announceNow: true });
+    assert.equal(announce.status, 200, announce.text);
+    assert.deepEqual(announce.json.announce, { enabled: false, hour: 9, channelId: null });
+    assert.match(chat.sent.at(-1).embeds[0].toJSON().title, /Nowy (dzień|tydzień)/, 'the panel API runs in the server language');
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/chat`, { announce: { channelId: '123' } })).status, 400);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -244,7 +252,7 @@ test('a question saved by the old version (no index) does not break the next que
   await updateChatSettings(oldGuild.id, (settings) => {
     settings.channelId = room.id;
     settings.drops = { enabled: false }; settings.deadChat = { enabled: false }; settings.happyHour = { enabled: false };
-    settings.question = { enabled: true, hour: 18, reward: 2000, minutes: 120 };
+    settings.question = { enabled: true, hour: 18, reward: 2000, minutes: 120 }; settings.announce = { enabled: false };
   });
   // The shape saved before 23e93b5 (thread + reactions vote).
   await client.db.set(`guild:${oldGuild.id}:chat-engagement-state`, { question: { day: '2026-10-26', messageId: '1', threadId: '2', channelId: room.id }, happyHour: null, lastDeadPingAt: 0 });
@@ -253,4 +261,43 @@ test('a question saved by the old version (no index) does not break the next que
   const state = await getChatState(oldGuild.id);
   assert.ok(Number.isInteger(state.question.index));
   assert.equal(state.question.day, '2026-10-27');
+});
+
+test('daily announcement at 10:00: new Wordle and missions, once a day, yesterday\'s one is deleted', async () => {
+  const room = mockGuild(client, 'Ogloszenia');
+  room.client = client;
+  const main = mockChannel(room, 'chat');
+  const news = mockChannel(room, 'ogloszenia');
+  const deleted = [];
+  news.messages.delete = async (id) => { deleted.push(id); };
+  await updateEconomySettings(room.id, (settings) => { settings.currency = { symbol: '$', position: 'left', separator: ',' }; settings.commands.wordle.reward = 3000; });
+  await updateChatSettings(room.id, (settings) => {
+    settings.channelId = main.id;
+    settings.drops = { enabled: false }; settings.deadChat = { enabled: false }; settings.happyHour = { enabled: false };
+    settings.question = { enabled: true, hour: 18 };
+    settings.announce = { enabled: true, hour: 10, channelId: news.id };
+  });
+  await runWithLocale('en', () => tickChatEngagement(room, at(9, 59), () => 0));
+  assert.equal(news.sent.length, 0, 'not before 10:00');
+  await runWithLocale('en', () => tickChatEngagement(room, at(10, 0), () => 0));
+  assert.equal(news.sent.length, 1);
+  const monday = news.sent[0].embeds[0].toJSON();
+  assert.match(monday.title, /new week/, '26 Oct 2026 is a Monday');
+  assert.match(monday.description, new RegExp(`Wordle #${puzzleNumber('2026-10-26')}.*\\$3,000`));
+  assert.match(monday.description, /New daily and weekly missions/);
+  assert.match(monday.description, new RegExp(`Question of the day.*18:00.*<#${main.id}>`));
+  assert.equal(main.sent.length, 0, 'the picked channel, not the chat');
+  await runWithLocale('en', () => tickChatEngagement(room, at(15, 0), () => 0));
+  assert.equal(news.sent.length, 1, 'once a day');
+
+  await runWithLocale('en', () => tickChatEngagement(room, at(10, 5) + 86_400_000, () => 0));
+  assert.equal(news.sent.length, 2);
+  const tuesday = news.sent[1].embeds[0].toJSON();
+  assert.match(tuesday.title, /new day/);
+  assert.match(tuesday.description, /New daily missions/);
+  assert.doesNotMatch(tuesday.description, /weekly/);
+  assert.deepEqual(deleted, [news.sent[0].id], 'yesterday\'s announcement is gone');
+  const sunday = at(10, 0) + 6 * 86_400_000;
+  await runWithLocale('en', () => tickChatEngagement(room, sunday, () => 0));
+  assert.match(news.sent[2].embeds[0].toJSON().description, /Lottery draw.*20:00/);
 });
