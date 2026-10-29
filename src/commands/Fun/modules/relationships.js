@@ -28,6 +28,7 @@ import {
     rollDate,
     withDateLock,
 } from '../../../services/marriageService.js';
+import { seasonDateReward } from '../../../services/seasonalEvents.js';
 import { loveScore } from '../ship.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -109,17 +110,20 @@ export function settleDate(client, guildId, inviterId, targetId, place, { random
         const married = (await getSpouseId(guildId, inviterId)) === targetId;
         const roll = rollDate({ shipScore: loveScore(inviterId, targetId), place, married, random });
         const pair = await recordDate(guildId, inviterId, targetId, { score: roll.score, hearts: roll.tier.hearts }, now);
-        return { ok: true, roll, pair, married };
+        // Valentine's Day (services/seasonalEvents.js): love letters for both.
+        const seasonal = await seasonDateReward(client, guildId, [inviterId, targetId], married, now);
+        return { ok: true, roll, pair, married, seasonal };
     });
 }
 
-function dateResultEmbed(guildId, { inviterId, targetId, place, roll, pair, married }) {
+function dateResultEmbed(guildId, { inviterId, targetId, place, roll, pair, married, seasonal = [] }) {
     const bar = formatProgressBar(roll.score, 100, 12).replace(/ \d+%$/, '');
     const fields = [
         { name: t('Hearts'), value: t`+${roll.tier.hearts} (now ${pair.hearts})`, inline: true },
         { name: t('Relationship'), value: levelLine(pair.hearts), inline: true },
     ];
     if (place.price > 0) fields.push({ name: t('Paid'), value: `${mention(inviterId)} · ${money(guildId, place.price)}`, inline: true });
+    for (const { event, amount } of seasonal) fields.push({ name: event.texts.name(), value: t`+${amount} ${event.currency} each`, inline: true });
 
     const footer = [t`Dates together: ${pair.dates}`, t`next date in ${formatDuration(DATE_COOLDOWN_MS)}`];
     if (married) footer.push(t`💍 marriage bonus +${MARRIED_DATE_BONUS}`);

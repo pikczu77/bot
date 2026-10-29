@@ -78,7 +78,7 @@ function eventFolder({ season, userData, ownerId }) {
   return {
     fields,
     buttons,
-    intro: t`${event.emoji} Event upgrades: you pay with ${event.currency}, they work until the event ends. You have **${amount} ${event.currency}** (\`/${event.daily}\` every day).`,
+    intro: t`${event.emoji} Event upgrades: you pay with ${event.currency}, they work until the event ends. You have **${amount} ${event.currency}** (\`/event zbierz\` every day).`,
   };
 }
 

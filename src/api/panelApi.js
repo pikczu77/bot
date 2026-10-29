@@ -467,14 +467,19 @@ function seasonView(event, settings) {
     name: event.texts.name(),
     emoji: event.emoji,
     currency: event.currency,
-    command: event.command,
+    // One command for every event since 2026-10-29 (/event); the panel shows "/" + command and "/" + daily.
+    command: 'event',
     color: event.color,
     enabled: settings.enabled,
     perMessage: settings.perMessage,
     cooldownSeconds: settings.cooldownSeconds,
     dropCandies: settings.dropCandies,
     dailyAmount: settings.dailyAmount,
-    daily: event.daily,
+    daily: 'event zbierz',
+    jobMin: settings.jobMin,
+    jobMax: settings.jobMax,
+    gameCandies: settings.gameCandies,
+    rankPrice: event.rankPrice ?? 3000,
     roleId: settings.roleId ?? null,
     roleName: event.roleName,
     channelId: settings.channelId ?? null,
@@ -510,6 +515,10 @@ function seasonPatch(guild, event, body, field) {
   if ('cooldownSeconds' in value) patch.cooldownSeconds = integer(value.cooldownSeconds, `${field}.cooldownSeconds`, 5, 600);
   if ('dropCandies' in value) patch.dropCandies = integer(value.dropCandies, `${field}.dropCandies`, 0, 1000);
   if ('dailyAmount' in value) patch.dailyAmount = integer(value.dailyAmount, `${field}.dailyAmount`, 0, 10_000);
+  if ('jobMin' in value) patch.jobMin = integer(value.jobMin, `${field}.jobMin`, 0, 1000);
+  if ('jobMax' in value) patch.jobMax = integer(value.jobMax, `${field}.jobMax`, 0, 1000);
+  if ('jobMin' in patch && 'jobMax' in patch && patch.jobMin > patch.jobMax) throw new ApiError(400, `${field}: jobMin is above jobMax`);
+  if ('gameCandies' in value) patch.gameCandies = integer(value.gameCandies, `${field}.gameCandies`, 0, 10_000);
   if ('roleId' in value) patch.roleId = requireRole(guild, value.roleId, `${field}.roleId`);
   if ('channelId' in value) patch.channelId = requireTextChannel(guild, value.channelId, `${field}.channelId`);
   const day = (key) => {

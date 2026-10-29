@@ -94,16 +94,24 @@ change you make, so the next session knows what was done and why.
 - `/polacz karta [ile]` (since 2026-10-29): `src/services/cardMerge.js`, 5 copies (same version) -> 1 random card of the next
   rarity in the same version; legendary cannot. Event `merges`.
 - Holiday events (since 2026-10-29): `src/services/seasonalEvents.js`, `SEASONAL_EVENTS` = Halloween 2026 (🍬, 29.10-2.11),
-  Christmas 2026 (`swieta`, 🍪, 19.12-1.01), Easter 2027 (`wielkanoc`, 🥚, 25-29.03.2027). Each: store `guild:{id}:<id>` (same shape as
-  the first Halloween store, `totals` for the ranking, `dailyAmount`), member data `<id> = { year, candies, earned, upgrades, lastDaily }`
-  (the field is `candies` for every event), commands built by `modules/season_command.js`: `/halloween|swieta|wielkanoc
-  sklep|kup|ranking` and the daily `/cukierki|pierniczki|pisanki`. Currency for messages in `handleSeasonMessage` (featureMessages.js,
-  before the chat handler) and for drops (`catchDrop` -> `seasonDropBonus`), job `seasonal_events` (announcement, end). Event upgrades
-  `SEASON_UPGRADES` (bag, daily, drops, lucky) bought with the currency in `/ulepszenia` folder `event` (`openSeason`, buttons
-  `ulepszenia:event:<owner>:<id>`). Panel: `seasonal` list in the economy view, PATCH `seasonal.<id>` (and `halloween` = seasonal.halloween).
+  Christmas 2026 (`swieta`, 🍪, 19-29.12), New Year's Eve 2026 (`sylwester`, 🎆, 30.12-2.01), Valentine's Day 2027 (`walentynki`, 💌,
+  12-16.02), Easter 2027 (`wielkanoc`, 🥚, 25-29.03), Children's Day 2027 (`dzien_dziecka`, 🍭, 29.05-2.06), summer holidays 2027
+  (`wakacje`, 🐚, 26.06-31.08, rank 10,000). Each: store `guild:{id}:<id>` (same shape as the first Halloween store, `totals` for the
+  ranking, `dailyAmount`, `jobMin`/`jobMax`, `gameCandies`, `rev`), member data `<id> = { year, candies, earned, upgrades, lastDaily }`
+  (the field is `candies` for every event). One command for all: `commands/Economy/event.js`, `/event sklep|kup|zbierz|ranking|lista`
+  (`sklep`, `kup`, `ranking` take an optional `event`; without it the running event, else the one in its extra shop day; prefix
+  `!halloween|swieta|wielkanoc` = `!event`). Currency for messages in `handleSeasonMessage` (featureMessages.js, before the chat
+  handler), for drops (`catchDrop` -> `seasonDropBonus`), for jobs and chat games (`addSeasonReward(guildId, userData, 'job'|'game'|
+  'question')` inside the member's lock, then `noteSeasonGifts` after the save, `seasonGiftText` for the reply; called by work_shift,
+  fish, mine, beg, slut, crime on success, quiz, wordle, question of the day), for an accepted `/randka` on Valentine's Day
+  (`seasonDateReward`, `dateReward`; `marriedDailyPercent` on the daily). Job `seasonal_events` (announcement, its one-time edit when
+  `announcement.rev` < `SEASON_REV`, end). Old stored settings are fixed when read (`migrate`). Event upgrades `SEASON_UPGRADES` (bag,
+  daily, drops, lucky) bought with the currency in `/ulepszenia` folder `event` (`openSeason`, buttons `ulepszenia:event:<owner>:<id>`).
+  Panel: `seasonal` list in the economy view, PATCH `seasonal.<id>` (and `halloween` = seasonal.halloween).
   A new year/holiday = a new entry in `SEASONAL_EVENTS` (+ texts in `pl.halloween.json`, a badge in progress.js).
 - Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`,
-  `test/market.test.js` (stocks, clubs, buildings, open trade offers), `test/halloween.test.js` (event, boosts, prestige, merging).
+  `test/market.test.js` (stocks, clubs, buildings, open trade offers), `test/halloween.test.js` (event, boosts, prestige, merging),
+  `test/seasonal-events.test.js` (the later events, /event, jobs and chat games, Valentine's dates, old settings).
 
 ## Economy rules the owner set (keep them)
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
@@ -681,3 +689,20 @@ change you make, so the next session knows what was done and why.
   - Announcements got the daily command and the upgrades ({dziennie} variable). Panel: module Eventy has a tab per event (first and
     last day, per message, break, drop, daily, channel, rank, announcement editor + preview) and "Na czas"; an older bot (only
     `halloween`) still gets one Halloween tab.
+- **2026-10-29, late evening** (another Claude session started "12,13" from my idea list - more events and one command - and
+  stopped with only `seasonalEvents.js` changed and broken (line breaks inside strings, `/event` not written); the owner then wrote
+  "dokoncz co zaczal poprzedni claude, dodatkowo zrob zeby w czasie halloween te czatowe gierki byly za cukierki, tam 50 cukierkow itp
+  zeby te 3000 sie zbieralo latwiej ..., dodatkowo do kazdej pracy dolicz po 5-10"). Live after the owner restarts the bot; panel
+  fields deployed with the site. 90 commands (was 95). Details in "Economy map":
+  - Finished the first session's plan: New Year's Eve 2026 (30.12-2.01; Christmas now ends 29.12), Valentine's Day 2027 (12-16.02,
+    an accepted `/randka` gives both 30 love letters, x2 for a married couple; married members get x2 from the daily), Children's Day
+    2027, summer holidays 2027 (rank 10,000). Their texts, ranks, badges (summer: 5,000) and dates are that session's and mine.
+  - `/event sklep|kup|zbierz|ranking|lista` replaces `/halloween`, `/swieta`, `/wielkanoc`, `/cukierki`, `/pierniczki`, `/pisanki`.
+    The shop now lists how to collect. A running event comes before the extra shop day of the one before (`openSeason`).
+  - Owner's request: every job (`/work`, `/fish`, `/nagraj`, `/beg`, `/slut`, a successful `/crime`) gives 5-10 of the event currency
+    per use; a won `/quiz` question or a solved `/wordle` gives 50, the question of the day 100 (my x2, it is once a day); the chat drop
+    50 (was 30). Panel fields "Za pracę od / do" and "Za wygraną gierkę" (shown only when the bot returns `jobMin` / `gameCandies`).
+    Event upgrades do not change these (my decision). A failed `/beg`, `/slut` or `/crime` gives nothing (my reading of "pracy").
+  - Stored settings from before: a drop of exactly 30 becomes 50, a Christmas end of 2 January becomes 30 December; the Halloween
+    announcement already posted on the live server is edited once at the next start, so it names `/event` and the new ways to collect.
+  - Guide: `/event` in the prestige topic and the command lists (`GUIDE_VERSION` 6).

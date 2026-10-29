@@ -20,6 +20,7 @@ import { getGuildLocale } from './languageService.js';
 import { getEconomySettings, money, scaleEarnings } from './economySettings.js';
 import { withEconomyLock } from './economyUpgrades.js';
 import { progressEmbeds, recordProgress } from './progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from './seasonalEvents.js';
 
 export const QUESTION_MS = 45_000;
 const RECENT_LIMIT = 60;
@@ -144,16 +145,20 @@ export async function answerQuestion({ client, guild, user, questionId, position
     question.paid = prize;
     userData.wallet = (Number(userData.wallet) || 0) + prize;
     const result = recordProgress(userData, { quiz: 1 }, { settings });
+    // Holiday events: a won question also gives the event currency (services/seasonalEvents.js).
+    question.gifts = await addSeasonReward(guild.id, userData, 'game');
     await setEconomyData(client, guild.id, user.id, userData);
+    await noteSeasonGifts(guild.id, user.id, question.gifts);
     return result;
   });
   const right = `${LETTERS[question.correct]}) ${question.order[question.correct]}`;
+  const gifts = question.gifts?.length ? ` · ${seasonGiftText(question.gifts)}` : '';
   return {
     update: {
       embeds: [
         questionEmbed(guild.id, question, {
           color: '#30D158',
-          extra: t`✅ **${user.username}** was first: **${right}** · **+${money(guild.id, question.paid)}**`,
+          extra: t`✅ **${user.username}** was first: **${right}** · **+${money(guild.id, question.paid)}**` + gifts,
           footer: t`Answers: ${question.tried.size}`,
         }),
         ...progressEmbeds(progress, guild.id),

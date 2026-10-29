@@ -14,6 +14,7 @@ import { bestInChain } from '../../../config/shop/items.js';
 import { itemLabel } from './buy.js';
 import { againComponents } from './again_button.js';
 import { progressEmbeds, recordProgress } from '../../../services/progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from '../../../services/seasonalEvents.js';
 import { t, tr } from '../../../i18n/index.js';
 
 /** What one shift pays on top of the job's base pay: best work tool × Career. scaleEarnings adds the server multiplier and Fortune. */
@@ -124,6 +125,13 @@ function shiftView({ guildId, userData, user, job, result, notice = '' }) {
     };
 }
 
+/** A holiday event's currency for the shift (services/seasonalEvents.js), shown under the pay. */
+async function seasonShiftGifts(guildId, userData, result) {
+    const gifts = await addSeasonReward(guildId, userData, 'job');
+    if (gifts.length) result.extras += `\n${seasonGiftText(gifts)}`;
+    return gifts;
+}
+
 /** /work: offers when the member has no job, otherwise one shift. Returns the reply payload. */
 export function runWork({ client, guildId, user }) {
     return withEconomyLock(guildId, user.id, async () => {
@@ -140,7 +148,9 @@ export function runWork({ client, guildId, user }) {
         }
 
         const result = workShift({ settings, userData, job, guildId });
+        const gifts = await seasonShiftGifts(guildId, userData, result);
         await setEconomyData(client, guildId, user.id, userData);
+        await noteSeasonGifts(guildId, user.id, gifts);
         logger.info('[ECONOMY_TRANSACTION] Work completed', { userId: user.id, guildId, amount: result.earned, job: job.id, newWallet: userData.wallet });
         return shiftView({ guildId, userData, user, job, result });
     });
@@ -161,7 +171,9 @@ export function chooseJob({ client, guildId, user, jobId }) {
         const hired = t`✅ You took the job **${job.emoji} ${tr(job.name)}** for ${JOB_SHIFTS} shifts.`;
         try {
             const result = workShift({ settings, userData, job, guildId });
+            const gifts = await seasonShiftGifts(guildId, userData, result);
             await setEconomyData(client, guildId, user.id, userData);
+            await noteSeasonGifts(guildId, user.id, gifts);
             return shiftView({ guildId, userData, user, job, result, notice: hired });
         } catch (error) {
             if (!['work', 'jail'].includes(error?.context?.cooldownType)) throw error;

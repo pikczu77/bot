@@ -12,6 +12,10 @@ export const commandAliases = {
     'mine': 'nagraj',
     'yt': 'nagraj',
     'youtube': 'nagraj',
+    // The holiday event commands became /event on 2026-10-29 (`!halloween sklep` = `/event sklep`).
+    'halloween': 'event',
+    'swieta': 'event',
+    'wielkanoc': 'event',
 
     'dep': 'deposit',
     'with': 'withdraw',

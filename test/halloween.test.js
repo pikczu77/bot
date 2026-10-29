@@ -168,11 +168,14 @@ test('panel: Halloween settings in the economy module, last day moves the end', 
   try {
     const view = (await call('GET', `/guilds/${guild.id}`)).json.modules.economy;
     const season = (json, id = 'halloween') => json.seasonal.find((entry) => entry.id === id);
-    assert.deepEqual(view.seasonal.map((entry) => entry.id), ['halloween', 'swieta', 'wielkanoc']);
+    assert.deepEqual(view.seasonal.map((entry) => entry.id), ['halloween', 'swieta', 'sylwester', 'walentynki', 'wielkanoc', 'dzien_dziecka', 'wakacje']);
     assert.equal(season(view).lastDay, '2026-11-02');
     assert.equal(season(view).firstDay, '2026-10-29');
     assert.equal(season(view).roleName, ROLE_NAME);
-    assert.equal(season(view, 'swieta').lastDay, '2027-01-01');
+    assert.equal(season(view, 'swieta').lastDay, '2026-12-29', "New Year's Eve has its own event");
+    assert.equal(season(view, 'sylwester').firstDay, '2026-12-30');
+    assert.equal(season(view).command, 'event');
+    assert.deepEqual([season(view).jobMin, season(view).jobMax, season(view).gameCandies, season(view).dropCandies], [5, 10, 50, 50]);
     assert.equal(season(view, 'wielkanoc').firstDay, '2027-03-25');
     assert.equal(view.commands.boosts.moneyHourPrice, 10_000);
     const saved = await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { perMessage: 8, lastDay: '2026-11-05' }, commands: { boosts: { xpHourPrice: 3000 } } });
@@ -184,7 +187,11 @@ test('panel: Halloween settings in the economy module, last day moves the end', 
     assert.equal(season(easter.json, 'wielkanoc').firstDay, '2027-03-27');
     assert.equal(season(easter.json, 'wielkanoc').enabled, false);
     assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { seasonal: { wielkanoc: { firstDay: '2027-03-30', lastDay: '2027-03-27' } } })).status, 400);
-    assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { seasonal: { sylwester: { enabled: true } } })).status, 400);
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { seasonal: { sylwester: { lastDay: '2027-02-01' } } })).status, 400);
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { seasonal: { nieznany: { enabled: true } } })).status, 400);
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { jobMin: 20, jobMax: 10 } })).status, 400);
+    const jobs = await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { jobMin: 3, jobMax: 12, gameCandies: 80 } });
+    assert.deepEqual([season(jobs.json).jobMin, season(jobs.json).jobMax, season(jobs.json).gameCandies], [3, 12, 80]);
     assert.equal(saved.json.commands.boosts.xpHourPrice, 3000);
     assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { lastDay: '2027-01-01' } })).status, 400);
 
@@ -210,12 +217,12 @@ test('panel: Halloween settings in the economy module, last day moves the end', 
   } finally {
     await new Promise((resolve) => server.close(resolve));
     const { startsAt, endsAt } = seasonDefaults(HALLOWEEN);
-    await updateHalloween(guild.id, (settings) => { Object.assign(settings, { perMessage: 5, enabled: true, announcement: null, title: null, text: null, startsAt, endsAt }); });
+    await updateHalloween(guild.id, (settings) => { Object.assign(settings, { perMessage: 5, enabled: true, announcement: null, title: null, text: null, startsAt, endsAt, jobMin: 5, jobMax: 10, gameCandies: 50 }); });
     await updateSeason(getSeasonEvent('wielkanoc'), guild.id, (settings) => { settings.enabled = true; });
   }
 });
 
-test('Christmas and Easter: their own days, currency, shop and rank; /swieta and /wielkanoc', async () => {
+test('Christmas and Easter: their own days, currency, shop and rank; /event sklep event:swieta|wielkanoc', async () => {
   const CHRISTMAS = getSeasonEvent('swieta');
   const EASTER = getSeasonEvent('wielkanoc');
   const elf = newMember('Elf');
@@ -235,11 +242,12 @@ test('Christmas and Easter: their own days, currency, shop and rank; /swieta and
   assert.ok([...guild.roles.cache.values()].some((role) => role.name === 'Święta 2026' && elf.roles.cache.has(role.id)));
   await assert.rejects(buySeasonItem({ event: EASTER, client, guild, member: elf, itemId: 'xp1', userError, now: christmasEve }), /closed/);
 
-  const shop = await run(elf, 'swieta', 'sklep');
+  const shop = await run(elf, 'event', 'sklep', { event: 'swieta' });
   assert.match(shop.text, /Christmas shop/);
   assert.match(shop.text, /🍪/);
-  assert.match((await run(elf, 'wielkanoc', 'sklep')).text, /Easter shop/);
-  assert.ok(client.commands.get('halloween'));
+  assert.match((await run(elf, 'event', 'sklep', { event: 'wielkanoc' })).text, /Easter shop/);
+  assert.ok(client.commands.get('event'));
+  assert.equal(client.commands.get('halloween'), undefined, 'one /event command since 2026-10-29');
 });
 
 test('daily collection and event upgrades: once a day, the bag adds to every message, /ulepszenia shows the event folder', async () => {

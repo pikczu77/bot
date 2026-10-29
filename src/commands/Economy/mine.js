@@ -11,6 +11,7 @@ import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain, takeConsumable, usesInARow } from '../../config/shop/items.js';
 import { againComponents } from './modules/again_button.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from '../../services/seasonalEvents.js';
 import { eventLine, eventLuck, eventPackPrice, eventPayFactor, eventVariantBoost } from '../../services/economyEvents.js';
 
 // /nagraj — the YouTuber job (was /mine until 2026-10-15; the internal id stays "mine":
@@ -134,6 +135,8 @@ export function runRecord({ client, guild, user }) {
             finalEarned = scaleEarnings(settings, finalEarned, userData);
             multiplierMessage += earningsLine(settings, userData) + eventLine(settings, 'mine', now);
             if (usedEnergyDrink) multiplierMessage += t`\n🥤 **Energy Drink** used - no break this time.`;
+            const gifts = await addSeasonReward(guildId, userData, 'job', { now });
+            if (gifts.length) multiplierMessage += `\n${seasonGiftText(gifts)}`;
 
             userData.wallet += finalEarned;
             const progress = recordProgress(userData, {
@@ -144,6 +147,7 @@ export function runRecord({ client, guild, user }) {
             }, { settings, now });
 
             await setEconomyData(client, guildId, userId, userData);
+            await noteSeasonGifts(guildId, userId, gifts);
 
             const embed = createEmbed({
                 title: t('🎬 Video published!'),

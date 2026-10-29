@@ -9,6 +9,7 @@ import { getEconomyData, setEconomyData } from '../../../utils/economy.js';
 import { getEconomySettings, money, scaleEarnings } from '../../../services/economySettings.js';
 import { withEconomyLock } from '../../../services/economyUpgrades.js';
 import { progressEmbeds, recordProgress } from '../../../services/progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from '../../../services/seasonalEvents.js';
 import { nextMidnight } from '../../../utils/warsawTime.js';
 import {
   MAX_GUESSES, REWARD_FACTORS, WORD_LENGTH, playGuess, puzzleNumber, scoreGuess, squares, todaysGame, wordOfDay,
@@ -134,10 +135,13 @@ export function submitGuess({ client, guildId, user, text }) {
         wordleStreak: result.game.streak,
       }, { settings });
     }
+    // Holiday events: a solved word also gives the event currency (services/seasonalEvents.js).
+    const gifts = result.solved ? await addSeasonReward(guildId, userData, 'game') : [];
     await setEconomyData(client, guildId, user.id, userData);
+    await noteSeasonGifts(guildId, user.id, gifts);
 
     const notice = result.solved
-      ? t`🎉 **${upper(result.answer)}**! You get **${money(guildId, result.reward)}**.`
+      ? t`🎉 **${upper(result.answer)}**! You get **${money(guildId, result.reward)}**.` + (gifts.length ? ` ${seasonGiftText(gifts)}` : '')
       : result.finished ? t('No more guesses for today.') : '';
     const board = buildBoard({ guildId, settings, game: result.game, notice, ownerId: user.id });
     board.embeds.push(...progressEmbeds(progress, guildId));

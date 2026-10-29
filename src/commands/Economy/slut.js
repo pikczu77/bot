@@ -5,6 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from '../../services/seasonalEvents.js';
 import { t } from '../../i18n/index.js';
 import { cooldownMs, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown } from '../../services/economyUpgrades.js';
@@ -164,8 +165,10 @@ export default {
 
             userData.wallet = Math.max(0, (userData.wallet || 0) + outcome.delta);
             const progress = recordProgress(userData, { slut: 1, earned: Math.max(0, outcome.delta) }, { settings: economySettings, now });
+            const gifts = outcome.type === 'payout' ? await addSeasonReward(guildId, userData, 'job', { now }) : [];
 
             await setEconomyData(client, guildId, userId, userData);
+            await noteSeasonGifts(guildId, userId, gifts);
 
             logger.info(`[ECONOMY_TRANSACTION] Slut activity resolved`, {
                 userId,
@@ -184,7 +187,8 @@ export default {
                 t`💳 **Current Balance:** ${money(guildId, userData.wallet)}`,
                 t`📊 **Total Sessions:** ${userData.totalSluts}`,
                 t`💵 **Total Earned:** ${money(guildId, (userData.totalSlutEarnings || 0))}`,
-                t`🧾 **Total Lost:** ${money(guildId, (userData.totalSlutLosses || 0))}`
+                t`🧾 **Total Lost:** ${money(guildId, (userData.totalSlutLosses || 0))}`,
+                ...(gifts.length ? [seasonGiftText(gifts)] : []),
             ];
 
             const embed = createEmbed({

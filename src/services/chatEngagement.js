@@ -31,7 +31,7 @@ import { missionsEnabled, recordProgress } from './progress.js';
 import { setHappyHour } from './happyHourState.js';
 import { puzzleNumber } from './wordle.js';
 import { DRAW_HOUR } from './lottery.js';
-import { giveSeasonCurrency, seasonDropBonus } from './seasonalEvents.js';
+import { addSeasonReward, giveSeasonCurrency, noteSeasonGifts, seasonDropBonus, seasonGiftText } from './seasonalEvents.js';
 
 export const CHAT_DEFAULTS = Object.freeze({
   channelId: null,
@@ -265,12 +265,16 @@ async function answerQuestion(message, settings, sentAt) {
       return true;
     }
     const economy = await getEconomySettings(guild.id);
+    let gifts = [];
     const prize = await withEconomyLock(guild.id, message.author.id, async () => {
       const userData = await getEconomyData(message.client, guild.id, message.author.id);
       const amount = scaleEarnings(economy, settings.question.reward, userData);
       userData.wallet = (Number(userData.wallet) || 0) + amount;
       recordProgress(userData, { questionWin: 1 }, { settings: economy });
+      // Holiday events: the question of the day gives twice a chat game's currency (services/seasonalEvents.js).
+      gifts = await addSeasonReward(guild.id, userData, 'question', { now: message.createdTimestamp ?? Date.now() });
       await setEconomyData(message.client, guild.id, message.author.id, userData);
+      await noteSeasonGifts(guild.id, message.author.id, gifts);
       return amount;
     });
     message.react('✅').catch(() => {});
@@ -279,7 +283,8 @@ async function answerQuestion(message, settings, sentAt) {
       embeds: [questionEmbed(guild, question, settings, {
         solved: true,
         color: '#30D158',
-        note: t`✅ ${message.author} answered first: **${message.content.trim().slice(0, 100)}** · **+${money(guild.id, prize)}**`,
+        note: t`✅ ${message.author} answered first: **${message.content.trim().slice(0, 100)}** · **+${money(guild.id, prize)}**`
+          + (gifts.length ? ` · ${seasonGiftText(gifts)}` : ''),
       })],
     }).catch(() => {});
     return true;

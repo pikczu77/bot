@@ -4,6 +4,7 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from '../../services/seasonalEvents.js';
 import { cooldownMs, earningsLine, getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import { earningMultiplier, staminaCooldown, upgradeBonusLine } from '../../services/economyUpgrades.js';
 import { assertNotJailed, bailOffer } from '../../services/economyJail.js';
@@ -90,13 +91,16 @@ export default {
             if (isSuccess) {
                 userData.wallet = (userData.wallet || 0) + amountEarned;
                 const progress = recordProgress(userData, { crime: 1, crimeWin: 1, earned: amountEarned }, { settings: economySettings, now });
-                
+                const gifts = await addSeasonReward(guildId, userData, 'job', { now });
+
                 await setEconomyData(client, guildId, userId, userData);
-                
+                await noteSeasonGifts(guildId, userId, gifts);
+
                 const embed = successEmbed(
                     t("🕵️ Crime Successful!"),
                     t`You successfully committed ${crime.name} and earned **${money(guildId, amountEarned)}**!` + upgradeBonusLine(userData, 'crime', guildId)
                     + earningsLine(economySettings, userData) + (usedBalaclava ? t`\n🥷 **Balaclava** used: +15% success chance.` : '')
+                    + (gifts.length ? `\n${seasonGiftText(gifts)}` : '')
                 );
                 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed, ...progressEmbeds(progress, guildId)] });

@@ -199,6 +199,15 @@ export const ACHIEVEMENTS = [
     progress: (u) => [Math.min(1000, u?.swieta?.year === 2026 ? Number(u.swieta.earned) || 0 : 0), 1000] },
   { id: 'wielkanoc_2027', emoji: '🐣', name: t('Easter 2027'), description: t('Collect 1,000 eggs in the Easter 2027 event.'), reward: 2000,
     progress: (u) => [Math.min(1000, u?.wielkanoc?.year === 2027 ? Number(u.wielkanoc.earned) || 0 : 0), 1000] },
+  // 2026-10-29: the next holiday events (services/seasonalEvents.js); the summer lasts two months, so its goal is higher.
+  { id: 'sylwester_2026', emoji: '🥂', name: t("New Year's Eve 2026"), description: t("Collect 1,000 fireworks in the New Year's Eve 2026 event."), reward: 2000,
+    progress: (u) => [Math.min(1000, u?.sylwester?.year === 2026 ? Number(u.sylwester.earned) || 0 : 0), 1000] },
+  { id: 'walentynki_2027', emoji: '💘', name: t("Valentine's Day 2027"), description: t("Collect 1,000 love letters in the Valentine's Day 2027 event."), reward: 2000,
+    progress: (u) => [Math.min(1000, u?.walentynki?.year === 2027 ? Number(u.walentynki.earned) || 0 : 0), 1000] },
+  { id: 'dzien_dziecka_2027', emoji: '🎈', name: t("Children's Day 2027"), description: t("Collect 1,000 lollipops in the Children's Day 2027 event."), reward: 2000,
+    progress: (u) => [Math.min(1000, u?.dzien_dziecka?.year === 2027 ? Number(u.dzien_dziecka.earned) || 0 : 0), 1000] },
+  { id: 'wakacje_2027', emoji: '🏖️', name: t('Summer holidays 2027'), description: t('Collect 5,000 seashells in the summer holidays 2027 event.'), reward: 5000,
+    progress: (u) => [Math.min(5000, u?.wakacje?.year === 2027 ? Number(u.wakacje.earned) || 0 : 0), 5000] },
 ];
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
 export const getAchievement = (id) => ACHIEVEMENT_BY_ID.get(id) ?? null;

@@ -29,7 +29,7 @@ async function boostsEmbed(client, guildId, user, notice = '') {
         description: [
             notice,
             t`💰 doubles the money from jobs, /daily, chat money and every other payout. ⭐ doubles the XP for messages.`,
-            t`-# Buying more adds time, at most ${MAX_BOOST_HOURS} h ahead. Boosts also come from event shops (\`/halloween\`).`,
+            t`-# Buying more adds time, at most ${MAX_BOOST_HOURS} h ahead. Boosts also come from event shops (\`/event sklep\`).`,
         ].filter(Boolean).join('\n'),
         color: '#FFD60A',
         fields,

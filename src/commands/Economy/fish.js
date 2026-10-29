@@ -12,6 +12,7 @@ import { itemLabel, requireTool } from './modules/buy.js';
 import { bestInChain, usesInARow } from '../../config/shop/items.js';
 import { againComponents } from './modules/again_button.js';
 import { progressEmbeds, recordProgress } from '../../services/progress.js';
+import { addSeasonReward, noteSeasonGifts, seasonGiftText } from '../../services/seasonalEvents.js';
 import { eventLine, eventLuck, eventPackPrice, eventPayFactor, eventVariantBoost } from '../../services/economyEvents.js';
 
 // A Fishing Rod (or a better rod) is needed to fish; the Carbon Rod adds +50%, the Golden Rod +100%.
@@ -100,6 +101,8 @@ export function runFish({ client, guild, user }) {
             if (!hasAny(userData.fishIndex, caught.id)) multiplierMessage += t('\n📖 New in your `/index`!');
 
             const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
+            const gifts = await addSeasonReward(guildId, userData, 'job', { now });
+            if (gifts.length) multiplierMessage += `\n${seasonGiftText(gifts)}`;
 
             userData.wallet += finalEarned;
             userData.fishIndex = addTo(userData.fishIndex, indexKey(caught.id, variant));
@@ -111,6 +114,7 @@ export function runFish({ client, guild, user }) {
             }, { settings, now });
 
             await setEconomyData(client, guildId, userId, userData);
+            await noteSeasonGifts(guildId, userId, gifts);
 
             const embed = createEmbed({
                 title: t('Fishing Success!'),
