@@ -133,7 +133,8 @@ test('Halloween announcement: posted when the event runs, deleted at the end wit
   news.messages.delete = async (id) => { deleted.push(id); };
   await updateHalloween(room.id, (settings) => { settings.channelId = news.id; settings.totals = { 1: 50, 2: 900, 3: 10, 4: 300 }; });
   await runWithLocale('en', () => tickHalloween(client, room, DURING));
-  assert.match(news.sent[0].embeds[0].toJSON().title, /Halloween on the server/);
+  assert.match(news.sent[0].embeds[0].toJSON().title, /Halloween 2026 has started/);
+  assert.match(news.sent[0].embeds[0].toJSON().description, /Every message = \*\*5 🍬\*\* \(once every 20 s\)/);
   await runWithLocale('en', () => tickHalloween(client, room, DURING + 60_000));
   assert.equal(news.sent.length, 1, 'once');
   await runWithLocale('en', () => tickHalloween(client, room, AFTER));
@@ -168,9 +169,28 @@ test('panel: Halloween settings in the economy module, last day moves the end', 
     assert.equal(saved.json.halloween.lastDay, '2026-11-05');
     assert.equal(saved.json.commands.boosts.xpHourPrice, 3000);
     assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { lastDay: '2027-01-01' } })).status, 400);
+
+    // The announcement (2026-10-29): own title and text with {variables}, "send now", '' = back to the built-in one.
+    assert.match(view.halloween.defaultAnnouncement.text, /\{cukierki\}/);
+    assert.equal(view.halloween.posted, false);
+    await updateHalloween(guild.id, (settings) => { settings.startsAt = Date.now() - 60_000; settings.endsAt = Date.now() + 86_400_000; });
+    const before = channel.sent.length;
+    const sent = await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { title: '🎃 Strasznie!', text: 'Za wiadomość {cukierki} 🍬, ranga {ranga}', announceNow: true } });
+    assert.equal(sent.status, 200, sent.text);
+    assert.equal(sent.json.halloween.posted, true);
+    assert.equal(channel.sent.length, before + 1);
+    const embed = channel.sent.at(-1).embeds[0].toJSON();
+    assert.equal(embed.title, '🎃 Strasznie!');
+    assert.equal(embed.description, `Za wiadomość 8 🍬, ranga ${ROLE_NAME}`);
+    const reset = await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { title: '', text: null } });
+    assert.equal(reset.json.halloween.title, null);
+    assert.equal(reset.json.halloween.text, null);
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { text: 'x'.repeat(4000) } })).status, 400);
+    await updateHalloween(guild.id, (settings) => { settings.enabled = false; });
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { halloween: { announceNow: true } })).status, 400, 'not while the event is off');
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    await updateHalloween(guild.id, (settings) => { settings.perMessage = 5; });
+    await updateHalloween(guild.id, (settings) => { Object.assign(settings, { perMessage: 5, enabled: true, announcement: null, title: null, text: null }); });
   }
 });
 

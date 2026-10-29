@@ -182,10 +182,11 @@ test('automod rules catch what they should and nothing else', () => {
 
   // The ready-made lists: what they catch and the innocent words they leave alone.
   const swears = automodConfig({ words: { list: PRESET_WORDS } });
-  for (const text of ['kurwa', 'SKURWYSYN', 'zajebiście', 'spierdalaj', 'wypierdalaj', 'chujowy', 'piździec', 'ty debilu', 'cipka', 'gówno', 'ruchać', 'k*rwa? nie, kurwaaa']) {
+  for (const text of ['kurwa', 'SKURWYSYN', 'jebać', 'spierdalaj', 'wypierdalaj', 'chujowy', 'piździec', 'ty debilu', 'cipka', 'gówno', 'ruchać', 'k*rwa? nie, kurwaaa']) {
     assert.equal(checkMessage(swears, say(text), null)?.rule, 'words', text);
   }
-  for (const text of ['principle', 'duplikat', 'szybkimi ruchami', 'szmatka do kurzu', 'Dzień dobry wszystkim', 'gown english']) {
+  // 'zajebiście' passes since 2026-10-29 (owner: "niech zajebiscie nie usuwa"; words.allow).
+  for (const text of ['principle', 'duplikat', 'szybkimi ruchami', 'szmatka do kurzu', 'Dzień dobry wszystkim', 'gown english', 'zajebiście']) {
     assert.equal(checkMessage(swears, say(text), null), null, text);
   }
   const gifs = automodConfig({ links: { allow: PRESET_LINKS } });

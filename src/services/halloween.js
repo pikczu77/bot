@@ -54,7 +54,8 @@ export const HALLOWEEN_SHOP = Object.freeze([
 ]);
 export const getShopItem = (id) => HALLOWEEN_SHOP.find((item) => item.id === id) ?? null;
 
-const store = guildStore('halloween', { ...HALLOWEEN_DEFAULTS, totals: {}, announcement: null, finished: false });
+// title / text: the announcement written in the panel (null = the built-in one below).
+const store = guildStore('halloween', { ...HALLOWEEN_DEFAULTS, title: null, text: null, totals: {}, announcement: null, finished: false });
 // Read only, for the channel fallback (chatEngagement.js imports this file, so no import back).
 const chatStore = guildStore('chat-engagement', {});
 
@@ -198,17 +199,72 @@ async function announcementChannel(guild, settings) {
   return id ? guild.channels.cache.get(id) ?? null : null;
 }
 
+// The announcement (2026-10-29, owner: "napisz ladne ogloszenie ... daj mi do edytowania na stronie"). The panel edits
+// title and text; {cukierki} {co_ile} {drop} {koniec} {ranga} are filled in when it is posted.
+export const ANNOUNCEMENT_VARIABLES = Object.freeze(['cukierki', 'co_ile', 'drop', 'koniec', 'ranga']);
+export const TITLE_LIMIT = 256;
+export const TEXT_LIMIT = 3500;
+
+/** The built-in announcement in the server's language (with the {variables}). */
+export function defaultAnnouncement() {
+  return {
+    title: t('🎃 Halloween 2026 has started!'),
+    text: t('Pumpkins are glowing, bats are flying and the server is full of **candies**! 🍬\n\n**How to collect them?**\n💬 Every message = **{cukierki} 🍬** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🍬**\n\n**What to spend them on?** → `/halloween sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n👑 And the best of all: the rank **{ranga}**, only for the most dedicated!\n\n🏆 Top collectors: `/halloween ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nChat, talk, collect: trick or treat! 👻'),
+  };
+}
+
+/** Fill in the {variables} of an announcement text. */
+export function fillAnnouncement(text, settings) {
+  const values = {
+    cukierki: settings.perMessage,
+    co_ile: settings.cooldownSeconds,
+    drop: settings.dropCandies,
+    koniec: `<t:${Math.floor(settings.endsAt / 1000)}:f>`,
+    ranga: ROLE_NAME,
+  };
+  return String(text ?? '').replace(/\{(cukierki|co_ile|drop|koniec|ranga)\}/g, (match, name) => String(values[name]));
+}
+
 export function announcementEmbed(settings) {
+  const fallback = defaultAnnouncement();
   return createEmbed({
-    title: t('🎃 Halloween on the server!'),
-    description: [
-      t`Every message gives **${settings.perMessage} 🍬** (at most once every ${settings.cooldownSeconds} s). A caught chat drop gives **${settings.dropCandies} 🍬** more.`,
-      t`Spend your candies in \`/halloween sklep\`: double money, double XP, packs, money and the rank **${ROLE_NAME}**.`,
-      t`Until <t:${Math.floor(settings.endsAt / 1000)}:f>. The shop stays open one day longer. \`/halloween ranking\``,
-    ].join('\n'),
+    title: fillAnnouncement(settings.title || fallback.title, settings).slice(0, TITLE_LIMIT),
+    description: fillAnnouncement(settings.text || fallback.text, settings).slice(0, 4096),
     color: '#FF7518',
     footer: false,
   });
+}
+
+/**
+ * Panel: post the announcement again now (the old one is deleted), or only edit the posted one with `editOnly`.
+ * Returns the message or null. Throws `userError(text)` when the event does not run.
+ */
+export async function repostAnnouncement(guild, { editOnly = false, userError = null, now = Date.now() } = {}) {
+  const settings = await getHalloween(guild.id);
+  const old = settings.announcement;
+  const oldChannel = old?.channelId ? guild.channels.cache.get(old.channelId) : null;
+  if (editOnly) {
+    if (!old?.messageId || !halloweenActive(settings, now)) return null;
+    const message = await oldChannel?.messages?.fetch?.(old.messageId).catch(() => null);
+    return message?.edit?.({ embeds: [announcementEmbed(settings)] }).catch(() => null) ?? null;
+  }
+  if (!halloweenActive(settings, now)) {
+    if (userError) throw userError(t('The Halloween event is not running now (turned off or outside its days).'));
+    return null;
+  }
+  const channel = await announcementChannel(guild, settings);
+  if (!channel?.send) {
+    if (userError) throw userError(t('Pick a channel for the announcement (or set the events or chat channel).'));
+    return null;
+  }
+  const message = await channel.send({ embeds: [announcementEmbed(settings)] }).catch(() => null);
+  if (!message) {
+    if (userError) throw userError(t('The bot could not post on that channel (check its permissions).'));
+    return null;
+  }
+  if (old?.messageId) await oldChannel?.messages?.delete?.(old.messageId).catch(() => {});
+  await updateHalloween(guild.id, (data) => { data.announcement = { channelId: channel.id, messageId: message.id }; data.finished = false; });
+  return message;
 }
 
 /** Post the announcement at the start, delete it and post the top three at the end. */

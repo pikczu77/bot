@@ -100,8 +100,12 @@ import {
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import { getLottery, potOf, updateLottery } from '../services/lottery.js';
-import { LAST_DAY_RANGE, ROLE_NAME as HALLOWEEN_ROLE_NAME, getHalloween, updateHalloween } from '../services/halloween.js';
+import {
+  ANNOUNCEMENT_VARIABLES, LAST_DAY_RANGE, ROLE_NAME as HALLOWEEN_ROLE_NAME, TEXT_LIMIT as HALLOWEEN_TEXT_LIMIT, TITLE_LIMIT as HALLOWEEN_TITLE_LIMIT,
+  defaultAnnouncement, getHalloween, repostAnnouncement, updateHalloween,
+} from '../services/halloween.js';
 import { dayKey, midnightOf } from '../utils/warsawTime.js';
+import { userError } from '../utils/featureKit.js';
 import { CHAT_PARTS, deadChatRole, getChatSettings, postAnnouncement, postDrop, postQuestion, updateChatSettings } from '../services/chatEngagement.js';
 import { happyHourFactor } from '../services/happyHourState.js';
 import {
@@ -346,6 +350,7 @@ async function applyAutomod(guild, body) {
       if ('freeHours' in patch && name === 'words') rule.freeHours = boolean(patch.freeHours, 'rules.words.freeHours');
       if ('freeFrom' in patch && name === 'words') rule.freeFrom = integer(patch.freeFrom, 'rules.words.freeFrom', 0, 23);
       if ('freeTo' in patch && name === 'words') rule.freeTo = integer(patch.freeTo, 'rules.words.freeTo', 0, 23);
+      if ('allow' in patch && name === 'words') rule.allow = stringList(patch.allow, 'rules.words.allow', { max: 100, itemMax: 40 });
       if ('allow' in patch && name === 'links') rule.allow = stringList(patch.allow, 'rules.links.allow', { max: 100, itemMax: 100, pattern: /^[a-z0-9.-]+\.[a-z]{2,}$/i });
     }
 
@@ -471,6 +476,13 @@ function halloweenView(halloween) {
     lastDayRange: LAST_DAY_RANGE,
     players: top.length,
     candies: top.reduce((sum, [, earned]) => sum + (Number(earned) || 0), 0),
+    // The announcement: own title/text (null = built in), the built-in one, its {variables}, and whether it is posted.
+    title: halloween.title ?? null,
+    text: halloween.text ?? null,
+    defaultAnnouncement: defaultAnnouncement(),
+    variables: ANNOUNCEMENT_VARIABLES,
+    limits: { title: HALLOWEEN_TITLE_LIMIT, text: HALLOWEEN_TEXT_LIMIT },
+    posted: Boolean(halloween.announcement?.messageId),
   };
 }
 
@@ -554,6 +566,16 @@ async function applyEconomy(client, guild, body) {
       // Ends at the midnight after the last day (36 h later is always the next calendar day).
       halloweenPatch.endsAt = midnightOf(dayKey(midnightOf(day) + 36 * 3_600_000));
     }
+    // Own announcement: '' or null = the built-in one.
+    for (const [key, limit] of [['title', HALLOWEEN_TITLE_LIMIT], ['text', HALLOWEEN_TEXT_LIMIT]]) {
+      if (!(key in halloween)) continue;
+      const value = halloween[key];
+      if (value !== null && typeof value !== 'string') throw new ApiError(400, `halloween.${key}: text or null expected`);
+      const clean = (value ?? '').trim();
+      if (clean.length > limit) throw new ApiError(400, `halloween.${key}: at most ${limit} characters`);
+      halloweenPatch[key] = clean || null;
+    }
+    if ('announceNow' in halloween) halloweenPatch.announceNow = boolean(halloween.announceNow, 'halloween.announceNow');
   }
   let eventStart = null;
   if ('eventStart' in body) {
@@ -652,7 +674,15 @@ async function applyEconomy(client, guild, body) {
 
   const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
   const lottery = lotteryPatch ? await updateLottery(guild.id, (data) => { Object.assign(data, lotteryPatch); }) : await getLottery(guild.id);
-  const halloween = halloweenPatch ? await updateHalloween(guild.id, (data) => { Object.assign(data, halloweenPatch); }) : await getHalloween(guild.id);
+  let halloween = await getHalloween(guild.id);
+  if (halloweenPatch) {
+    const { announceNow, ...fields } = halloweenPatch;
+    if (Object.keys(fields).length) halloween = await updateHalloween(guild.id, (data) => { Object.assign(data, fields); });
+    // "Send now" posts it again; any other change edits the posted announcement in place.
+    if (announceNow) await repostAnnouncement(guild, { userError });
+    else if (Object.keys(fields).length) await repostAnnouncement(guild, { editOnly: true });
+    halloween = await getHalloween(guild.id);
+  }
   if (body.eventStop === true || eventStart) {
     if (eventStart) await startEvent(guild, eventStart.type, eventStart.minutes);
     else await endEvent(guild);

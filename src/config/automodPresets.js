@@ -6,6 +6,12 @@
 // Some words are listed as exact forms on purpose, because a wildcard would hit
 // innocent words: `cip*` would catch "principle", `dup*` "duplikat", `rucha*` "ruchami".
 
+/**
+ * Words the words rule lets through even when a pattern of the list matches them (2026-10-29, owner:
+ * "niech zajebiscie nie usuwa"; `*jeb*` caught it). Same writing as the list: no Polish letters, `*` = any letters.
+ */
+export const PRESET_ALLOWED_WORDS = ['zajebisc*', 'zajebist*'];
+
 /** Polish swear words and insults. */
 export const PRESET_WORDS = [
   // kurwa

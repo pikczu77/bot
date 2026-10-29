@@ -650,3 +650,16 @@ change you make, so the next session knows what was done and why.
   - `/boosty`: x2 money 10,000 / h, x2 XP 5,000 / h (1, 3, 6 h), panel card. My prices.
   - `/prestiz` (owner: idea 3, 10 levels) and `/polacz` (idea 4). Badges: Fresh start, Server legend, Card smith.
   - Guide topic "⭐ Prestiż, boosty, łączenie" (`GUIDE_VERSION` 5).
+- **2026-10-29, later** (owner: "napisz ladne ogloszenie o tym ze jest halloween i daj mi do dodania i ew. zedytowania na strone, tak
+  samo na stronie daj eventy i ze moge wlaczyc wylaczyc"; mid-task "i niech zajebiscie nie usuwa"). Live after the owner restarts
+  the bot; the panel module "Eventy" is deployed:
+  - Halloween announcement: built-in text (`defaultAnnouncement` in `services/halloween.js`, Polish in `pl.halloween.json`) with
+    variables {cukierki} {co_ile} {drop} {koniec} {ranga} (`fillAnnouncement`). The panel stores its own `title` / `text`
+    (null = built in); `halloween.announceNow` posts it again (`repostAnnouncement`, refused while the event is off); any other
+    change edits the posted announcement in place.
+  - Panel: new module "Eventy" (the Halloween card with on/off, its announcement editor with a live preview, and the timed events
+    card, both moved out of Ekonomia > Gry). Same economy API, nothing new on the bot side for it.
+  - Automod words rule: `allow` list (`PRESET_ALLOWED_WORDS` = zajebisc*, zajebist*) taken out of the message before the list is
+    checked, so "zajebiście" passes `*jeb*` while "jebać", "wyjebane" and other words in the same message are still caught.
+    Defaults merge into saved settings, so it works on the live server at once. Panel field "Dozwolone mimo listy". My reading:
+    "zajebisty/zajebista" too (same word). Test: `test/automod-allow.test.js`.

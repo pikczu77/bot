@@ -23,7 +23,6 @@
   "Merge 5 copies of a Club'o'mony card into a rarer card": "Połącz 5 kopii karty Club'o'mony w rzadszą kartę",
   "Your card with 5+ copies": "Twoja karta z 5+ kopiami",
   "How many merges at once (default 1)": "Ile połączeń naraz (domyślnie 1)",
-
   "✅ **on** until <t:{0}:t> (<t:{1}:R>)": "✅ **działa** do <t:{0}:t> (<t:{1}:R>)",
   "not running": "nie działa",
   "⚡ Boosts": "⚡ Boosty",
@@ -36,7 +35,6 @@
   "{0} h of {1} {2} costs {3} - you do not have that much (cash and bank).": "{0} h boosta {1} {2} kosztuje {3} - nie masz tyle (gotówka i bank).",
   "\n⚡ **Boost x{0} money** until <t:{1}:t>": "\n⚡ **Boost x{0} kasy** do <t:{1}:t>",
   "\n⭐ **Prestige {0}:** +{1}% all earnings": "\n⭐ **Prestiż {0}:** +{1}% do wszystkich zarobków",
-
   "🎃 The event runs until {0}. Every message gives **{1} 🍬** (once every {2} s).": "🎃 Event trwa do {0}. Każda wiadomość daje **{1} 🍬** (raz na {2} s).",
   "🎃 The event is over; the shop is open until {0}.": "🎃 Event się skończył; sklep jest otwarty do {0}.",
   "🎃 The Halloween shop is closed.": "🎃 Sklep halloweenowy jest zamknięty.",
@@ -62,15 +60,10 @@
   "+{0} in cash.": "+{0} do gotówki.",
   "The bot could not give you the role {0} (its own role must be higher). Your candies stay.": "Bot nie mógł dać ci roli {0} (jego rola musi być wyżej). Cukierki zostają u ciebie.",
   "You have the role <@&{0}>. 🎃": "Masz rolę <@&{0}>. 🎃",
-  "🎃 Halloween on the server!": "🎃 Halloween na serwerze!",
-  "Every message gives **{0} 🍬** (at most once every {1} s). A caught chat drop gives **{2} 🍬** more.": "Każda wiadomość daje **{0} 🍬** (najwyżej raz na {1} s). Złapany drop na czacie daje jeszcze **{2} 🍬**.",
-  "Spend your candies in `/halloween sklep`: double money, double XP, packs, money and the rank **{0}**.": "Wydawaj cukierki w `/halloween sklep`: podwójna kasa, podwójne XP, paczki, kasa i ranga **{0}**.",
-  "Until <t:{0}:f>. The shop stays open one day longer. `/halloween ranking`": "Do <t:{0}:f>. Sklep jest otwarty dzień dłużej. `/halloween ranking`",
   "🎃 Halloween is over": "🎃 Halloween się skończył",
   "\n\nThanks for chatting! The shop is open one more day: `/halloween sklep`.": "\n\nDzięki za pisanie! Sklep jest otwarty jeszcze jeden dzień: `/halloween sklep`.",
   "Halloween 2026": "Halloween 2026",
   "Collect 1,000 candies in the Halloween 2026 event.": "Zbierz 1000 cukierków w evencie Halloween 2026.",
-
   "For players who already have a lot: start over stronger, speed up, use duplicates.": "Dla tych, co już dużo mają: zacznij od nowa mocniejszy, przyspiesz, wykorzystaj duplikaty.",
   "⭐ /prestiz": "⭐ /prestiz",
   "{0} levels, each **+{1}%** of every payout for good\nthe 1st needs **{2}**, the 10th **{3}**": "{0} poziomów, każdy daje **+{1}%** do każdej wypłaty na zawsze\n1. wymaga **{2}**, 10. **{3}**",
@@ -83,14 +76,12 @@
   "⭐ Progress": "⭐ Rozwój",
   "Prestige, boosts, merging": "Prestiż, boosty, łączenie",
   "/prestiz, /boosty, /polacz": "/prestiz, /boosty, /polacz",
-
   "🔨 Cards merged": "🔨 Karty połączone",
   "-# See them in `/index`.": "-# Zobacz je w `/index`.",
   "{0} {1} is legendary: it cannot be merged any higher.": "{0} {1} jest legendarna: nie da się jej połączyć wyżej.",
   "You need {0} copies of {1} {2} - you have {3}.": "Potrzebujesz {0} kopii {1} {2} - masz {3}.",
   "Card smith": "Kowal kart",
   "Merge cards 10 times with `/polacz`.": "Połącz karty 10 razy przez `/polacz`.",
-
   "⭐ Prestige of {0}": "⭐ Prestiż: {0}",
   "**Bonus now:** +{0}% of every payout": "**Bonus teraz:** +{0}% do każdej wypłaty",
   "**Prestige {0}:** {1} in cash and bank (you have {2}) · then +{3}%": "**Prestiż {0}:** {1} w gotówce i banku (masz {2}) · potem +{3}%",
@@ -110,5 +101,10 @@
   "Fresh start": "Nowy start",
   "Do your first prestige with `/prestiz`.": "Zrób pierwszy prestiż przez `/prestiz`.",
   "Server legend": "Legenda serwera",
-  "Reach prestige 10.": "Zdobądź prestiż 10."
+  "Reach prestige 10.": "Zdobądź prestiż 10.",
+  "🎃 Halloween 2026 has started!": "🎃 Halloween 2026 wystartował!",
+  "Pumpkins are glowing, bats are flying and the server is full of **candies**! 🍬\n\n**How to collect them?**\n💬 Every message = **{cukierki} 🍬** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🍬**\n\n**What to spend them on?** → `/halloween sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n👑 And the best of all: the rank **{ranga}**, only for the most dedicated!\n\n🏆 Top collectors: `/halloween ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nChat, talk, collect: trick or treat! 👻": "Dynie świecą, nietoperze latają, a na serwerze sypią się **cukierki**! 🍬\n\n**Jak zbierać?**\n💬 Każda wiadomość = **{cukierki} 🍬** (raz na {co_ile} s)\n🎁 Złapany drop na czacie = **+{drop} 🍬**\n\n**Na co wydać?** → `/halloween sklep`\n💰 Podwójna kasa · ⭐ Podwójne XP · 🎁 Paczki · 💵 Worki kasy\n👑 A na deser ranga **{ranga}**, tylko dla najwytrwalszych!\n\n🏆 Ranking zbieraczy: `/halloween ranking`\n⏳ Event trwa do {koniec}. Sklep zostaje otwarty jeszcze jeden dzień.\n\nPiszcie, gadajcie, zbierajcie: cukierek albo psikus! 👻",
+  "The Halloween event is not running now (turned off or outside its days).": "Event Halloween teraz nie trwa (jest wyłączony albo to nie jego dni).",
+  "Pick a channel for the announcement (or set the events or chat channel).": "Wybierz kanał na ogłoszenie (albo ustaw kanał eventów lub czatu).",
+  "The bot could not post on that channel (check its permissions).": "Bot nie mógł napisać na tym kanale (sprawdź jego uprawnienia)."
 }

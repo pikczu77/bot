@@ -10,7 +10,7 @@ import { createEmbed } from '../utils/embeds.js';
 import { guildStore, truncate } from '../utils/featureKit.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n/index.js';
-import { PRESET_SLURS } from '../config/automodPresets.js';
+import { PRESET_ALLOWED_WORDS, PRESET_SLURS } from '../config/automodPresets.js';
 
 export const RULES = ['slurs', 'invites', 'links', 'words', 'spam', 'mentions', 'caps', 'duplicates', 'emojis'];
 export const ACTIONS = ['delete', 'warn', 'timeout'];
@@ -29,7 +29,8 @@ const DEFAULT_CONFIG = {
     links: { enabled: false, action: 'delete', allow: [] },
     // freeHours: words are allowed from freeFrom:00 until freeTo:00 (Polish time), e.g. 22 → 6.
     // freeChannels: channels (or categories) where the words are always allowed (a "vulgar chat").
-    words: { enabled: false, action: 'delete', list: [], freeHours: false, freeFrom: 22, freeTo: 6, freeChannels: [] },
+    // allow: words that pass even when the list matches them ("zajebiście" against `*jeb*`).
+    words: { enabled: false, action: 'delete', list: [], allow: [...PRESET_ALLOWED_WORDS], freeHours: false, freeFrom: 22, freeTo: 6, freeChannels: [] },
     spam: { enabled: false, action: 'timeout', limit: 6, seconds: 6 },
     mentions: { enabled: false, action: 'timeout', limit: 6 },
     caps: { enabled: false, action: 'delete', percent: 75, minLength: 12 },
@@ -100,14 +101,27 @@ function normalize(text) {
     .replace(/ł/g, 'l');
 }
 
-/** Does `text` contain a banned word? `*` in a word matches any letters. */
-export function findBannedWord(text, words) {
-  const haystack = normalize(text);
+/** A whole-word pattern for a list entry: `*` matches any letters. */
+function wordPattern(word, flags = 'u') {
+  const needle = normalize(word).trim();
+  if (!needle) return null;
+  const pattern = needle.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[\\p{L}\\p{N}]*');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`, flags);
+}
+
+/**
+ * Does `text` contain a banned word? `*` in a word matches any letters. Words matching `allowed` are taken out
+ * first, so "zajebiście" passes `*jeb*` while another banned word in the same message is still found.
+ */
+export function findBannedWord(text, words, allowed = []) {
+  let haystack = normalize(text);
+  for (const word of allowed) {
+    const pattern = wordPattern(word, 'gu');
+    if (pattern) haystack = haystack.replace(pattern, ' ');
+  }
   for (const word of words) {
-    const needle = normalize(word).trim();
-    if (!needle) continue;
-    const pattern = needle.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[\\p{L}\\p{N}]*');
-    if (new RegExp(`(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`, 'u').test(haystack)) return word;
+    const pattern = wordPattern(word);
+    if (pattern?.test(haystack)) return word;
   }
   return null;
 }
@@ -184,7 +198,7 @@ export function checkMessage(config, message, history, now = Date.now()) {
 
   const freeChannel = (rules.words.freeChannels ?? []).some((id) => id && (id === message.channelId || id === message.parentId));
   if (rules.words.enabled && rules.words.list.length > 0 && !freeChannel && !wordsAllowedNow(rules.words, now)) {
-    const word = findBannedWord(content, rules.words.list);
+    const word = findBannedWord(content, rules.words.list, rules.words.allow ?? PRESET_ALLOWED_WORDS);
     if (word) return { rule: 'words', detail: word };
   }
 
