@@ -715,4 +715,4 @@ change you make, so the next session knows what was done and why.
     ranking, deletes the posted announcement; member currency and event upgrades are per year, so they start from zero. Panel
     field "Rok" (days of a new year are set by the bot; fix them after the save). With 7 events the tabs show only the emoji
     (name in the tooltip). The year does not change by itself (my decision: the owner asked to set it). Badges stay for the
-    default years. If "osobne" meant separate slash commands again, that is not done: say so to the owner.
+    default years. Owner confirmed afterwards: tabs are fine, keep the single /event (no separate slash commands).
