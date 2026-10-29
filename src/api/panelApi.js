@@ -101,9 +101,9 @@ import {
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import { getLottery, potOf, updateLottery } from '../services/lottery.js';
 import {
-  ANNOUNCEMENT_VARIABLES, LAST_DAY_RANGE, ROLE_NAME as HALLOWEEN_ROLE_NAME, TEXT_LIMIT as HALLOWEEN_TEXT_LIMIT, TITLE_LIMIT as HALLOWEEN_TITLE_LIMIT,
-  defaultAnnouncement, getHalloween, repostAnnouncement, updateHalloween,
-} from '../services/halloween.js';
+  SEASONAL_EVENTS, TEXT_LIMIT as SEASON_TEXT_LIMIT, TITLE_LIMIT as SEASON_TITLE_LIMIT, defaultAnnouncement, getSeason, getSeasonEvent,
+  repostAnnouncement, updateSeason,
+} from '../services/seasonalEvents.js';
 import { dayKey, midnightOf } from '../utils/warsawTime.js';
 import { userError } from '../utils/featureKit.js';
 import { CHAT_PARTS, deadChatRole, getChatSettings, postAnnouncement, postDrop, postQuestion, updateChatSettings } from '../services/chatEngagement.js';
@@ -459,38 +459,88 @@ function lotteryView(lottery, settings) {
   };
 }
 
-// Halloween 2026 (services/halloween.js) for the economy view: `lastDay` = the last day candies are given.
-function halloweenView(halloween) {
-  const top = Object.entries(halloween.totals ?? {}).sort((a, b) => b[1] - a[1]);
+// Holiday events (services/seasonalEvents.js) for the economy view: `firstDay` / `lastDay` = the days the currency is given.
+function seasonView(event, settings) {
+  const top = Object.entries(settings.totals ?? {});
   return {
-    enabled: halloween.enabled,
-    perMessage: halloween.perMessage,
-    cooldownSeconds: halloween.cooldownSeconds,
-    dropCandies: halloween.dropCandies,
-    roleId: halloween.roleId ?? null,
-    roleName: HALLOWEEN_ROLE_NAME,
-    channelId: halloween.channelId ?? null,
-    startsAt: halloween.startsAt,
-    endsAt: halloween.endsAt,
-    lastDay: dayKey(halloween.endsAt - 60_000),
-    lastDayRange: LAST_DAY_RANGE,
+    id: event.id,
+    name: event.texts.name(),
+    emoji: event.emoji,
+    currency: event.currency,
+    command: event.command,
+    color: event.color,
+    enabled: settings.enabled,
+    perMessage: settings.perMessage,
+    cooldownSeconds: settings.cooldownSeconds,
+    dropCandies: settings.dropCandies,
+    dailyAmount: settings.dailyAmount,
+    daily: event.daily,
+    roleId: settings.roleId ?? null,
+    roleName: event.roleName,
+    channelId: settings.channelId ?? null,
+    startsAt: settings.startsAt,
+    endsAt: settings.endsAt,
+    firstDay: dayKey(settings.startsAt),
+    lastDay: dayKey(settings.endsAt - 60_000),
+    dayRange: event.dayRange,
     players: top.length,
-    candies: top.reduce((sum, [, earned]) => sum + (Number(earned) || 0), 0),
+    collected: top.reduce((sum, [, earned]) => sum + (Number(earned) || 0), 0),
     // The announcement: own title/text (null = built in), the built-in one, its {variables}, and whether it is posted.
-    title: halloween.title ?? null,
-    text: halloween.text ?? null,
-    defaultAnnouncement: defaultAnnouncement(),
-    variables: ANNOUNCEMENT_VARIABLES,
-    limits: { title: HALLOWEEN_TITLE_LIMIT, text: HALLOWEEN_TEXT_LIMIT },
-    posted: Boolean(halloween.announcement?.messageId),
+    title: settings.title ?? null,
+    text: settings.text ?? null,
+    defaultAnnouncement: defaultAnnouncement(event),
+    variables: event.variables,
+    limits: { title: SEASON_TITLE_LIMIT, text: SEASON_TEXT_LIMIT },
+    posted: Boolean(settings.announcement?.messageId),
   };
 }
 
-function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null, halloween = null) {
+async function seasonViews(guildId) {
+  const views = [];
+  for (const event of SEASONAL_EVENTS) views.push(seasonView(event, await getSeason(event, guildId)));
+  return views;
+}
+
+/** One event's PATCH part, checked before anything is saved. */
+function seasonPatch(guild, event, body, field) {
+  const value = plainObject(body, field);
+  const patch = {};
+  if ('enabled' in value) patch.enabled = boolean(value.enabled, `${field}.enabled`);
+  if ('perMessage' in value) patch.perMessage = integer(value.perMessage, `${field}.perMessage`, 0, 100);
+  if ('cooldownSeconds' in value) patch.cooldownSeconds = integer(value.cooldownSeconds, `${field}.cooldownSeconds`, 5, 600);
+  if ('dropCandies' in value) patch.dropCandies = integer(value.dropCandies, `${field}.dropCandies`, 0, 1000);
+  if ('dailyAmount' in value) patch.dailyAmount = integer(value.dailyAmount, `${field}.dailyAmount`, 0, 10_000);
+  if ('roleId' in value) patch.roleId = requireRole(guild, value.roleId, `${field}.roleId`);
+  if ('channelId' in value) patch.channelId = requireTextChannel(guild, value.channelId, `${field}.channelId`);
+  const day = (key) => {
+    const text = String(value[key] ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || text < event.dayRange[0] || text > event.dayRange[1]) {
+      throw new ApiError(400, `${field}.${key}: a day from ${event.dayRange[0]} to ${event.dayRange[1]} expected`);
+    }
+    return text;
+  };
+  if ('firstDay' in value) patch.startsAt = midnightOf(day('firstDay'));
+  // Ends at the midnight after the last day (36 h later is always the next calendar day).
+  if ('lastDay' in value) patch.endsAt = midnightOf(dayKey(midnightOf(day('lastDay')) + 36 * 3_600_000));
+  if ('firstDay' in value && 'lastDay' in value && value.firstDay > value.lastDay) throw new ApiError(400, `${field}: the first day is after the last day`);
+  // Own announcement: '' or null = the built-in one.
+  for (const [key, limit] of [['title', SEASON_TITLE_LIMIT], ['text', SEASON_TEXT_LIMIT]]) {
+    if (!(key in value)) continue;
+    const textValue = value[key];
+    if (textValue !== null && typeof textValue !== 'string') throw new ApiError(400, `${field}.${key}: text or null expected`);
+    const clean = (textValue ?? '').trim();
+    if (clean.length > limit) throw new ApiError(400, `${field}.${key}: at most ${limit} characters`);
+    patch[key] = clean || null;
+  }
+  if ('announceNow' in value) patch.announceNow = boolean(value.announceNow, `${field}.announceNow`);
+  return patch;
+}
+
+function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null, seasonal = null) {
   const { shop, balanceVersion, ...rest } = settings;
   return {
     ...rest,
-    ...(halloween ? { halloween: halloweenView(halloween) } : {}),
+    ...(seasonal ? { seasonal } : {}),
     ...(quiz ? { quiz: quizView(quiz) } : {}),
     ...(lottery ? { lottery: lotteryView(lottery, settings) } : {}),
     // Timed events (services/economyEvents.js): settings in `events`, the types to start one by hand.
@@ -548,34 +598,13 @@ async function applyEconomy(client, guild, body) {
     if ('maxTickets' in lottery) lotteryPatch.maxTickets = integer(lottery.maxTickets, 'lottery.maxTickets', 1, 1000);
     if ('bonus' in lottery) lotteryPatch.bonus = integer(lottery.bonus, 'lottery.bonus', 0, MAX_MONEY);
   }
-  let halloweenPatch = null;
-  if ('halloween' in body) {
-    const halloween = plainObject(body.halloween, 'halloween');
-    halloweenPatch = {};
-    if ('enabled' in halloween) halloweenPatch.enabled = boolean(halloween.enabled, 'halloween.enabled');
-    if ('perMessage' in halloween) halloweenPatch.perMessage = integer(halloween.perMessage, 'halloween.perMessage', 0, 100);
-    if ('cooldownSeconds' in halloween) halloweenPatch.cooldownSeconds = integer(halloween.cooldownSeconds, 'halloween.cooldownSeconds', 5, 600);
-    if ('dropCandies' in halloween) halloweenPatch.dropCandies = integer(halloween.dropCandies, 'halloween.dropCandies', 0, 1000);
-    if ('roleId' in halloween) halloweenPatch.roleId = requireRole(guild, halloween.roleId, 'halloween.roleId');
-    if ('channelId' in halloween) halloweenPatch.channelId = requireTextChannel(guild, halloween.channelId, 'halloween.channelId');
-    if ('lastDay' in halloween) {
-      const day = String(halloween.lastDay ?? '');
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < LAST_DAY_RANGE[0] || day > LAST_DAY_RANGE[1]) {
-        throw new ApiError(400, `halloween.lastDay: a day from ${LAST_DAY_RANGE[0]} to ${LAST_DAY_RANGE[1]} expected`);
-      }
-      // Ends at the midnight after the last day (36 h later is always the next calendar day).
-      halloweenPatch.endsAt = midnightOf(dayKey(midnightOf(day) + 36 * 3_600_000));
-    }
-    // Own announcement: '' or null = the built-in one.
-    for (const [key, limit] of [['title', HALLOWEEN_TITLE_LIMIT], ['text', HALLOWEEN_TEXT_LIMIT]]) {
-      if (!(key in halloween)) continue;
-      const value = halloween[key];
-      if (value !== null && typeof value !== 'string') throw new ApiError(400, `halloween.${key}: text or null expected`);
-      const clean = (value ?? '').trim();
-      if (clean.length > limit) throw new ApiError(400, `halloween.${key}: at most ${limit} characters`);
-      halloweenPatch[key] = clean || null;
-    }
-    if ('announceNow' in halloween) halloweenPatch.announceNow = boolean(halloween.announceNow, 'halloween.announceNow');
+  // Holiday events: `seasonal: { [eventId]: patch }`; `halloween` (the panel of the first day) means seasonal.halloween.
+  const seasonPatches = [];
+  if ('halloween' in body) seasonPatches.push([getSeasonEvent('halloween'), seasonPatch(guild, getSeasonEvent('halloween'), body.halloween, 'halloween')]);
+  for (const [id, patch] of Object.entries('seasonal' in body ? plainObject(body.seasonal, 'seasonal') : {})) {
+    const event = getSeasonEvent(id);
+    if (!event) throw new ApiError(400, `seasonal.${id}: unknown event`);
+    seasonPatches.push([event, seasonPatch(guild, event, patch, `seasonal.${id}`)]);
   }
   let eventStart = null;
   if ('eventStart' in body) {
@@ -674,23 +703,22 @@ async function applyEconomy(client, guild, body) {
 
   const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
   const lottery = lotteryPatch ? await updateLottery(guild.id, (data) => { Object.assign(data, lotteryPatch); }) : await getLottery(guild.id);
-  let halloween = await getHalloween(guild.id);
-  if (halloweenPatch) {
-    const { announceNow, ...fields } = halloweenPatch;
-    if (Object.keys(fields).length) halloween = await updateHalloween(guild.id, (data) => { Object.assign(data, fields); });
+  for (const [event, patch] of seasonPatches) {
+    const { announceNow, ...fields } = patch;
+    if (Object.keys(fields).length) await updateSeason(event, guild.id, (data) => { Object.assign(data, fields); });
     // "Send now" posts it again; any other change edits the posted announcement in place.
-    if (announceNow) await repostAnnouncement(guild, { userError });
-    else if (Object.keys(fields).length) await repostAnnouncement(guild, { editOnly: true });
-    halloween = await getHalloween(guild.id);
+    if (announceNow) await repostAnnouncement(event, guild, { userError });
+    else if (Object.keys(fields).length) await repostAnnouncement(event, guild, { editOnly: true });
   }
+  const seasonal = await seasonViews(guild.id);
   if (body.eventStop === true || eventStart) {
     if (eventStart) await startEvent(guild, eventStart.type, eventStart.minutes);
     else await endEvent(guild);
     settings = await getEconomySettings(guild.id);
   }
-  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, lottery, halloween);
+  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, lottery, seasonal);
   await updateGuildConfig(client, guild.id, { premiumRoleId });
-  return economyView(settings, guild, premiumRoleId, quiz, lottery, halloween);
+  return economyView(settings, guild, premiumRoleId, quiz, lottery, seasonal);
 }
 
 // List of role IDs, each at most once. `assignable` also refuses roles the bot can never give (managed ones).
@@ -1685,7 +1713,7 @@ export function createPanelRouter(client) {
       automod: automodView(await getAutomodConfig(guild.id, { fresh: true })),
       invites: await getInviteConfig(guild.id),
       youtube: (await getFeeds(guild.id)).map(feedView),
-      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await getLottery(guild.id), await getHalloween(guild.id)),
+      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await getLottery(guild.id), await seasonViews(guild.id)),
       leveling: levelingView(await getLevelingConfig(client, guild.id)),
       autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
       tickets: await ticketsView(client, guild),

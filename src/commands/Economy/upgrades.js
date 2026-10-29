@@ -4,6 +4,7 @@ import { getEconomySettings } from '../../services/economySettings.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { buildUpgradesView, shopPrices } from './modules/upgrades_view.js';
+import { openSeason } from '../../services/seasonalEvents.js';
 import { t } from '../../i18n/index.js';
 
 export default {
@@ -30,7 +31,8 @@ export default {
         const userData = await getEconomyData(client, interaction.guildId, user.id);
         const own = user.id === interaction.user.id;
         const prices = await shopPrices(interaction.guild);
-        const view = buildUpgradesView({ guildId: interaction.guildId, userData, user, ownerId: own ? user.id : null, prices });
+        const season = await openSeason(interaction.guildId);
+        const view = buildUpgradesView({ guildId: interaction.guildId, userData, user, ownerId: own ? user.id : null, prices, season });
         await InteractionHelper.safeEditReply(interaction, view);
     }, { command: 'ulepszenia' })
 };

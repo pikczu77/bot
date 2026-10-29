@@ -1,6 +1,7 @@
-// The /ulepszenia message, in two folders:
+// The /ulepszenia message, in two folders (three while a holiday event shop is open):
 //   skills — every permanent upgrade with its level, effect and the price of the next level
 //   items  — the item tiers (rod, pickaxe, computer, clover): what you have and the next one
+//   event  — the upgrades of the running holiday event, paid with its currency (services/seasonalEvents.js)
 // One button per upgrade or item line, plus the folder switch. The buttons are handled by
 // src/interactions/buttons/economy/upgrades.js.
 
@@ -10,11 +11,12 @@ import { getEconomySettings, getShopItems, money } from '../../../services/econo
 import { UPGRADES, describeUpgradeEffect, discountPercent, discountedPrice, getUpgradeLevel, upgradeCost } from '../../../services/economyUpgrades.js';
 import { ITEM_CHAINS, bestInChain, nextInChain, tierEffect } from '../../../config/shop/items.js';
 import { CARDS, FISH, FULL_CARDS_BONUS_PERCENT, FULL_FISH_BONUS_PERCENT, cardsCollected, fishCollected } from '../../../services/collections.js';
+import { SEASON_UPGRADES, amountOf, seasonUpgradeLevel } from '../../../services/seasonalEvents.js';
 import { itemLabel } from './buy.js';
 import { t, tr } from '../../../i18n/index.js';
 
 const BUTTONS_PER_ROW = 5;
-export const FOLDERS = ['skills', 'items'];
+export const FOLDERS = ['skills', 'items', 'event'];
 
 /** Prices of the items for sale on this server (item id -> price). */
 export async function shopPrices(guild) {
@@ -22,8 +24,8 @@ export async function shopPrices(guild) {
   return new Map(items.map((item) => [item.id, item.price]));
 }
 
-function folderRow(ownerId, folder) {
-  return new ActionRowBuilder().addComponents(
+function folderRow(ownerId, folder, season = null) {
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`ulepszenia:folder:${ownerId}:skills`)
       .setLabel(t('Skills'))
@@ -37,6 +39,47 @@ function folderRow(ownerId, folder) {
       .setStyle(folder === 'items' ? ButtonStyle.Primary : ButtonStyle.Secondary)
       .setDisabled(folder === 'items'),
   );
+  if (season) {
+    row.addComponents(new ButtonBuilder()
+      .setCustomId(`ulepszenia:folder:${ownerId}:event`)
+      .setLabel(season.event.texts.name())
+      .setEmoji(season.event.emoji)
+      .setStyle(folder === 'event' ? ButtonStyle.Primary : ButtonStyle.Success)
+      .setDisabled(folder === 'event'));
+  }
+  return row;
+}
+
+/** The event folder: upgrades of the running holiday event, bought with its currency. */
+function eventFolder({ season, userData, ownerId }) {
+  const { event } = season;
+  const { amount } = amountOf(event, userData);
+  const fields = SEASON_UPGRADES.map((upgrade) => {
+    const level = seasonUpgradeLevel(event, userData, upgrade.id);
+    const price = upgrade.prices[level] ?? null;
+    return {
+      name: `${upgrade.emoji} ${tr(upgrade.name)} · ${level}/${upgrade.prices.length}`,
+      value: [
+        level > 0 ? t`Now: **${upgrade.effect(level, event)}**` : t('Now: not bought'),
+        price === null ? t('✅ Highest level') : t`Next: ${upgrade.effect(level + 1, event)} · **${price} ${event.currency}**`,
+      ].join('\n'),
+      inline: true,
+    };
+  });
+  const buttons = !ownerId ? [] : SEASON_UPGRADES.map((upgrade) => {
+    const price = upgrade.prices[seasonUpgradeLevel(event, userData, upgrade.id)] ?? null;
+    return new ButtonBuilder()
+      .setCustomId(`ulepszenia:event:${ownerId}:${upgrade.id}`)
+      .setLabel((price === null ? t`${tr(upgrade.name)} · MAX` : `${tr(upgrade.name)} · ${price} ${event.currency}`).slice(0, 80))
+      .setEmoji(upgrade.emoji)
+      .setStyle(price !== null && amount >= price ? ButtonStyle.Success : ButtonStyle.Secondary)
+      .setDisabled(price === null || amount < price);
+  });
+  return {
+    fields,
+    buttons,
+    intro: t`${event.emoji} Event upgrades: you pay with ${event.currency}, they work until the event ends. You have **${amount} ${event.currency}** (\`/${event.daily}\` every day).`,
+  };
 }
 
 function rows(buttons) {
@@ -130,17 +173,22 @@ function itemsFolder({ guildId, userData, ownerId, funds, prices }) {
  * @param {Map<string, number>} [options.prices]  item id -> shop price on this server (items for sale only)
  * @param {string} [options.notice]  line shown above the list (result of the last click)
  */
-export function buildUpgradesView({ guildId, userData, user, ownerId = null, folder = 'skills', prices = new Map(), notice = '' }) {
+export function buildUpgradesView({ guildId, userData, user, ownerId = null, folder = 'skills', prices = new Map(), notice = '', season = null }) {
   const funds = (userData.wallet || 0) + (userData.bank || 0);
+  if (folder === 'event' && !season) folder = 'skills';
   const shown = folder === 'items'
     ? itemsFolder({ guildId, userData, ownerId, funds, prices })
-    : skillsFolder({ guildId, userData, ownerId, funds });
+    : folder === 'event'
+      ? eventFolder({ season, userData, ownerId })
+      : skillsFolder({ guildId, userData, ownerId, funds });
   const discount = discountPercent(userData);
 
   const embed = createEmbed({
     title: folder === 'items'
       ? t`🎒 Item upgrades · ${user.displayName ?? user.username}`
-      : t`⚡ Upgrades · ${user.displayName ?? user.username}`,
+      : folder === 'event'
+        ? `${season.event.emoji} ${season.event.texts.name()} · ${user.displayName ?? user.username}`
+        : t`⚡ Upgrades · ${user.displayName ?? user.username}`,
     description: [
       notice,
       shown.intro,
@@ -151,5 +199,5 @@ export function buildUpgradesView({ guildId, userData, user, ownerId = null, fol
   });
 
   if (!ownerId) return { embeds: [embed], components: [] };
-  return { embeds: [embed], components: [...rows(shown.buttons), folderRow(ownerId, folder)] };
+  return { embeds: [embed], components: [...rows(shown.buttons), folderRow(ownerId, folder, season)] };
 }

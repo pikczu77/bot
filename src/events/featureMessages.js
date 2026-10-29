@@ -7,7 +7,7 @@ import { noteQuizActivity } from '../services/quiz.js';
 import { handleChatBridgeMessage } from '../services/minecraftChat.js';
 import { handleMediaMessage } from '../services/mediaChannels.js';
 import { handleChatMessage } from '../services/chatEngagement.js';
-import { handleHalloweenMessage } from '../services/halloween.js';
+import { handleSeasonMessage } from '../services/seasonalEvents.js';
 import { bumpSticky, handleTagMessage } from '../services/tagService.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
 import { logger } from '../utils/logger.js';
@@ -34,8 +34,8 @@ export default {
       if (await handleChatBridgeMessage(message)) return;
       // Picture channels (fan art): reactions under pictures, other messages are deleted.
       if (await handleMediaMessage(message)) return;
-      // Halloween 2026: candies for every message (never stops the other handlers).
-      await handleHalloweenMessage(message).catch((error) => logger.warn(`Halloween candies failed: ${error.message}`));
+      // Holiday events (Halloween, Christmas, Easter): currency for every message (never stops the other handlers).
+      await handleSeasonMessage(message).catch((error) => logger.warn(`Holiday event currency failed: ${error.message}`));
       // Main chat: activity for drops and the Dead Chat ping, catching a drop.
       if (await handleChatMessage(message)) return;
 

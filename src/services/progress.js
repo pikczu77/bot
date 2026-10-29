@@ -195,6 +195,10 @@ export const ACHIEVEMENTS = [
   { id: 'merger', emoji: '🔨', name: t('Card smith'), description: t('Merge cards 10 times with `/polacz`.'), reward: 3000, progress: counter('merges', 10) },
   { id: 'halloween_2026', emoji: '🎃', name: t('Halloween 2026'), description: t('Collect 1,000 candies in the Halloween 2026 event.'), reward: 2000,
     progress: (u) => [Math.min(1000, u?.halloween?.year === 2026 ? Number(u.halloween.earned) || 0 : 0), 1000] },
+  { id: 'swieta_2026', emoji: '🎄', name: t('Christmas 2026'), description: t('Collect 1,000 gingerbread in the Christmas 2026 event.'), reward: 2000,
+    progress: (u) => [Math.min(1000, u?.swieta?.year === 2026 ? Number(u.swieta.earned) || 0 : 0), 1000] },
+  { id: 'wielkanoc_2027', emoji: '🐣', name: t('Easter 2027'), description: t('Collect 1,000 eggs in the Easter 2027 event.'), reward: 2000,
+    progress: (u) => [Math.min(1000, u?.wielkanoc?.year === 2027 ? Number(u.wielkanoc.earned) || 0 : 0), 1000] },
 ];
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
 export const getAchievement = (id) => ACHIEVEMENT_BY_ID.get(id) ?? null;

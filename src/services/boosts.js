@@ -3,7 +3,7 @@
 // Member data: boosts = { money: until, xp: until } (ms). The money boost doubles every payout that goes through
 // scaleEarnings() with the member's data (like the "kasa" event, and on top of it); the XP boost doubles message XP
 // (events/messageCreate.js). Buying more of a running boost adds time; at most MAX_BOOST_HOURS ahead.
-// Sold for money in /boosty (prices in commands.boosts) and for candies in the Halloween shop (services/halloween.js).
+// Sold for money in /boosty (prices in commands.boosts) and in the holiday event shops (services/seasonalEvents.js).
 
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { t } from '../i18n/index.js';

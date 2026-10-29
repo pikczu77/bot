@@ -93,11 +93,15 @@ change you make, so the next session knows what was done and why.
   amounts, upgrades, stocks, properties. Kept: items, cards, fish, badges, club, marriage, boosts, candies.
 - `/polacz karta [ile]` (since 2026-10-29): `src/services/cardMerge.js`, 5 copies (same version) -> 1 random card of the next
   rarity in the same version; legendary cannot. Event `merges`.
-- Halloween 2026 (2026-10-29): `src/services/halloween.js`, `/halloween sklep|kup|ranking`, job `halloween`, candies in
-  `handleHalloweenMessage` (featureMessages.js, before the chat handler) and for a caught chat drop (`catchDrop`). Store
-  `guild:{id}:halloween` (window 29.10-2.11 by default, `totals` for the ranking). Member data `halloween = { year, candies, earned }`.
-  Panel: `halloween` in the economy view/PATCH (`lastDay` moves `endsAt`). After the event the code can stay; next year add a
-  new year constant, dates and role name.
+- Holiday events (since 2026-10-29): `src/services/seasonalEvents.js`, `SEASONAL_EVENTS` = Halloween 2026 (🍬, 29.10-2.11),
+  Christmas 2026 (`swieta`, 🍪, 19.12-1.01), Easter 2027 (`wielkanoc`, 🥚, 25-29.03.2027). Each: store `guild:{id}:<id>` (same shape as
+  the first Halloween store, `totals` for the ranking, `dailyAmount`), member data `<id> = { year, candies, earned, upgrades, lastDaily }`
+  (the field is `candies` for every event), commands built by `modules/season_command.js`: `/halloween|swieta|wielkanoc
+  sklep|kup|ranking` and the daily `/cukierki|pierniczki|pisanki`. Currency for messages in `handleSeasonMessage` (featureMessages.js,
+  before the chat handler) and for drops (`catchDrop` -> `seasonDropBonus`), job `seasonal_events` (announcement, end). Event upgrades
+  `SEASON_UPGRADES` (bag, daily, drops, lucky) bought with the currency in `/ulepszenia` folder `event` (`openSeason`, buttons
+  `ulepszenia:event:<owner>:<id>`). Panel: `seasonal` list in the economy view, PATCH `seasonal.<id>` (and `halloween` = seasonal.halloween).
+  A new year/holiday = a new entry in `SEASONAL_EVENTS` (+ texts in `pl.halloween.json`, a badge in progress.js).
 - Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`,
   `test/market.test.js` (stocks, clubs, buildings, open trade offers), `test/halloween.test.js` (event, boosts, prestige, merging).
 
@@ -663,3 +667,17 @@ change you make, so the next session knows what was done and why.
     checked, so "zajebiście" passes `*jeb*` while "jebać", "wyjebane" and other words in the same message are still caught.
     Defaults merge into saved settings, so it works on the live server at once. Panel field "Dozwolone mimo listy". My reading:
     "zajebisty/zajebista" too (same word). Test: `test/automod-allow.test.js`.
+- **2026-10-29, evening** (owner: "zrob odrazu swieta i wielkanoc"; mid-task "dodajmy do tego zeby byla komenda /cukierki itp pod to ze
+  codziennie mozna zbierac x cukierkow, za to mozna ulepszac (/ulepszenia i do wyboru eventowe)"). Live after the owner restarts the bot;
+  panel deployed. 95 commands:
+  - `services/halloween.js` became `services/seasonalEvents.js` (Halloween data and settings kept: same store and member field).
+  - Christmas 2026 (🎄, gingerbread 🍪, rank "Święta 2026", 19 Dec - 1 Jan) and Easter 2027 (🐣, eggs 🥚, rank "Wielkanoc 2027",
+    25-29 Mar 2027; Easter Sunday is 28 Mar) with their own shops, rankings, announcements and badges. On by default; they start by
+    themselves on their days. Dates, names, currencies and texts are mine.
+  - Daily `/cukierki`, `/pierniczki`, `/pisanki`: once a Warsaw day while the event runs, `dailyAmount` (50) of its currency.
+  - Event upgrades in `/ulepszenia` (third folder while an event shop is open): Bigger bag (+1 per message per level, 5 levels),
+    Sweeter daily (+20 daily per level, 5), Drop hunter (+50% drop currency per level, 4), Lucky find (5% double per level, 4); prices
+    80-800 of the event currency; they last for that event. All my numbers.
+  - Announcements got the daily command and the upgrades ({dziennie} variable). Panel: module Eventy has a tab per event (first and
+    last day, per message, break, drop, daily, channel, rank, announcement editor + preview) and "Na czas"; an older bot (only
+    `halloween`) still gets one Halloween tab.

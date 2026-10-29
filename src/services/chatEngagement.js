@@ -31,7 +31,7 @@ import { missionsEnabled, recordProgress } from './progress.js';
 import { setHappyHour } from './happyHourState.js';
 import { puzzleNumber } from './wordle.js';
 import { DRAW_HOUR } from './lottery.js';
-import { dropCandies, giveCandies } from './halloween.js';
+import { giveSeasonCurrency, seasonDropBonus } from './seasonalEvents.js';
 
 export const CHAT_DEFAULTS = Object.freeze({
   channelId: null,
@@ -97,15 +97,17 @@ async function catchDrop(message, entry) {
     await setEconomyData(message.client, guildId, message.author.id, userData);
     return amount;
   });
-  // Halloween 2026: a caught drop also gives candies (services/halloween.js).
+  // Holiday events: a caught drop also gives the event currency (services/seasonalEvents.js).
   const caughtAt = message.createdTimestamp ?? Date.now();
-  const candies = await dropCandies(guildId, caughtAt);
-  if (candies > 0) await giveCandies(message.client, guildId, message.author.id, candies, caughtAt);
+  const bonus = [];
+  for (const { event, amount } of await seasonDropBonus(guildId, caughtAt)) {
+    bonus.push({ event, amount: await giveSeasonCurrency(event, message.client, guildId, message.author.id, amount, { now: caughtAt, kind: 'drop' }) });
+  }
   message.react('🎉').catch(() => {});
   await drop.message?.edit({
     embeds: [createEmbed({
       title: t('🎁 Drop caught!'),
-      description: t`${message.author} was the fastest and gets **${money(guildId, prize)}**.` + (candies > 0 ? t` And **${candies} 🍬**!` : ''),
+      description: t`${message.author} was the fastest and gets **${money(guildId, prize)}**.` + bonus.map(({ event, amount }) => t` And **${amount} ${event.currency}**!`).join(''),
       color: '#30D158',
       footer: false,
     })],

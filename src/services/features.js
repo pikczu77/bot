@@ -20,7 +20,7 @@ import { runBackups } from './minecraftServer.js';
 import { pollMinecraftLive } from './minecraftLive.js';
 import { runStockMarket } from './stockMarket.js';
 import { runClubs } from './clubs.js';
-import { runHalloween } from './halloween.js';
+import { runSeasonalEvents } from './seasonalEvents.js';
 
 const JOBS = [
   { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
@@ -37,7 +37,7 @@ const JOBS = [
   { name: 'minecraft_live', schedule: '* * * * *', run: pollMinecraftLive },
   { name: 'stock_market', schedule: '* * * * *', run: runStockMarket },
   { name: 'clubs_week', schedule: '* * * * *', run: runClubs },
-  { name: 'halloween', schedule: '* * * * *', run: runHalloween },
+  { name: 'seasonal_events', schedule: '* * * * *', run: runSeasonalEvents },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */
