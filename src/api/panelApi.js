@@ -100,6 +100,8 @@ import {
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import { getLottery, potOf, updateLottery } from '../services/lottery.js';
+import { LAST_DAY_RANGE, ROLE_NAME as HALLOWEEN_ROLE_NAME, getHalloween, updateHalloween } from '../services/halloween.js';
+import { dayKey, midnightOf } from '../utils/warsawTime.js';
 import { CHAT_PARTS, deadChatRole, getChatSettings, postAnnouncement, postDrop, postQuestion, updateChatSettings } from '../services/chatEngagement.js';
 import { happyHourFactor } from '../services/happyHourState.js';
 import {
@@ -452,10 +454,31 @@ function lotteryView(lottery, settings) {
   };
 }
 
-function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null) {
+// Halloween 2026 (services/halloween.js) for the economy view: `lastDay` = the last day candies are given.
+function halloweenView(halloween) {
+  const top = Object.entries(halloween.totals ?? {}).sort((a, b) => b[1] - a[1]);
+  return {
+    enabled: halloween.enabled,
+    perMessage: halloween.perMessage,
+    cooldownSeconds: halloween.cooldownSeconds,
+    dropCandies: halloween.dropCandies,
+    roleId: halloween.roleId ?? null,
+    roleName: HALLOWEEN_ROLE_NAME,
+    channelId: halloween.channelId ?? null,
+    startsAt: halloween.startsAt,
+    endsAt: halloween.endsAt,
+    lastDay: dayKey(halloween.endsAt - 60_000),
+    lastDayRange: LAST_DAY_RANGE,
+    players: top.length,
+    candies: top.reduce((sum, [, earned]) => sum + (Number(earned) || 0), 0),
+  };
+}
+
+function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null, halloween = null) {
   const { shop, balanceVersion, ...rest } = settings;
   return {
     ...rest,
+    ...(halloween ? { halloween: halloweenView(halloween) } : {}),
     ...(quiz ? { quiz: quizView(quiz) } : {}),
     ...(lottery ? { lottery: lotteryView(lottery, settings) } : {}),
     // Timed events (services/economyEvents.js): settings in `events`, the types to start one by hand.
@@ -512,6 +535,25 @@ async function applyEconomy(client, guild, body) {
     if ('ticketPrice' in lottery) lotteryPatch.ticketPrice = integer(lottery.ticketPrice, 'lottery.ticketPrice', 1, MAX_MONEY);
     if ('maxTickets' in lottery) lotteryPatch.maxTickets = integer(lottery.maxTickets, 'lottery.maxTickets', 1, 1000);
     if ('bonus' in lottery) lotteryPatch.bonus = integer(lottery.bonus, 'lottery.bonus', 0, MAX_MONEY);
+  }
+  let halloweenPatch = null;
+  if ('halloween' in body) {
+    const halloween = plainObject(body.halloween, 'halloween');
+    halloweenPatch = {};
+    if ('enabled' in halloween) halloweenPatch.enabled = boolean(halloween.enabled, 'halloween.enabled');
+    if ('perMessage' in halloween) halloweenPatch.perMessage = integer(halloween.perMessage, 'halloween.perMessage', 0, 100);
+    if ('cooldownSeconds' in halloween) halloweenPatch.cooldownSeconds = integer(halloween.cooldownSeconds, 'halloween.cooldownSeconds', 5, 600);
+    if ('dropCandies' in halloween) halloweenPatch.dropCandies = integer(halloween.dropCandies, 'halloween.dropCandies', 0, 1000);
+    if ('roleId' in halloween) halloweenPatch.roleId = requireRole(guild, halloween.roleId, 'halloween.roleId');
+    if ('channelId' in halloween) halloweenPatch.channelId = requireTextChannel(guild, halloween.channelId, 'halloween.channelId');
+    if ('lastDay' in halloween) {
+      const day = String(halloween.lastDay ?? '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < LAST_DAY_RANGE[0] || day > LAST_DAY_RANGE[1]) {
+        throw new ApiError(400, `halloween.lastDay: a day from ${LAST_DAY_RANGE[0]} to ${LAST_DAY_RANGE[1]} expected`);
+      }
+      // Ends at the midnight after the last day (36 h later is always the next calendar day).
+      halloweenPatch.endsAt = midnightOf(dayKey(midnightOf(day) + 36 * 3_600_000));
+    }
   }
   let eventStart = null;
   if ('eventStart' in body) {
@@ -610,14 +652,15 @@ async function applyEconomy(client, guild, body) {
 
   const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
   const lottery = lotteryPatch ? await updateLottery(guild.id, (data) => { Object.assign(data, lotteryPatch); }) : await getLottery(guild.id);
+  const halloween = halloweenPatch ? await updateHalloween(guild.id, (data) => { Object.assign(data, halloweenPatch); }) : await getHalloween(guild.id);
   if (body.eventStop === true || eventStart) {
     if (eventStart) await startEvent(guild, eventStart.type, eventStart.minutes);
     else await endEvent(guild);
     settings = await getEconomySettings(guild.id);
   }
-  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, lottery);
+  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, lottery, halloween);
   await updateGuildConfig(client, guild.id, { premiumRoleId });
-  return economyView(settings, guild, premiumRoleId, quiz, lottery);
+  return economyView(settings, guild, premiumRoleId, quiz, lottery, halloween);
 }
 
 // List of role IDs, each at most once. `assignable` also refuses roles the bot can never give (managed ones).
@@ -1612,7 +1655,7 @@ export function createPanelRouter(client) {
       automod: automodView(await getAutomodConfig(guild.id, { fresh: true })),
       invites: await getInviteConfig(guild.id),
       youtube: (await getFeeds(guild.id)).map(feedView),
-      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await getLottery(guild.id)),
+      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await getLottery(guild.id), await getHalloween(guild.id)),
       leveling: levelingView(await getLevelingConfig(client, guild.id)),
       autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
       tickets: await ticketsView(client, guild),

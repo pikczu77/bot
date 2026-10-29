@@ -31,6 +31,7 @@ import { missionsEnabled, recordProgress } from './progress.js';
 import { setHappyHour } from './happyHourState.js';
 import { puzzleNumber } from './wordle.js';
 import { DRAW_HOUR } from './lottery.js';
+import { dropCandies, giveCandies } from './halloween.js';
 
 export const CHAT_DEFAULTS = Object.freeze({
   channelId: null,
@@ -96,11 +97,15 @@ async function catchDrop(message, entry) {
     await setEconomyData(message.client, guildId, message.author.id, userData);
     return amount;
   });
+  // Halloween 2026: a caught drop also gives candies (services/halloween.js).
+  const caughtAt = message.createdTimestamp ?? Date.now();
+  const candies = await dropCandies(guildId, caughtAt);
+  if (candies > 0) await giveCandies(message.client, guildId, message.author.id, candies, caughtAt);
   message.react('🎉').catch(() => {});
   await drop.message?.edit({
     embeds: [createEmbed({
       title: t('🎁 Drop caught!'),
-      description: t`${message.author} was the fastest and gets **${money(guildId, prize)}**.`,
+      description: t`${message.author} was the fastest and gets **${money(guildId, prize)}**.` + (candies > 0 ? t` And **${candies} 🍬**!` : ''),
       color: '#30D158',
       footer: false,
     })],

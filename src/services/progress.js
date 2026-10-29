@@ -190,6 +190,11 @@ export const ACHIEVEMENTS = [
   { id: 'stock_shark', emoji: '📈', name: t('Market shark'), description: t('Make 50,000 profit on the stock market.'), reward: 10000, progress: counter('stockProfit', 50_000) },
   { id: 'landlord', emoji: '🏘️', name: t('Landlord'), description: t('Own 3 buildings at once.'), reward: 5000, progress: (u) => [Math.min(3, Object.keys(u?.properties ?? {}).length), 3] },
   { id: 'castle', emoji: '🏰', name: t('Lord of the castle'), description: t('Buy the castle.'), reward: 25000, progress: (u) => [u?.properties?.zamek ? 1 : 0, 1] },
+  { id: 'prestige_1', emoji: '⭐', name: t('Fresh start'), description: t('Do your first prestige with `/prestiz`.'), reward: 5000, progress: (u) => [Math.min(1, Number(u?.prestige) || 0), 1] },
+  { id: 'prestige_10', emoji: '🌟', name: t('Server legend'), description: t('Reach prestige 10.'), reward: 100000, progress: (u) => [Math.min(10, Number(u?.prestige) || 0), 10] },
+  { id: 'merger', emoji: '🔨', name: t('Card smith'), description: t('Merge cards 10 times with `/polacz`.'), reward: 3000, progress: counter('merges', 10) },
+  { id: 'halloween_2026', emoji: '🎃', name: t('Halloween 2026'), description: t('Collect 1,000 candies in the Halloween 2026 event.'), reward: 2000,
+    progress: (u) => [Math.min(1000, u?.halloween?.year === 2026 ? Number(u.halloween.earned) || 0 : 0), 1000] },
 ];
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
 export const getAchievement = (id) => ACHIEVEMENT_BY_ID.get(id) ?? null;

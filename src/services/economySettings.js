@@ -58,6 +58,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     clubs: { foundPrice: 25_000, weeklyPrize: 25_000 },
     // /nieruchomosci (services/properties.js): rent scale, hours of rent a building holds, share returned on a sale.
     property: { incomePercent: 100, maxHours: 48, sellPercent: 60 },
+    // /boosty (services/boosts.js): price of one hour of x2 money / x2 XP.
+    boosts: { moneyHourPrice: 10_000, xpHourPrice: 5_000 },
   },
   // Missions (services/progress.js): off = no daily/weekly missions; rewardPercent scales their rewards.
   missions: { enabled: true, rewardPercent: 100 },
@@ -95,6 +97,7 @@ export const COMMAND_LIMITS = Object.freeze({
   stocks: { feePercent: [0, 20], maxShares: [1, 1_000_000] },
   clubs: { foundPrice: [0, MAX_MONEY], weeklyPrize: [0, MAX_MONEY] },
   property: { incomePercent: [0, 1000], maxHours: [1, 168], sellPercent: [0, 100] },
+  boosts: { moneyHourPrice: [0, MAX_MONEY], xpHourPrice: [0, MAX_MONEY] },
 });
 
 export const CURRENCY_POSITIONS = ['left', 'right'];
@@ -159,7 +162,22 @@ export function fortuneLevel(userData) {
 export const scaleEarnings = (settings, amount, userData = null) =>
   Math.floor((Number(amount) || 0) * (Number(settings?.earningsPercent) || 100) / 100
     * (100 + fortuneLevel(userData) * FORTUNE_PERCENT_PER_LEVEL) / 100
-    * (userData && activeEventType(settings) === 'kasa' ? 2 : 1));
+    * (userData && activeEventType(settings) === 'kasa' ? 2 : 1)
+    * boostFactor(userData, 'money')
+    * (100 + prestigeLevel(userData) * PRESTIGE_PERCENT_PER_LEVEL) / 100);
+
+// Prestige (services/prestige.js, /prestiz): every level +10% of every payout, for good (max 10 levels).
+export const MAX_PRESTIGE = 10;
+export const PRESTIGE_PERCENT_PER_LEVEL = 10;
+export function prestigeLevel(userData) {
+  const level = Number(userData?.prestige);
+  return Number.isInteger(level) && level > 0 ? Math.min(level, MAX_PRESTIGE) : 0;
+}
+
+// Boosts a member bought (services/boosts.js, /boosty, the Halloween shop): userData.boosts = { money: until, xp: until }.
+export const BOOST_FACTOR = 2;
+/** x2 while the member's boost of `type` runs, else 1. Lives here so scaleEarnings can read it. */
+export const boostFactor = (userData, type, now = Date.now()) => (Number(userData?.boosts?.[type]) > now ? BOOST_FACTOR : 1);
 
 /**
  * Id of the running economy event (services/economyEvents.js), or null. The "kasa" event doubles
@@ -180,6 +198,8 @@ export function earningsLine(settings, userData = null) {
   const percent = Number(settings?.earningsPercent) || 100;
   if (percent !== 100) text += t`\n🌟 **Server multiplier:** x${percent / 100}`;
   if (userData && activeEventType(settings) === 'kasa') text += t('\n🎉 **Event: double money** x2');
+  if (boostFactor(userData, 'money') > 1) text += t`\n⚡ **Boost x${BOOST_FACTOR} money** until <t:${Math.floor(userData.boosts.money / 1000)}:t>`;
+  if (prestigeLevel(userData) > 0) text += t`\n⭐ **Prestige ${prestigeLevel(userData)}:** +${prestigeLevel(userData) * PRESTIGE_PERCENT_PER_LEVEL}% all earnings`;
   return text;
 }
 

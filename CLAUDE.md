@@ -84,8 +84,22 @@ change you make, so the next session knows what was done and why.
   `commands.property.maxHours` waits, 3 upgrades +30% each, sale returns `sellPercent` of everything spent). Member data
   `properties = { [id]: { level, collectedAt, spent } }`. Rent: server multiplier and `incomePercent`, no Fortune or events.
   Events propertyBuy, propertyCollect, propertyIncome.
+- Boosts (since 2026-10-29): `src/services/boosts.js`, `/boosty lista|kup`. Member data `boosts = { money: until, xp: until }`.
+  `boostFactor` lives in `economySettings.js`: x2 inside `scaleEarnings` (with `userData`, stacks with the "kasa" event);
+  XP boost = `xpBoostFactor` in `events/messageCreate.js` (message XP only). Max 24 h ahead. Prices `commands.boosts`.
+- Prestige (since 2026-10-29): `src/services/prestige.js`, `/prestiz [osoba]` (private for the member), buttons
+  `prestiz:start|tak|nie:<userId>`. `prestigeLevel` + `PRESTIGE_PERCENT_PER_LEVEL` in `economySettings.js`: +10% per level in
+  `scaleEarnings`, 10 levels, costs `PRESTIGE_COSTS` (500k ... 30M of own cash + own bank). Reset: cash/bank to the start
+  amounts, upgrades, stocks, properties. Kept: items, cards, fish, badges, club, marriage, boosts, candies.
+- `/polacz karta [ile]` (since 2026-10-29): `src/services/cardMerge.js`, 5 copies (same version) -> 1 random card of the next
+  rarity in the same version; legendary cannot. Event `merges`.
+- Halloween 2026 (2026-10-29): `src/services/halloween.js`, `/halloween sklep|kup|ranking`, job `halloween`, candies in
+  `handleHalloweenMessage` (featureMessages.js, before the chat handler) and for a caught chat drop (`catchDrop`). Store
+  `guild:{id}:halloween` (window 29.10-2.11 by default, `totals` for the ranking). Member data `halloween = { year, candies, earned }`.
+  Panel: `halloween` in the economy view/PATCH (`lastDay` moves `endsAt`). After the event the code can stay; next year add a
+  new year constant, dates and role name.
 - Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`,
-  `test/market.test.js` (stocks, clubs, buildings, open trade offers).
+  `test/market.test.js` (stocks, clubs, buildings, open trade offers), `test/halloween.test.js` (event, boosts, prestige, merging).
 
 ## Economy rules the owner set (keep them)
 - `/rob` takes 80% of the victim's cash and 50% of the bank. Each "Bank security" level takes
@@ -625,3 +639,14 @@ change you make, so the next session knows what was done and why.
   - Question of the day: 95 more general questions (`DAILY_TRIVIA` 68 -> 163). Quiz: 67 more general questions (123 -> 190).
   - Wordle: 161 more everyday words (243 -> 404), appended. `LIST_SIZES` in `services/wordle.js` keeps days before 2026-10-28 on the
     first 243 words, so today's word does not change when the bot restarts mid-day. New words only at the end + a new LIST_SIZES line.
+- **2026-10-29** (owner: "1 zrobmy event halloween, ale ja chce z tego eventu duzo za pisanie, mimo wszystko w sklepie
+  halloweenowym maja byc boosty potem /boosty - mozna kupic 2x hajs na godzine np. no i najdrozsza ranga Halloween 2026";
+  mid-task "4,3 - 10 prestizy"). Live after the owner restarts the bot; panel cards deployed. 90 commands. Details in "Economy map":
+  - Halloween 2026 event until 2 Nov (shop one more day): 5 🍬 per message (at most every 20 s, needs two letters or a file),
+    +30 🍬 for a caught chat drop. Shop: x2 money 1 h 150 / 3 h 400, x2 XP 1 h 100 / 3 h 250, Collector pack 300, 10,000 money
+    400, rank "Halloween 2026" 3,000 (role picked in the panel, else found by name, else created; given once). Announcement on
+    the picked channel, else the events channel, else the chat channel; deleted at the end, then the top three. Badge for 1,000
+    candies. All numbers mine; an active member earns about 2,500 candies in the event.
+  - `/boosty`: x2 money 10,000 / h, x2 XP 5,000 / h (1, 3, 6 h), panel card. My prices.
+  - `/prestiz` (owner: idea 3, 10 levels) and `/polacz` (idea 4). Badges: Fresh start, Server legend, Card smith.
+  - Guide topic "⭐ Prestiż, boosty, łączenie" (`GUIDE_VERSION` 5).

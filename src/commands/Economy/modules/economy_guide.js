@@ -36,11 +36,14 @@ import { CHEST_EVERY } from '../../../services/dailyStreak.js';
 import { COMPANIES } from '../../../services/stockMarket.js';
 import { BASE_MEMBERS, BONUS_PER_LEVEL, CLUB_UPGRADES, CREW_PER_LEVEL, MEMBERS_PER_LEVEL } from '../../../services/clubs.js';
 import { LEVEL_INCOME_PERCENT, MAX_PROPERTY_LEVEL, PROPERTIES } from '../../../services/properties.js';
+import { BOOST_FACTOR, MAX_BOOST_HOURS } from '../../../services/boosts.js';
+import { MAX_PRESTIGE, PRESTIGE_COSTS, PRESTIGE_PERCENT_PER_LEVEL } from '../../../services/prestige.js';
+import { MERGE_COUNT } from '../../../services/cardMerge.js';
 
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 4;
+export const GUIDE_VERSION = 5;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -276,6 +279,20 @@ function investments({ guildId, settings }) {
   };
 }
 
+// Prestige, boosts and card merging (2026-10-29).
+function prestigeTopic({ guildId, settings }) {
+  const { boosts } = settings.commands;
+  return {
+    description: t('For players who already have a lot: start over stronger, speed up, use duplicates.'),
+    fields: [
+      field(t('⭐ /prestiz'), t`${MAX_PRESTIGE} levels, each **+${PRESTIGE_PERCENT_PER_LEVEL}%** of every payout for good\nthe 1st needs **${money(guildId, PRESTIGE_COSTS[0])}**, the 10th **${money(guildId, PRESTIGE_COSTS.at(-1))}**`),
+      field(t('🔄 Prestige resets'), t('cash and bank, upgrades\nshares, buildings\nitems, cards and badges stay')),
+      field(t('⚡ /boosty'), t`💰 x${BOOST_FACTOR} money: **${money(guildId, boosts.moneyHourPrice)}** an hour\n⭐ x${BOOST_FACTOR} XP: **${money(guildId, boosts.xpHourPrice)}** an hour\nup to ${MAX_BOOST_HOURS} h ahead`),
+      field(t('🔨 /polacz'), t`**${MERGE_COUNT}** copies of one card\n= 1 card of the next rarity\nthe version (golden, diamond) stays`),
+    ],
+  };
+}
+
 const packName = (id) => `${getPack(id)?.emoji ?? ''} **${tr(getPack(id)?.name ?? id)}**`;
 
 function missions({ settings }) {
@@ -300,6 +317,7 @@ function commands() {
       field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij`'),
       field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
       field(t('📈 Investing'), '`/gielda` `/klub`\n`/nieruchomosci`'),
+      field(t('⭐ Progress'), '`/prestiz` `/boosty`\n`/polacz`'),
       field(t('🎮 Games'), '`/napad` `/wordle`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
@@ -321,6 +339,7 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
   { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, duels, lottery, quiz, events'), color: '#30D158', build: games },
   { id: 'inwestycje', emoji: '📈', name: t('Stocks, clubs, buildings'), hint: t('/gielda, /klub, /nieruchomosci'), color: '#0A84FF', build: investments },
+  { id: 'prestiz', emoji: '⭐', name: t('Prestige, boosts, merging'), hint: t('/prestiz, /boosty, /polacz'), color: '#FFD60A', build: prestigeTopic },
   { id: 'misje', emoji: '🎯', name: t('Missions and badges'), hint: t('/misje and /osiagniecia'), color: '#F1C40F', build: missions },
   { id: 'zwiazki', emoji: '💍', name: t('Dates and marriage'), hint: t('/randka and /slub'), color: '#FF375F', build: love },
   { id: 'komendy', emoji: '📋', name: t('All commands'), hint: t('The full list'), color: '#8E8E93', build: commands },
@@ -357,6 +376,7 @@ export function buildGuideMessage(guild = null) {
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
       field(t('🎮 Games'), '`/napad` · `/wordle` · `/pojedynek` · `/loteria`'),
       field(t('📈 Investing'), '`/gielda` · `/klub` · `/nieruchomosci`'),
+      field(t('⭐ Progress'), '`/prestiz` · `/boosty` · `/polacz`'),
     ],
     thumbnail: guild?.iconURL?.({ size: 128 }) ?? null,
     footer: { text: t('The tutorials always show the current server settings.') },

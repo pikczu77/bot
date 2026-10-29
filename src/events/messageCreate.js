@@ -14,6 +14,7 @@ import { createEmbed } from '../utils/embeds.js';
 import { isCommandEnabled } from '../services/commandAccessService.js';
 import { getEconomyAccessDenial } from '../services/economySettings.js';
 import { payActivityReward } from '../utils/economy.js';
+import { xpBoostFactor } from '../services/boosts.js';
 import {
   getCountingGameConfig,
   saveCountingGameConfig,
@@ -250,7 +251,9 @@ async function handleLeveling(message, client) {
 
     const { min, max } = getMessageXpRange(levelingConfig);
     const xpToGive = Math.floor(Math.random() * (max - min + 1)) + min;
-    const finalXP = applyXpMultipliers(levelingConfig, xpToGive, { member, channel: message.channel, message });
+    // An XP boost from /boosty or the Halloween shop (services/boosts.js) doubles message XP.
+    const finalXP = applyXpMultipliers(levelingConfig, xpToGive, { member, channel: message.channel, message })
+      * await xpBoostFactor(client, message.guild.id, message.author.id).catch(() => 1);
 
     const result = await addXp(client, message.guild, member, finalXP, { channel: message.channel });
 
