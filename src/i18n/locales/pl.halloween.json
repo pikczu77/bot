@@ -202,5 +202,19 @@
   "Which event (default: the one now)": "Który event (domyślnie ten, który trwa)",
   "Collect the event currency of the day": "Odbierz dzisiejszą walutę eventu",
   "Every event and its days": "Wszystkie eventy i ich dni",
-  "👑 Event rank": "👑 Ranga eventu"
+  "👑 Event rank": "👑 Ranga eventu",
+  "Halloween {0}": "Halloween {0}",
+  "🎃 Halloween {0} has started!": "🎃 Halloween {0} wystartował!",
+  "Christmas {0}": "Święta {0}",
+  "🎄 Christmas {0} on the server!": "🎄 Święta {0} na serwerze!",
+  "New Year's Eve {0}": "Sylwester {0}",
+  "🥂 New Year's Eve {0} on the server!": "🥂 Sylwester {0} na serwerze!",
+  "Valentine's Day {0}": "Walentynki {0}",
+  "💘 Valentine's Day {0} on the server!": "💘 Walentynki {0} na serwerze!",
+  "Easter {0}": "Wielkanoc {0}",
+  "🐣 Easter {0} on the server!": "🐣 Wielkanoc {0} na serwerze!",
+  "Children's Day {0}": "Dzień Dziecka {0}",
+  "🎈 Children's Day {0} on the server!": "🎈 Dzień Dziecka {0} na serwerze!",
+  "Summer holidays {0}": "Wakacje {0}",
+  "🏖️ Summer holidays {0} have started!": "🏖️ Wakacje {0} się zaczęły!"
 }

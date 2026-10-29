@@ -43,109 +43,180 @@ const nextDay = (day) => dayKey(midnightOf(day) + 36 * 3_600_000);
 export const SEASONAL_EVENTS = Object.freeze([
   {
     id: 'halloween', year: 2026, emoji: '🎃', currency: '🍬', variable: 'cukierki',
-    roleName: 'Halloween 2026', color: '#FF7518',
+    roleBase: 'Halloween', color: '#FF7518',
     // Through 2 November (Zaduszki).
-    firstDay: '2026-10-29', lastDay: '2026-11-02', dayRange: ['2026-10-29', '2026-11-15'],
+    days: (y) => ({ firstDay: `${y}-10-29`, lastDay: `${y}-11-02`, dayRange: [`${y}-10-15`, `${y}-11-15`] }),
     texts: {
-      name: () => t('Halloween 2026'),
+      name: (y) => t`Halloween ${y}`,
       shop: () => t('🎃 Halloween shop'),
       ranking: () => t('🎃 Candy ranking'),
       over: () => t('🎃 Halloween is over'),
-      title: () => t('🎃 Halloween 2026 has started!'),
+      title: (y) => t`🎃 Halloween ${y} has started!`,
       text: () => t('Pumpkins are glowing, bats are flying and the server is full of **candies**! 🍬\n\n**How to collect them?**\n💬 Every message = **{cukierki} 🍬** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🍬**\n📅 Every day `/event zbierz` = **+{dziennie} 🍬**\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 🍬**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 🍬**\n\n**What to spend them on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And the best of all: the rank **{ranga}**, only for the most dedicated!\n\n🏆 Top collectors: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nChat, talk, collect: trick or treat! 👻'),
     },
   },
   {
     id: 'swieta', year: 2026, emoji: '🎄', currency: '🍪', variable: 'pierniczki',
-    roleName: 'Święta 2026', color: '#C0392B',
-    // From the last weekend before Christmas; New Year's Eve has its own event from 30 December.
-    firstDay: '2026-12-19', lastDay: '2026-12-29', dayRange: ['2026-12-01', '2027-01-15'],
+    roleBase: 'Święta', color: '#C0392B',
+    // From the weekend before Christmas; New Year's Eve has its own event from 30 December.
+    days: (y) => ({ firstDay: `${y}-12-19`, lastDay: `${y}-12-29`, dayRange: [`${y}-12-01`, `${y + 1}-01-15`] }),
     texts: {
-      name: () => t('Christmas 2026'),
+      name: (y) => t`Christmas ${y}`,
       shop: () => t('🎄 Christmas shop'),
       ranking: () => t('🎄 Gingerbread ranking'),
       over: () => t('🎄 Christmas is over'),
-      title: () => t('🎄 Christmas 2026 on the server!'),
+      title: (y) => t`🎄 Christmas ${y} on the server!`,
       text: () => t('The tree is up, snow is falling and the server smells of **gingerbread**! 🍪\n\n**How to collect it?**\n💬 Every message = **{pierniczki} 🍪** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🍪**\n📅 Every day `/event zbierz` = **+{dziennie} 🍪**\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 🍪**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 🍪**\n\n**What to spend it on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And under the tree: the rank **{ranga}**, for the most dedicated elves!\n\n🏆 Ranking: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nMerry Christmas and lots of chatting! ⛄'),
     },
   },
   {
     id: 'sylwester', year: 2026, emoji: '🥂', currency: '🎆', variable: 'fajerwerki',
-    roleName: 'Sylwester 2026', color: '#D4AF37',
+    roleBase: 'Sylwester', color: '#D4AF37',
     // 30 December through 2 January.
-    firstDay: '2026-12-30', lastDay: '2027-01-02', dayRange: ['2026-12-26', '2027-01-10'],
+    days: (y) => ({ firstDay: `${y}-12-30`, lastDay: `${y + 1}-01-02`, dayRange: [`${y}-12-26`, `${y + 1}-01-10`] }),
     texts: {
-      name: () => t("New Year's Eve 2026"),
+      name: (y) => t`New Year's Eve ${y}`,
       shop: () => t("🥂 New Year's Eve shop"),
       ranking: () => t('🎆 Fireworks ranking'),
       over: () => t("🥂 New Year's Eve is over"),
-      title: () => t("🥂 New Year's Eve 2026 on the server!"),
+      title: (y) => t`🥂 New Year's Eve ${y} on the server!`,
       text: () => t('The countdown has started and the sky over the server is full of **fireworks**! 🎆\n\n**How to collect them?**\n💬 Every message = **{fajerwerki} 🎆** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🎆**\n📅 Every day `/event zbierz` = **+{dziennie} 🎆**\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 🎆**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 🎆**\n\n**What to spend them on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And at midnight: the rank **{ranga}**, for the best party people!\n\n🏆 Ranking: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\n3, 2, 1... Happy New Year! 🥳'),
     },
   },
   {
     id: 'walentynki', year: 2027, emoji: '💘', currency: '💌', variable: 'lisciki',
-    roleName: 'Walentynki 2027', color: '#E91E63', dateReward: 30, marriedDailyPercent: 100,
-    // Valentine's Day 2027 is a Sunday: Friday to Tuesday.
-    firstDay: '2027-02-12', lastDay: '2027-02-16', dayRange: ['2027-02-01', '2027-02-28'],
+    roleBase: 'Walentynki', color: '#E91E63', dateReward: 30, marriedDailyPercent: 100,
+    // 12-16 February (2027: Friday to Tuesday around the Sunday).
+    days: (y) => ({ firstDay: `${y}-02-12`, lastDay: `${y}-02-16`, dayRange: [`${y}-02-01`, `${y}-02-28`] }),
     texts: {
-      name: () => t("Valentine's Day 2027"),
+      name: (y) => t`Valentine's Day ${y}`,
       shop: () => t("💘 Valentine's shop"),
       ranking: () => t('💌 Love letter ranking'),
       over: () => t("💘 Valentine's Day is over"),
-      title: () => t("💘 Valentine's Day 2027 on the server!"),
+      title: (y) => t`💘 Valentine's Day ${y} on the server!`,
       text: () => t('Love is in the air and the server is full of **love letters**! 💌\n\n**How to collect them?**\n💬 Every message = **{lisciki} 💌** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 💌**\n📅 Every day `/event zbierz` = **+{dziennie} 💌** (x2 for married people 💍)\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 💌**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 💌**\n💞 Every accepted `/randka` = **+{randka} 💌** for both of you (x2 for a married couple)\n\n**What to spend them on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And for the biggest romantics: the rank **{ranga}**!\n\n🏆 Ranking: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nAsk someone out, chat, collect! 💕'),
     },
   },
   {
     id: 'wielkanoc', year: 2027, emoji: '🐣', currency: '🥚', variable: 'pisanki',
-    roleName: 'Wielkanoc 2027', color: '#7DCEA0',
-    // Easter Sunday 2027 is 28 March; through Easter Monday (śmigus-dyngus).
-    firstDay: '2027-03-25', lastDay: '2027-03-29', dayRange: ['2027-03-15', '2027-04-15'],
+    roleBase: 'Wielkanoc', color: '#7DCEA0',
+    // Thursday before Easter Sunday through Easter Monday (śmigus-dyngus); 2027: 25-29 March.
+    days: (y) => ({ firstDay: shiftDay(easterSunday(y), -3), lastDay: shiftDay(easterSunday(y), 1), dayRange: [shiftDay(easterSunday(y), -13), shiftDay(easterSunday(y), 18)] }),
     texts: {
-      name: () => t('Easter 2027'),
+      name: (y) => t`Easter ${y}`,
       shop: () => t('🐣 Easter shop'),
       ranking: () => t('🐣 Egg ranking'),
       over: () => t('🐣 Easter is over'),
-      title: () => t('🐣 Easter 2027 on the server!'),
+      title: (y) => t`🐣 Easter ${y} on the server!`,
       text: () => t('The bunny is hopping, the baskets are ready and **painted eggs** are hiding all over the server! 🥚\n\n**How to collect them?**\n💬 Every message = **{pisanki} 🥚** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🥚**\n📅 Every day `/event zbierz` = **+{dziennie} 🥚**\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 🥚**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 🥚**\n\n**What to spend them on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And in the basket: the rank **{ranga}**, for the best egg hunters!\n\n🏆 Ranking: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nHappy Easter and a wet śmigus-dyngus! 💦'),
     },
   },
   {
     id: 'dzien_dziecka', year: 2027, emoji: '🎈', currency: '🍭', variable: 'lizaki',
-    roleName: 'Dzień Dziecka 2027', color: '#FFB300',
-    // 1 June 2027 is a Tuesday: the weekend before through Wednesday.
-    firstDay: '2027-05-29', lastDay: '2027-06-02', dayRange: ['2027-05-15', '2027-06-15'],
+    roleBase: 'Dzień Dziecka', color: '#FFB300',
+    // 29 May - 2 June around 1 June.
+    days: (y) => ({ firstDay: `${y}-05-29`, lastDay: `${y}-06-02`, dayRange: [`${y}-05-15`, `${y}-06-15`] }),
     texts: {
-      name: () => t("Children's Day 2027"),
+      name: (y) => t`Children's Day ${y}`,
       shop: () => t("🎈 Children's Day shop"),
       ranking: () => t('🍭 Lollipop ranking'),
       over: () => t("🎈 Children's Day is over"),
-      title: () => t("🎈 Children's Day 2027 on the server!"),
+      title: (y) => t`🎈 Children's Day ${y} on the server!`,
       text: () => t('Balloons are up, the music is playing and the server is full of **lollipops**! 🍭\n\n**How to collect them?**\n💬 Every message = **{lizaki} 🍭** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🍭**\n📅 Every day `/event zbierz` = **+{dziennie} 🍭**\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 🍭**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 🍭**\n\n**What to spend them on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And the best present: the rank **{ranga}**!\n\n🏆 Ranking: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nToday everyone is a kid: have fun! 🎉'),
     },
   },
   {
     id: 'wakacje', year: 2027, emoji: '🏖️', currency: '🐚', variable: 'muszelki',
-    roleName: 'Wakacje 2027', color: '#00ACC1', rankPrice: 10_000,
-    // The school year 2026/27 ends on Friday 25 June; the whole summer, so the rank costs more.
-    firstDay: '2027-06-26', lastDay: '2027-08-31', dayRange: ['2027-06-15', '2027-09-15'],
+    roleBase: 'Wakacje', color: '#00ACC1', rankPrice: 10_000,
+    // From the day after the school year (it ends on the first Friday after 20 June) through 31 August; the whole summer,
+    // so the rank costs more.
+    days: (y) => ({ firstDay: summerStart(y), lastDay: `${y}-08-31`, dayRange: [`${y}-06-15`, `${y}-09-15`] }),
     texts: {
-      name: () => t('Summer holidays 2027'),
+      name: (y) => t`Summer holidays ${y}`,
       shop: () => t('🏖️ Summer shop'),
       ranking: () => t('🐚 Seashell ranking'),
       over: () => t('🏖️ The summer holidays are over'),
-      title: () => t('🏖️ Summer holidays 2027 have started!'),
+      title: (y) => t`🏖️ Summer holidays ${y} have started!`,
       text: () => t('School is out, the sun is shining and the server beach is full of **seashells**! 🐚\n\n**How to collect them?**\n💬 Every message = **{muszelki} 🐚** (once every {co_ile} s)\n🎁 A caught chat drop = **+{drop} 🐚**\n📅 Every day `/event zbierz` = **+{dziennie} 🐚**\n💼 Every job (`/work`, `/fish`, `/nagraj` ...) = **+{praca} 🐚**\n🎮 A won chat game (question of the day, quiz, Wordle) = **+{gry} 🐚**\n\n**What to spend them on?** → `/event sklep`\n💰 Double money · ⭐ Double XP · 🎁 Packs · 💵 Bags of money\n⚡ Event upgrades in `/ulepszenia`: more for every message\n👑 And for the whole summer: the rank **{ranga}**!\n\n🏆 Ranking: `/event ranking`\n⏳ The event runs until {koniec}. The shop stays open one more day.\n\nHave a great summer and chat a lot! ☀️'),
     },
   },
-].map((event) => ({
-  ...event,
-  store: event.id,
-  dataKey: event.id,
-  variables: [event.variable, 'co_ile', 'drop', 'koniec', 'ranga', 'dziennie', 'praca', 'gry', ...(event.dateReward ? ['randka'] : [])],
-})));
+].map((definition) => forYear({
+  ...definition,
+  defaultYear: definition.year,
+  store: definition.id,
+  dataKey: definition.id,
+  variables: [definition.variable, 'co_ile', 'drop', 'koniec', 'ranga', 'dziennie', 'praca', 'gry', ...(definition.dateReward ? ['randka'] : [])],
+}, definition.year)));
 export const getSeasonEvent = (id) => SEASONAL_EVENTS.find((event) => event.id === id) ?? null;
+
+// ---------------------------------------------------------------- years
+// Owner (2026-10-29): "zeby moc ustawiac sobie rok". Each event is one store and one member field; the server picks the year
+// in the panel (`year`, default `defaultYear`). Another year = that year's days, the rank "<roleBase> <year>", and an empty
+// ranking; member currency and event upgrades are kept per year (`amountOf` reads `year`), so a new year starts from zero.
+// SEASONAL_EVENTS hold the default years; code that has the settings uses `forYear(event, settings.year)` (`eventOf`).
+// Badges in progress.js are for the default years only.
+export const YEARS_AHEAD = 10;
+
+function forYear(event, year) {
+  const texts = event.yearTexts ?? event.texts;
+  return {
+    ...event,
+    yearTexts: texts,
+    year,
+    roleName: `${event.roleBase} ${year}`,
+    ...event.days(year),
+    // Every text takes the year (only name and title use it).
+    texts: Object.fromEntries(Object.entries(texts).map(([key, text]) => [key, () => text(year)])),
+  };
+}
+
+const yearCache = new Map();
+/** The event in the year a server picked: `settings.year`, else the default year. */
+export function eventOf(event, settings) {
+  const base = getSeasonEvent(event.id) ?? event;
+  const year = Number(settings?.year) || base.defaultYear;
+  if (year === base.year) return base;
+  const key = `${base.id}:${year}`;
+  if (!yearCache.has(key)) yearCache.set(key, forYear(base, year));
+  return yearCache.get(key);
+}
+
+/** The years a server can pick for an event. */
+export const seasonYears = (event) => Array.from({ length: YEARS_AHEAD + 1 }, (_, index) => event.defaultYear + index);
+
+/** Easter Sunday ('YYYY-MM-DD'), the Gregorian computus. */
+export function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** 'YYYY-MM-DD' moved by `days` calendar days. */
+function shiftDay(day, days) {
+  const date = new Date(`${day}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** The day after Polish schools close: they close on the first Friday after 20 June. */
+function summerStart(year) {
+  const date = new Date(Date.UTC(year, 5, 21, 12));
+  while (date.getUTCDay() !== 5) date.setUTCDate(date.getUTCDate() + 1);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
 
 const SHOP = [
   { id: 'money1', emoji: '💰', name: t('Double money for 1 h'), price: 150, boost: { type: 'money', minutes: 60 } },
@@ -161,6 +232,7 @@ export const getShopItem = (event, id) => seasonShop(event).find((item) => item.
 
 export const seasonDefaults = (event) => ({
   enabled: true,
+  year: event.year,
   startsAt: midnightOf(event.firstDay),
   endsAt: midnightOf(nextDay(event.lastDay)),
   perMessage: 5,
@@ -202,6 +274,17 @@ export const updateSeason = (event, guildId, mutate) => withEconomyLock(guildId,
   next.rev = SEASON_REV;
   return next;
 }));
+
+/**
+ * Panel: move an event to another year. Mutates the stored settings: that year's days, a new rank role, an empty ranking and no
+ * announcement (the caller deletes a posted one). Member currency is kept per year, so it starts from zero by itself.
+ */
+export function moveSeasonToYear(event, data, year) {
+  const target = eventOf(event, { year });
+  const { startsAt, endsAt } = seasonDefaults(target);
+  Object.assign(data, { year, startsAt, endsAt, roleId: null, totals: {}, announcement: null, finished: false });
+  return data;
+}
 
 export const seasonActive = (settings, now = Date.now()) => Boolean(settings?.enabled) && now >= settings.startsAt && now < settings.endsAt;
 export const shopOpen = (settings, now = Date.now()) => Boolean(settings?.enabled) && now >= settings.startsAt && now < settings.endsAt + SHOP_GRACE_MS;
@@ -260,8 +343,9 @@ export function boostedAmount(event, userData, base, kind, random = Math.random)
  */
 export async function openSeason(guildId, now = Date.now()) {
   let grace = null;
-  for (const event of SEASONAL_EVENTS) {
-    const settings = await getSeason(event, guildId);
+  for (const base of SEASONAL_EVENTS) {
+    const settings = await getSeason(base, guildId);
+    const event = eventOf(base, settings);
     if (seasonActive(settings, now)) return { event, settings };
     if (!grace && shopOpen(settings, now)) grace = { event, settings };
   }
@@ -271,16 +355,17 @@ export async function openSeason(guildId, now = Date.now()) {
 /** The next event that is on and has not started yet: { event, settings } or null. */
 export async function nextSeason(guildId, now = Date.now()) {
   let next = null;
-  for (const event of SEASONAL_EVENTS) {
-    const settings = await getSeason(event, guildId);
-    if (settings.enabled && settings.startsAt > now && (!next || settings.startsAt < next.settings.startsAt)) next = { event, settings };
+  for (const base of SEASONAL_EVENTS) {
+    const settings = await getSeason(base, guildId);
+    if (settings.enabled && settings.startsAt > now && (!next || settings.startsAt < next.settings.startsAt)) next = { event: eventOf(base, settings), settings };
   }
   return next;
 }
 
 /** /event zbierz. Returns { amount, total, married, settings }. Throws `userError(text)` when not possible. */
-export async function claimSeasonDaily({ event, client, guildId, userId, userError, now = Date.now() }) {
-  const settings = await getSeason(event, guildId);
+export async function claimSeasonDaily({ event: base, client, guildId, userId, userError, now = Date.now() }) {
+  const settings = await getSeason(base, guildId);
+  const event = eventOf(base, settings);
   if (!seasonActive(settings, now)) {
     throw userError(settings.enabled && now < settings.startsAt
       ? t`${event.emoji} ${event.texts.name()} starts <t:${Math.floor(settings.startsAt / 1000)}:f>. Come back then!`
@@ -308,10 +393,11 @@ export async function claimSeasonDaily({ event, client, guildId, userId, userErr
 }
 
 /** Buy the next level of an event upgrade with the event currency. Returns { upgrade, level, price }. */
-export async function buySeasonUpgrade({ event, client, guildId, userId, upgradeId, userError, now = Date.now() }) {
+export async function buySeasonUpgrade({ event: base, client, guildId, userId, upgradeId, userError, now = Date.now() }) {
   const upgrade = getSeasonUpgrade(upgradeId);
   if (!upgrade) throw userError(t('Pick an upgrade from the list.'));
-  const settings = await getSeason(event, guildId);
+  const settings = await getSeason(base, guildId);
+  const event = eventOf(base, settings);
   if (!shopOpen(settings, now)) throw userError(t('The event shop is closed.'));
   return withEconomyLock(guildId, userId, async () => {
     const userData = await getEconomyData(client, guildId, userId, { joint: false });
@@ -345,9 +431,10 @@ export async function handleSeasonMessage(message, now = Date.now()) {
   if (!message.guild || message.author?.bot) return 0;
   if (!TWO_LETTERS_RE.test(message.content ?? '') && !(message.attachments?.size > 0)) return 0;
   let given = 0;
-  for (const event of SEASONAL_EVENTS) {
-    const settings = await getSeason(event, message.guild.id);
+  for (const base of SEASONAL_EVENTS) {
+    const settings = await getSeason(base, message.guild.id);
     if (!seasonActive(settings, now) || settings.perMessage <= 0) continue;
+    const event = eventOf(base, settings);
     const key = `${event.id}:${message.guild.id}:${message.author.id}`;
     if (now - (lastAward.get(key) ?? 0) < settings.cooldownSeconds * 1000) continue;
     if (lastAward.size > 50_000) lastAward.clear();
@@ -398,9 +485,10 @@ function rewardAmount(settings, kind, random) {
  */
 export async function addSeasonReward(guildId, userData, kind, { now = Date.now(), random = Math.random } = {}) {
   const gifts = [];
-  for (const event of SEASONAL_EVENTS) {
-    const settings = await getSeason(event, guildId);
+  for (const base of SEASONAL_EVENTS) {
+    const settings = await getSeason(base, guildId);
     if (!seasonActive(settings, now)) continue;
+    const event = eventOf(base, settings);
     const amount = rewardAmount(settings, kind, random);
     if (amount <= 0) continue;
     addAmount(event, userData, amount);
@@ -420,10 +508,11 @@ export const seasonGiftText = (gifts) => (gifts ?? []).map(({ event, amount }) =
 /** Valentine's Day: an accepted /randka gives both people `dateReward`, x2 for a married couple. Returns [{ event, amount }]. */
 export async function seasonDateReward(client, guildId, userIds, married, now = Date.now()) {
   const gifts = [];
-  for (const event of SEASONAL_EVENTS) {
-    if (!event.dateReward) continue;
-    const settings = await getSeason(event, guildId);
+  for (const base of SEASONAL_EVENTS) {
+    if (!base.dateReward) continue;
+    const settings = await getSeason(base, guildId);
     if (!seasonActive(settings, now)) continue;
+    const event = eventOf(base, settings);
     const amount = event.dateReward * (married ? 2 : 1);
     for (const userId of userIds) await giveSeasonCurrency(event, client, guildId, userId, amount, { now });
     gifts.push({ event, amount });
@@ -437,7 +526,7 @@ export async function seasonDropBonus(guildId, now = Date.now()) {
   for (const event of SEASONAL_EVENTS) {
     const settings = await getSeason(event, guildId);
     const amount = Math.max(0, Number(settings.dropCandies) || 0);
-    if (seasonActive(settings, now) && amount > 0) bonus.push({ event, amount });
+    if (seasonActive(settings, now) && amount > 0) bonus.push({ event: eventOf(event, settings), amount });
   }
   return bonus;
 }
@@ -463,10 +552,11 @@ async function rankRole(event, guild, settings, userError) {
  * Buy an item of an event shop with its currency. Returns { item, amount, note, progress }.
  * Throws `userError(text)` when not possible.
  */
-export async function buySeasonItem({ event, client, guild, member, itemId, userError, now = Date.now() }) {
+export async function buySeasonItem({ event: base, client, guild, member, itemId, userError, now = Date.now() }) {
+  const settings = await getSeason(base, guild.id);
+  const event = eventOf(base, settings);
   const item = getShopItem(event, itemId);
   if (!item) throw userError(t('Pick an item from the list.'));
-  const settings = await getSeason(event, guild.id);
   if (!shopOpen(settings, now)) throw userError(t('The event shop is closed.'));
   const role = item.role ? await rankRole(event, guild, settings, userError) : null;
   if (role && member.roles?.cache?.has?.(role.id)) throw userError(t`You already have the role ${event.roleName}.`);
@@ -526,7 +616,8 @@ async function announcementChannel(guild, settings) {
 export const defaultAnnouncement = (event) => ({ title: event.texts.title(), text: event.texts.text() });
 
 /** Fill in the {variables} of an announcement text. */
-export function fillAnnouncement(event, text, settings) {
+export function fillAnnouncement(base, text, settings) {
+  const event = eventOf(base, settings);
   const values = {
     [event.variable]: settings.perMessage,
     co_ile: settings.cooldownSeconds,
@@ -541,7 +632,8 @@ export function fillAnnouncement(event, text, settings) {
   return String(text ?? '').replace(/\{([a-z_]+)\}/g, (match, name) => (name in values ? String(values[name]) : match));
 }
 
-export function announcementEmbed(event, settings) {
+export function announcementEmbed(base, settings) {
+  const event = eventOf(base, settings);
   const fallback = defaultAnnouncement(event);
   return createEmbed({
     title: fillAnnouncement(event, settings.title || fallback.title, settings).slice(0, TITLE_LIMIT),
@@ -584,8 +676,9 @@ export async function repostAnnouncement(event, guild, { editOnly = false, userE
 }
 
 /** Post the announcement at the start (or edit one posted by an older version), delete it and post the top three at the end. */
-export async function tickSeason(event, client, guild, now = Date.now()) {
-  const settings = await getSeason(event, guild.id);
+export async function tickSeason(base, client, guild, now = Date.now()) {
+  const settings = await getSeason(base, guild.id);
+  const event = eventOf(base, settings);
   if (seasonActive(settings, now) && !settings.announcement) {
     const channel = await announcementChannel(guild, settings);
     if (!channel?.send) return;

@@ -97,7 +97,7 @@ change you make, so the next session knows what was done and why.
   Christmas 2026 (`swieta`, 🍪, 19-29.12), New Year's Eve 2026 (`sylwester`, 🎆, 30.12-2.01), Valentine's Day 2027 (`walentynki`, 💌,
   12-16.02), Easter 2027 (`wielkanoc`, 🥚, 25-29.03), Children's Day 2027 (`dzien_dziecka`, 🍭, 29.05-2.06), summer holidays 2027
   (`wakacje`, 🐚, 26.06-31.08, rank 10,000). Each: store `guild:{id}:<id>` (same shape as the first Halloween store, `totals` for the
-  ranking, `dailyAmount`, `jobMin`/`jobMax`, `gameCandies`, `rev`), member data `<id> = { year, candies, earned, upgrades, lastDaily }`
+  ranking, `dailyAmount`, `jobMin`/`jobMax`, `gameCandies`, `year` (the server picks it; `eventOf`), `rev`), member data `<id> = { year, candies, earned, upgrades, lastDaily }`
   (the field is `candies` for every event). One command for all: `commands/Economy/event.js`, `/event sklep|kup|zbierz|ranking|lista`
   (`sklep`, `kup`, `ranking` take an optional `event`; without it the running event, else the one in its extra shop day; prefix
   `!halloween|swieta|wielkanoc` = `!event`). Currency for messages in `handleSeasonMessage` (featureMessages.js, before the chat
@@ -706,3 +706,13 @@ change you make, so the next session knows what was done and why.
   - Stored settings from before: a drop of exactly 30 becomes 50, a Christmas end of 2 January becomes 30 December; the Halloween
     announcement already posted on the live server is edited once at the next start, so it names `/event` and the new ways to collect.
   - Guide: `/event` in the prestige topic and the command lists (`GUIDE_VERSION` 6).
+  - Mid-task the owner wrote "pamietaj zeby eventy te swieta itp dac tez jako osobne i zeby moc ustawiac sobie rok". My reading:
+    every holiday is its own event (own tab in the panel module Eventy, own store, rank and ranking; that was already so) and
+    each can be moved to another year. Each definition has `days(year)` (Easter by the computus in `easterSunday`, summer from
+    the day after the first Friday after 20 June) and `roleBase`; `eventOf(event, settings)` gives the event in the server's
+    `year` (store field, default `defaultYear`); every function that reads settings uses it. Panel: `year` + `years` (default
+    year ... +10) in the view, PATCH `year`: `moveSeasonToYear` sets that year's days, a new rank "<roleBase> <year>", an empty
+    ranking, deletes the posted announcement; member currency and event upgrades are per year, so they start from zero. Panel
+    field "Rok" (days of a new year are set by the bot; fix them after the save). With 7 events the tabs show only the emoji
+    (name in the tooltip). The year does not change by itself (my decision: the owner asked to set it). Badges stay for the
+    default years. If "osobne" meant separate slash commands again, that is not done: say so to the owner.

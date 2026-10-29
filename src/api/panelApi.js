@@ -101,7 +101,7 @@ import {
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
 import { getLottery, potOf, updateLottery } from '../services/lottery.js';
 import {
-  SEASONAL_EVENTS, TEXT_LIMIT as SEASON_TEXT_LIMIT, TITLE_LIMIT as SEASON_TITLE_LIMIT, defaultAnnouncement, getSeason, getSeasonEvent,
+  SEASONAL_EVENTS, TEXT_LIMIT as SEASON_TEXT_LIMIT, eventOf, moveSeasonToYear, seasonYears, TITLE_LIMIT as SEASON_TITLE_LIMIT, defaultAnnouncement, getSeason, getSeasonEvent,
   repostAnnouncement, updateSeason,
 } from '../services/seasonalEvents.js';
 import { dayKey, midnightOf } from '../utils/warsawTime.js';
@@ -460,10 +460,14 @@ function lotteryView(lottery, settings) {
 }
 
 // Holiday events (services/seasonalEvents.js) for the economy view: `firstDay` / `lastDay` = the days the currency is given.
-function seasonView(event, settings) {
+// `year` = the year the server picked (`years` = what it can pick); name, rank, days and `dayRange` are of that year.
+function seasonView(base, settings) {
+  const event = eventOf(base, settings);
   const top = Object.entries(settings.totals ?? {});
   return {
     id: event.id,
+    year: event.year,
+    years: seasonYears(base),
     name: event.texts.name(),
     emoji: event.emoji,
     currency: event.currency,
@@ -506,10 +510,18 @@ async function seasonViews(guildId) {
   return views;
 }
 
-/** One event's PATCH part, checked before anything is saved. */
-function seasonPatch(guild, event, body, field) {
+/**
+ * One event's PATCH part, checked before anything is saved. `currentYear` = the stored year; a new `year` moves the event to that
+ * year (its days, a new rank, an empty ranking: moveSeasonToYear), and `firstDay` / `lastDay` are then days of the new year.
+ */
+function seasonPatch(guild, base, body, field, currentYear) {
   const value = plainObject(body, field);
   const patch = {};
+  if ('year' in value) {
+    const years = seasonYears(base);
+    patch.year = integer(value.year, `${field}.year`, years[0], years.at(-1));
+  }
+  const event = eventOf(base, { year: patch.year ?? currentYear });
   if ('enabled' in value) patch.enabled = boolean(value.enabled, `${field}.enabled`);
   if ('perMessage' in value) patch.perMessage = integer(value.perMessage, `${field}.perMessage`, 0, 100);
   if ('cooldownSeconds' in value) patch.cooldownSeconds = integer(value.cooldownSeconds, `${field}.cooldownSeconds`, 5, 600);
@@ -609,11 +621,15 @@ async function applyEconomy(client, guild, body) {
   }
   // Holiday events: `seasonal: { [eventId]: patch }`; `halloween` (the panel of the first day) means seasonal.halloween.
   const seasonPatches = [];
-  if ('halloween' in body) seasonPatches.push([getSeasonEvent('halloween'), seasonPatch(guild, getSeasonEvent('halloween'), body.halloween, 'halloween')]);
+  const storedYear = async (event) => (await getSeason(event, guild.id)).year;
+  if ('halloween' in body) {
+    const event = getSeasonEvent('halloween');
+    seasonPatches.push([event, seasonPatch(guild, event, body.halloween, 'halloween', await storedYear(event))]);
+  }
   for (const [id, patch] of Object.entries('seasonal' in body ? plainObject(body.seasonal, 'seasonal') : {})) {
     const event = getSeasonEvent(id);
     if (!event) throw new ApiError(400, `seasonal.${id}: unknown event`);
-    seasonPatches.push([event, seasonPatch(guild, event, patch, `seasonal.${id}`)]);
+    seasonPatches.push([event, seasonPatch(guild, event, patch, `seasonal.${id}`, await storedYear(event))]);
   }
   let eventStart = null;
   if ('eventStart' in body) {
@@ -714,7 +730,18 @@ async function applyEconomy(client, guild, body) {
   const lottery = lotteryPatch ? await updateLottery(guild.id, (data) => { Object.assign(data, lotteryPatch); }) : await getLottery(guild.id);
   for (const [event, patch] of seasonPatches) {
     const { announceNow, ...fields } = patch;
-    if (Object.keys(fields).length) await updateSeason(event, guild.id, (data) => { Object.assign(data, fields); });
+    const before = await getSeason(event, guild.id);
+    const newYear = 'year' in fields && fields.year !== before.year;
+    // Another year: the posted announcement of the old year goes.
+    if (newYear && before.announcement?.messageId) {
+      await guild.channels.cache.get(before.announcement.channelId)?.messages?.delete?.(before.announcement.messageId).catch(() => {});
+    }
+    if (Object.keys(fields).length) {
+      await updateSeason(event, guild.id, (data) => {
+        if (newYear) moveSeasonToYear(event, data, fields.year);
+        Object.assign(data, fields);
+      });
+    }
     // "Send now" posts it again; any other change edits the posted announcement in place.
     if (announceNow) await repostAnnouncement(event, guild, { userError });
     else if (Object.keys(fields).length) await repostAnnouncement(event, guild, { editOnly: true });

@@ -11,7 +11,7 @@ import { userError } from '../../utils/featureKit.js';
 import { getEconomyData } from '../../utils/economy.js';
 import { getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import {
-    QUESTION_FACTOR, SEASONAL_EVENTS, SHOP_GRACE_MS, amountOf, buySeasonItem, claimSeasonDaily, getSeason, getSeasonEvent, nextSeason,
+    QUESTION_FACTOR, SEASONAL_EVENTS, SHOP_GRACE_MS, amountOf, buySeasonItem, claimSeasonDaily, eventOf, getSeason, getSeasonEvent, nextSeason,
     openSeason, seasonActive, seasonRanking, seasonShop, shopOpen,
 } from '../../services/seasonalEvents.js';
 import { dayKey, midnightOf } from '../../utils/warsawTime.js';
@@ -25,14 +25,15 @@ const ITEM_CHOICES = seasonShop(SEASONAL_EVENTS[0]).map((item) => ({
     name: item.role ? '👑 Event rank' : `${item.emoji} ${item.name} (${item.price})`,
     value: item.id,
 }));
-const EVENT_CHOICES = SEASONAL_EVENTS.map((event) => ({ name: `${event.emoji} ${event.texts.name()}`, value: event.id }));
+// Without the year: each server picks its own year in the panel.
+const EVENT_CHOICES = SEASONAL_EVENTS.map((event) => ({ name: `${event.emoji} ${event.roleBase}`, value: event.id }));
 
 /** The event a subcommand is about: the picked one, else the open one. Throws a user error when there is none. */
 async function pickEvent(interaction) {
     const picked = interaction.options.getString('event');
     if (picked) {
-        const event = getSeasonEvent(picked);
-        return { event, settings: await getSeason(event, interaction.guildId) };
+        const settings = await getSeason(getSeasonEvent(picked), interaction.guildId);
+        return { event: eventOf(getSeasonEvent(picked), settings), settings };
     }
     const open = await openSeason(interaction.guildId);
     if (open) return open;
@@ -55,8 +56,9 @@ function earnLines(event, settings) {
     ];
 }
 
-async function shopEmbed(event, client, guildId, user, notice = '') {
-    const settings = await getSeason(event, guildId);
+async function shopEmbed(base, client, guildId, user, notice = '') {
+    const settings = await getSeason(base, guildId);
+    const event = eventOf(base, settings);
     const economy = await getEconomySettings(guildId);
     const { amount, earned } = amountOf(event, await getEconomyData(client, guildId, user.id, { joint: false }));
     const now = Date.now();
@@ -136,7 +138,10 @@ export default {
 
         if (sub === 'lista') {
             const rows = [];
-            for (const event of SEASONAL_EVENTS) rows.push({ event, settings: await getSeason(event, guildId) });
+            for (const event of SEASONAL_EVENTS) {
+                const settings = await getSeason(event, guildId);
+                rows.push({ event: eventOf(event, settings), settings });
+            }
             return InteractionHelper.safeEditReply(interaction, { embeds: [listEmbed(rows)] });
         }
 

@@ -15,7 +15,7 @@ import { midnightOf } from '../src/utils/warsawTime.js';
 import { marry } from '../src/services/marriageService.js';
 import { getDatePlace } from '../src/services/marriageService.js';
 import {
-  QUESTION_FACTOR, SEASONAL_EVENTS, SEASON_REV, addSeasonReward, amountOf, buySeasonItem, claimSeasonDaily, fillAnnouncement, getSeason,
+  QUESTION_FACTOR, SEASONAL_EVENTS, SEASON_REV, addSeasonReward, amountOf, buySeasonItem, claimSeasonDaily, easterSunday, eventOf, fillAnnouncement, getSeason,
   getSeasonEvent, nextSeason, noteSeasonGifts, openSeason, seasonDefaults, seasonShop, tickSeason, updateSeason,
 } from '../src/services/seasonalEvents.js';
 import { runWork } from '../src/commands/Economy/modules/work_shift.js';
@@ -158,6 +158,62 @@ test('the open event: a running one before the extra shop day of the one before;
   await setEconomyData(client, room.id, member.id, { ...(await getEconomyData(client, room.id, member.id)), swieta: { year: 2026, candies: 500, earned: 500 } });
   const bought = await buySeasonItem({ event: getSeasonEvent('swieta'), client, guild: room, member, itemId: 'xp1', userError, now: dec30 });
   assert.equal(bought.amount, 400, 'the Christmas shop still sells on its extra day');
+});
+
+test('years: each event has days for any year (Easter by the computus), the panel moves an event to another year', async () => {
+  assert.deepEqual(['2026', '2027', '2028', '2030'].map((year) => easterSunday(Number(year))), ['2026-04-05', '2027-03-28', '2028-04-16', '2030-04-21']);
+  const easter2028 = eventOf(getSeasonEvent('wielkanoc'), { year: 2028 });
+  assert.deepEqual([easter2028.firstDay, easter2028.lastDay, easter2028.roleName], ['2028-04-13', '2028-04-17', 'Wielkanoc 2028']);
+  assert.equal(runWithLocale('en', () => easter2028.texts.name()), 'Easter 2028');
+  assert.equal(eventOf(getSeasonEvent('wakacje'), { year: 2028 }).firstDay, '2028-06-24', 'schools close on Friday 23 June 2028');
+  assert.equal(eventOf(getSeasonEvent('sylwester'), { year: 2027 }).lastDay, '2028-01-02');
+  assert.equal(eventOf(HALLOWEEN, {}), HALLOWEEN, 'no year = the default one');
+
+  process.env.PANEL_API_KEY = 'test-panel-key-0123456789abcdef';
+  const express = (await import('express')).default;
+  const { createPanelRouter } = await import('../src/api/panelApi.js');
+  const app = express();
+  app.use('/api/v1', createPanelRouter(client));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}/api/v1`;
+  const room = mockGuild(client, 'Rok');
+  client.guilds.cache.set(room.id, room);
+  const news = mockChannel(room, 'eventy');
+  const deleted = [];
+  news.messages.delete = async (id) => { deleted.push(id); };
+  const patch = async (body) => {
+    const response = await fetch(`${base}/guilds/${room.id}/economy`, { method: 'PATCH', headers: { Authorization: `Bearer ${process.env.PANEL_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const text = await response.text();
+    return { status: response.status, text, json: JSON.parse(text) };
+  };
+  const halloween = (json) => json.seasonal.find((entry) => entry.id === 'halloween');
+  try {
+    const member = mockMember(room, mockUser('Zbieracz'));
+    await setEconomyData(client, room.id, member.id, { ...(await getEconomyData(client, room.id, member.id)), halloween: { year: 2026, candies: 900, earned: 900 } });
+    await updateSeason(HALLOWEEN, room.id, (settings) => { settings.totals = { [member.id]: 900 }; settings.announcement = { channelId: news.id, messageId: '555' }; });
+
+    assert.equal((await patch({ seasonal: { halloween: { year: 2025 } } })).status, 400, 'not before the first year');
+    assert.equal((await patch({ seasonal: { halloween: { year: 2027, lastDay: '2026-11-02' } } })).status, 400, 'days of the old year');
+    const moved = await patch({ seasonal: { halloween: { year: 2027 } } });
+    assert.equal(moved.status, 200, moved.text);
+    const view = halloween(moved.json);
+    assert.deepEqual([view.year, view.firstDay, view.lastDay, view.roleName, view.collected, view.posted], [2027, '2027-10-29', '2027-11-02', 'Halloween 2027', 0, false]);
+    assert.deepEqual(view.years.slice(0, 2), [2026, 2027]);
+    assert.deepEqual(deleted, ['555'], 'the announcement of 2026 is deleted');
+
+    const settings = await getSeason(HALLOWEEN, room.id);
+    const event = eventOf(HALLOWEEN, settings);
+    assert.deepEqual(amountOf(event, await getEconomyData(client, room.id, member.id)), { amount: 0, earned: 0 }, 'a new year starts from zero');
+    const gifts = await addSeasonReward(room.id, {}, 'game', { now: Date.UTC(2027, 9, 30, 12) });
+    assert.equal(gifts[0].event.roleName, 'Halloween 2027');
+    assert.deepEqual(await addSeasonReward(room.id, {}, 'game', { now: DURING }), [], 'October 2026 is not the event any more');
+
+    const days = await patch({ seasonal: { halloween: { year: 2027, firstDay: '2027-10-25', lastDay: '2027-11-03' } } });
+    assert.deepEqual([halloween(days.json).firstDay, halloween(days.json).lastDay], ['2027-10-25', '2027-11-03']);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test('settings from before /event: drops 30 become 50, the old Christmas end moves; the posted announcement is edited once', async () => {
