@@ -108,6 +108,11 @@ change you make, so the next session knows what was done and why.
   `announcement.rev` < `SEASON_REV`, end). Old stored settings are fixed when read (`migrate`). Event upgrades `SEASON_UPGRADES` (bag,
   daily, drops, lucky) bought with the currency in `/ulepszenia` folder `event` (`openSeason`, buttons `ulepszenia:event:<owner>:<id>`).
   Panel: `seasonal` list in the economy view, PATCH `seasonal.<id>` (and `halloween` = seasonal.halloween).
+  Event ranks to wear (since 2026-10-30): `userData.eventRanks = { '<eventId>:<year>': { roleId } }`, `ownedRanks` (also finds old
+  purchases: a held role that is an event's `roleId` or is named "<roleBase> <year>"), `wearRank`, `syncRanks`; one worn at a time.
+- `/ekwipunek` and `/eq` (same command, `inventoryCommand(name)` in `commands/Economy/inventory.js`): `modules/inventory_view.js`
+  (`loadInventory`, `buildInventoryView`, tabs przedmioty | boosty | eventowe), buttons `ekwipunek:tab:<ownerId>:<tab>`
+  (`interactions/buttons/economy/inventory.js`), rank menu `ekwipunek:ranga:<ownerId>` (`selectMenus/economy/inventory.js`). Tests: `test/inventory.test.js`.
   A new year/holiday = a new entry in `SEASONAL_EVENTS` (+ texts in `pl.halloween.json`, a badge in progress.js).
 - Tests: `test/economy.test.js`, `test/economy-views.test.js`, `test/economy-rules.test.js`, `test/progress.test.js`, `test/heist.test.js`,
   `test/market.test.js` (stocks, clubs, buildings, open trade offers), `test/halloween.test.js` (event, boosts, prestige, merging),
@@ -722,3 +727,12 @@ change you make, so the next session knows what was done and why.
   and PATCH `pingRoleId` (`requireRole`, not @everyone), field "Ping przy ogłoszeniu" per event tab with the mention in the preview.
   The owner picks the role (their "dodatkowy ping") in each event tab. Discord pings a role only when it is mentionable or the bot may
   mention every role. The timed economy events already had their own ping (`events.roleId`).
+- **2026-10-30, later** (owner: "git, zrob /ekwipunek i /eq i tam daj te wszystkie boosty, potki, rangi etc, niech mozna sobie wybierac
+  jaka range sie chce miec bo one wszystkie maja customowy kolorek, daj tam eventowe i tam niech beda role do wyboru, mozna miec tylko jedna
+  naraz"). Live after the owner restarts the bot. 91 commands (`/eq` is new; the prefix alias `!eq` already existed):
+  - `/ekwipunek` = `/eq`, three tabs: 🎒 Przedmioty (lasting items, upgrades, job), ⚡ Boosty i potki (running boosts with their end,
+    one-use items with counts), 🎃 Eventowe (event currencies, owned event ranks, a menu to wear one or none).
+  - Event ranks: one worn at a time. Buying a rank in `/event kup` records it and takes the other event ranks off (they stay owned and
+    can be picked again). Ranks bought before today are found from the member's roles. Picking needs the bot's role above the ranks.
+  - My decisions: tab names, potions = shop items of type consumable, the event currency list shows running events and non-zero ones,
+    shop roles bought in `/sklep` (premium) are not part of the rank picker (the owner talked about the coloured event ranks).

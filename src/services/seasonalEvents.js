@@ -561,11 +561,14 @@ export async function buySeasonItem({ event: base, client, guild, member, itemId
   if (!item) throw userError(t('Pick an item from the list.'));
   if (!shopOpen(settings, now)) throw userError(t('The event shop is closed.'));
   const role = item.role ? await rankRole(event, guild, settings, userError) : null;
-  if (role && member.roles?.cache?.has?.(role.id)) throw userError(t`You already have the role ${event.roleName}.`);
   const economy = await getEconomySettings(guild.id);
 
   return withEconomyLock(guild.id, member.id, async () => {
     const userData = await getEconomyData(client, guild.id, member.id, { joint: false });
+    const owned = role ? (await ownedRanks(guild, member, userData)).ranks : [];
+    if (role && owned.some((rank) => rank.key === rankKey(event))) {
+      throw userError(t`You already have the rank ${event.roleName}. Wear it in \`/ekwipunek\` (tab Event).`);
+    }
     const { amount } = amountOf(event, userData);
     if (amount < item.price) {
       throw userError(t`${item.emoji} ${item.name} costs **${item.price} ${event.currency}** - you have ${amount} ${event.currency}. Write on the server to get more.`);
@@ -587,11 +590,97 @@ export async function buySeasonItem({ event: base, client, guild, member, itemId
     } else if (role) {
       const added = await member.roles.add(role, `${event.roleName} shop`).then(() => true).catch(() => false);
       if (!added) throw userError(t`The bot could not give you the role ${event.roleName} (its own role must be higher). Your ${event.currency} stay.`);
-      note = t`You have the role <@&${role.id}>. ${event.emoji}`;
+      userData.eventRanks = { ...(userData.eventRanks ?? {}), [rankKey(event)]: { roleId: role.id } };
+      // One event rank at a time: the new one is worn, the others go back to /ekwipunek.
+      const others = await takeOffRanks(member, owned, rankKey(event)).catch(() => 0);
+      note = t`You have the role <@&${role.id}>. ${event.emoji}` + (others ? t`\nYour other event ranks wait in \`/ekwipunek\`.` : '');
     }
     addAmount(event, userData, -item.price);
     await setEconomyData(client, guild.id, member.id, userData);
     return { item, amount: amountOf(event, userData).amount, note, progress };
+  });
+}
+
+// ---------------------------------------------------------------- ranks to wear
+// Owner (2026-10-30): "/ekwipunek i /eq ... niech mozna sobie wybierac jaka range sie chce miec bo one wszystkie maja customowy
+// kolorek, daj tam eventowe i tam niech beda role do wyboru, mozna miec tylko jedna naraz". A bought rank is kept in the member data
+// (userData.eventRanks = { '<eventId>:<year>': { roleId } }) and the member wears at most one of them (the role on Discord). Ranks
+// bought before this kept only the role: a held role that is an event's `roleId`, or is named "<roleBase> <year>", is recorded.
+
+export const rankKey = (event) => `${event.id}:${event.year}`;
+const RANK_NAME_RE = new RegExp(`^(${SEASONAL_EVENTS.map((event) => event.roleBase).join('|')}) (\\d{4})$`, 'u');
+
+/**
+ * The event ranks a member owns: { ranks: [{ key, event, roleId, role, worn }], changed }. `role` is null when the role was deleted,
+ * `worn` = the member has it now. Adds old purchases to `userData.eventRanks` (`changed`; the caller saves).
+ */
+export async function ownedRanks(guild, member, userData) {
+  const owned = { ...(userData.eventRanks ?? {}) };
+  let changed = false;
+  const byRoleId = new Map();
+  for (const base of SEASONAL_EVENTS) {
+    const settings = await getSeason(base, guild.id);
+    if (settings.roleId) byRoleId.set(settings.roleId, eventOf(base, settings));
+  }
+  for (const role of member.roles?.cache?.values?.() ?? []) {
+    let event = byRoleId.get(role.id) ?? null;
+    const named = event ? null : RANK_NAME_RE.exec(role.name ?? '');
+    if (named) event = eventOf(SEASONAL_EVENTS.find((entry) => entry.roleBase === named[1]), { year: Number(named[2]) });
+    if (!event || owned[rankKey(event)]) continue;
+    owned[rankKey(event)] = { roleId: role.id };
+    changed = true;
+  }
+  if (changed) userData.eventRanks = owned;
+  const ranks = Object.entries(owned).map(([key, { roleId }]) => {
+    const [id, year] = key.split(':');
+    const base = getSeasonEvent(id);
+    if (!base) return null;
+    const role = guild.roles.cache.get(roleId) ?? null;
+    return { key, event: eventOf(base, { year: Number(year) }), roleId, role, worn: Boolean(role && member.roles?.cache?.has?.(role.id)) };
+  }).filter(Boolean).sort((a, b) => a.event.firstDay.localeCompare(b.event.firstDay));
+  return { ranks, changed };
+}
+
+/** Take off every worn event rank except `keepKey`. Returns how many were taken off. Throws when Discord refuses. */
+async function takeOffRanks(member, ranks, keepKey) {
+  let removed = 0;
+  for (const rank of ranks) {
+    if (rank.key === keepKey || !rank.role || !member.roles?.cache?.has?.(rank.role.id)) continue;
+    await member.roles.remove(rank.role, 'Event rank changed in /ekwipunek');
+    removed += 1;
+  }
+  return removed;
+}
+
+/** Record old purchases (see ownedRanks) and save them. Returns { userData, ranks }. */
+export function syncRanks({ client, guild, member }) {
+  return withEconomyLock(guild.id, member.id, async () => {
+    const userData = await getEconomyData(client, guild.id, member.id, { joint: false });
+    const { ranks, changed } = await ownedRanks(guild, member, userData);
+    if (changed) await setEconomyData(client, guild.id, member.id, userData);
+    return { userData, ranks };
+  });
+}
+
+/**
+ * /ekwipunek: wear the rank `key` ('none' = no event rank). Only one at a time, so the others are taken off.
+ * Returns the worn rank or null. Throws `userError(text)` when not possible.
+ */
+export function wearRank({ client, guild, member, key, userError }) {
+  return withEconomyLock(guild.id, member.id, async () => {
+    const userData = await getEconomyData(client, guild.id, member.id, { joint: false });
+    const { ranks, changed } = await ownedRanks(guild, member, userData);
+    const chosen = key === 'none' ? null : ranks.find((rank) => rank.key === key) ?? null;
+    if (key !== 'none' && !chosen) throw userError(t('You do not have this rank.'));
+    if (chosen && !chosen.role) throw userError(t`The role ${chosen.event.roleName} is not on this server any more. Tell an admin.`);
+    try {
+      await takeOffRanks(member, ranks, chosen?.key);
+      if (chosen && !chosen.worn) await member.roles.add(chosen.role, 'Event rank picked in /ekwipunek');
+    } catch {
+      throw userError(t('The bot could not change your roles (its own role must be above the event ranks). Tell an admin.'));
+    }
+    if (changed) await setEconomyData(client, guild.id, member.id, userData);
+    return chosen;
   });
 }
 

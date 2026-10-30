@@ -1,55 +1,27 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed } from '../../utils/embeds.js';
-import { bestInChain, getItemById, shopItems, tierEffect } from '../../config/shop/items.js';
-import { JOB_SHIFTS, activeJob } from '../../services/economyJobs.js';
-import { getEconomyData } from '../../utils/economy.js';
 import { getEconomySettings } from '../../services/economySettings.js';
-import { UPGRADES, getUpgradeLevel } from '../../services/economyUpgrades.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { itemLabel } from './modules/buy.js';
-import { t, tr } from '../../i18n/index.js';
+import { buildInventoryView, loadInventory } from './modules/inventory_view.js';
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName('ekwipunek')
-        .setDescription('View your economy inventory'),
+// /ekwipunek and its short twin /eq (eq.js, owner 2026-10-30): items, boosts and potions, event ranks to wear.
+// The view and its tabs: modules/inventory_view.js; buttons and the rank menu: interactions/*/economy/inventory.js.
+export function inventoryCommand(name) {
+    return {
+        data: new SlashCommandBuilder()
+            .setName(name)
+            .setDescription('Your items, boosts, potions and event ranks'),
 
-    execute: withErrorHandling(async (interaction, config, client) => {
-        const deferred = await InteractionHelper.safeDefer(interaction);
-        if (!deferred) return;
+        execute: withErrorHandling(async (interaction, config, client) => {
+            const deferred = await InteractionHelper.safeDefer(interaction);
+            if (!deferred) return;
 
-        await getEconomySettings(interaction.guildId);
-        const userData = await getEconomyData(client, interaction.guildId, interaction.user.id);
-        const inventory = userData.inventory || {};
+            await getEconomySettings(interaction.guildId);
+            const member = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id);
+            const data = await loadInventory({ client, guild: interaction.guild, member });
+            await InteractionHelper.safeEditReply(interaction, buildInventoryView({ user: interaction.user, ownerId: interaction.user.id, data }));
+        }, { command: name }),
+    };
+}
 
-        // Of each tier line only the best owned item is shown - it is the one that works.
-        // Retired items (pickaxes, laptop, ...) stay and say which new item they count as.
-        const countsAs = (item) => (item.retired && getItemById(item.sameAs) ? t` → works as ${itemLabel(getItemById(item.sameAs))}` : '');
-        const items = shopItems
-            .filter((item) => (inventory[item.id] || 0) > 0)
-            .filter((item) => !item.chain || bestInChain(userData, item.chain)?.id === item.id)
-            .map((item) => (item.type === 'tool' && !item.stackable
-                ? `**${itemLabel(item)}**${tierEffect(item).replace(/^ \((.*)\)$/, ' · $1')}${countsAs(item)}`
-                : `**${itemLabel(item)}:** ${inventory[item.id]}x${countsAs(item)}`));
-        const job = activeJob(userData);
-
-        const upgrades = UPGRADES
-            .filter((upgrade) => getUpgradeLevel(userData, upgrade.id) > 0)
-            .map((upgrade) => `${upgrade.emoji} ${tr(upgrade.name)} **${getUpgradeLevel(userData, upgrade.id)}/${upgrade.maxLevel}**`);
-
-        const embed = createEmbed({
-            title: t`🎒 ${interaction.user.username}'s Inventory`,
-            description: items.join('\n') || t('Your inventory is currently empty.'),
-            fields: [{
-                name: t('⚡ Upgrades'),
-                value: upgrades.join('\n') || t('None yet - see `/ulepszenia`.'),
-            }, {
-                name: t('💼 Job'),
-                value: job ? t`${job.emoji} ${tr(job.name)} · ${userData.job.shiftsLeft}/${JOB_SHIFTS} shifts left` : t('None - `/work` shows job offers.'),
-            }],
-        }).setThumbnail(interaction.user.displayAvatarURL());
-
-        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-    }, { command: 'ekwipunek' })
-};
+export default inventoryCommand('ekwipunek');

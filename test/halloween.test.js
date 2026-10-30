@@ -128,7 +128,7 @@ test('Halloween shop: boosts, pack, money and the rank, the role is created and 
   assert.ok(role, 'the role was created');
   assert.ok(buyer.roles.cache.has(role.id));
   assert.equal((await getHalloween(guild.id)).roleId, role.id);
-  await assert.rejects(buy('rank', AFTER), /already have the role/);
+  await assert.rejects(buy('rank', AFTER), /already have the rank/);
   await assert.rejects(buy('xp1', AFTER + 2 * 86_400_000), /closed/);
   await assert.rejects(buySeasonItem({ event: HALLOWEEN, client, guild, member: newMember('Biedny'), itemId: 'xp1', userError, now: DURING }), /costs \*\*100/);
 });
