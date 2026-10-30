@@ -157,7 +157,10 @@
   "Event podium": "Podium eventu",
   "Finish in the top 3 of a holiday event.": "Skończ event w pierwszej trójce.",
   "Year 2026": "Rok 2026",
-  "Press the 2026 button under this list.": "Kliknij przycisk 2026 pod tą listą.",
+  "Have all event ranks of 2026 and press the 2026 button under this list.": "Miej wszystkie rangi eventowe 2026 i kliknij przycisk 2026 pod tą listą.",
+  "Year badge": "Odznaka roku",
+  "This badge cannot be collected right now.": "Tej odznaki nie da się teraz odebrać.",
+  "You still need these ranks: {0}.": "Brakuje ci tych rang: {0}.",
   "Badge hunter": "Łowca odznak",
   "Get 25 badges.": "Zdobądź 25 odznak.",
   "🏅 **New badge:** {0} {1}{2}": "🏅 **Nowa odznaka:** {0} {1}{2}"

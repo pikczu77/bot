@@ -19,8 +19,8 @@ export default {
         await interaction.reply({ ...view, flags: MessageFlags.Ephemeral });
         return;
       }
-      const { settings, userData } = await loadBadges({ client, guildId, user });
-      await interaction.reply({ ...buildAchievementsView({ guildId, settings, user, userData, viewerId: interaction.user.id }), flags: MessageFlags.Ephemeral });
+      const loaded = await loadBadges({ client, guildId, user });
+      await interaction.reply({ ...buildAchievementsView({ guildId, user, viewerId: interaction.user.id, ...loaded }), flags: MessageFlags.Ephemeral });
     } catch (error) {
       await handleInteractionError(interaction, error, { type: 'button', customId: interaction.customId });
     }

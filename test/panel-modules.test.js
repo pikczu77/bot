@@ -7,7 +7,7 @@ import { ChannelType, Collection } from 'discord.js';
 import { mockChannel, mockGuild, mockMember, mockRole, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { setBirthday } from '../src/services/birthdayService.js';
-import { getGuildGiveaways } from '../src/utils/giveaways.js';
+import { getGuildGiveaways, saveGiveaway } from '../src/utils/giveaways.js';
 import { getCountingGameConfig, recordCorrectCount } from '../src/services/countingGameService.js';
 import { getServerCounters } from '../src/services/serverstatsService.js';
 import { getModmailConfig } from '../src/services/modmailService.js';
@@ -95,6 +95,74 @@ test('giveaways: start one on a channel, end it now (the job finishes it)', asyn
   assert.equal((await patch('giveaways', { end: 'nope' })).status, 404);
   assert.equal((await patch('giveaways', { start: { channelId: channel.id, prize: '', minutes: 5, winners: 1 } })).status, 400);
   assert.equal((await patch('giveaways', { start: { channelId: channel.id, prize: 'x', minutes: 0, winners: 1 } })).status, 400);
+});
+
+test('giveaways: entry requirements and bonus entries, new winners, delete', async () => {
+  const vip = mockRole(guild, 'VIP');
+  const booster = mockRole(guild, 'Booster');
+  const started = await patch('giveaways', { start: {
+    channelId: channel.id, prize: 'Skin', minutes: 60, winners: 1,
+    requirements: { roleId: vip.id, minLevel: 5, minInvites: 2, minAccountAgeDays: 30, minMemberDays: 7 },
+    bonus: { roleId: booster.id, entries: 3 },
+  } });
+  assert.equal(started.status, 200, started.text);
+  assert.deepEqual(started.json.features, ['requirements', 'reroll', 'remove']);
+  const shown = started.json.list.find((entry) => entry.prize === 'Skin');
+  assert.deepEqual(shown.requirements, { roleId: vip.id, minLevel: 5, minInvites: 2, minAccountAgeDays: 30, minMemberDays: 7 });
+  assert.deepEqual(shown.bonusEntries, [{ roleId: booster.id, entries: 3 }]);
+  assert.match(JSON.stringify(channel.sent.at(-1).embeds[0].toJSON()), new RegExp(vip.id), 'the giveaway message names the rules');
+  const stored = (await getGuildGiveaways(client, guild.id)).find((entry) => String(entry.messageId) === shown.id);
+
+  const refuse = (start) => patch('giveaways', { start: { channelId: channel.id, prize: 'x', minutes: 5, winners: 1, ...start } });
+  assert.equal((await refuse({ requirements: { minLevel: 0 } })).status, 400);
+  assert.equal((await refuse({ requirements: { roleId: '123' } })).status, 400);
+  assert.equal((await refuse({ bonus: { roleId: booster.id, entries: 21 } })).status, 400);
+  const plain = await refuse({ requirements: {}, bonus: {} });
+  assert.equal(plain.status, 200, 'nothing filled in: everyone may enter');
+  const everyone = plain.json.list.find((entry) => entry.prize === 'x');
+  assert.equal(everyone.requirements.roleId, null);
+  assert.deepEqual(everyone.bonusEntries, []);
+
+  assert.match((await patch('giveaways', { reroll: shown.id })).json.error, /still running/);
+  const a = mockMember(guild, mockUser('Ania'));
+  await saveGiveaway(client, guild.id, { ...stored, ended: true, isEnded: true, participants: [], winnerIds: [] });
+  assert.match((await patch('giveaways', { reroll: shown.id })).json.error, /not enough entries/);
+  await saveGiveaway(client, guild.id, { ...stored, ended: true, isEnded: true, participants: [a.id], winnerIds: [] });
+  const sentBefore = channel.sent.length;
+  const rerolled = await patch('giveaways', { reroll: shown.id });
+  assert.equal(rerolled.status, 200, rerolled.text);
+  assert.equal(channel.sent.length, sentBefore + 1);
+  assert.match(channel.sent.at(-1).content, new RegExp(a.id));
+  assert.deepEqual((await getGuildGiveaways(client, guild.id)).find((entry) => String(entry.messageId) === shown.id).winnerIds, [a.id]);
+
+  assert.equal((await patch('giveaways', { reroll: 'nope' })).status, 404);
+  const removed = await patch('giveaways', { remove: shown.id });
+  assert.equal(removed.status, 200, removed.text);
+  assert.ok(!removed.json.list.some((entry) => entry.id === shown.id));
+  assert.equal((await patch('giveaways', { remove: shown.id })).status, 404);
+});
+
+test('economy: the badge of the year on the New Year\'s Eve tab', async () => {
+  const view = (economy) => economy.seasonal.find((event) => event.id === 'sylwester').yearClaim;
+  const overview = (await call('GET', `/guilds/${guild.id}`)).json.modules.economy;
+  const start = view(overview);
+  assert.equal(start.enabled, false, 'off until the owner sets it');
+  assert.equal(start.badgeName, 'Rok 2026');
+  assert.deepEqual(start.ranks, ['Halloween 2026', 'Święta 2026', 'Sylwester 2026']);
+  assert.equal(overview.seasonal.find((event) => event.id === 'swieta').yearClaim, undefined);
+
+  const part = (yearClaim) => patch('economy', { seasonal: { sylwester: { yearClaim } } });
+  const saved = await part({ enabled: true, day: '2026-12-31', hour: 20, hours: 48 });
+  assert.equal(saved.status, 200, saved.text);
+  const shown = view(saved.json);
+  assert.deepEqual([shown.enabled, shown.day, shown.hour, shown.hours], [true, '2026-12-31', 20, 48]);
+  assert.equal((await part({ enabled: true, day: '2026-06-01', hour: 20, hours: 48 })).status, 400);
+  assert.equal((await part({ enabled: true, day: '2026-12-31', hour: 24, hours: 48 })).status, 400);
+  assert.equal((await part({ enabled: true, day: '2026-12-31', hour: 20, hours: 0 })).status, 400);
+  assert.equal((await patch('economy', { seasonal: { swieta: { yearClaim: { enabled: true, day: '2026-12-20', hour: 1, hours: 1 } } } })).status, 400);
+  const moved = await patch('economy', { seasonal: { sylwester: { year: 2027 } } });
+  assert.equal(view(moved.json), null, 'no badge for that year yet');
+  await patch('economy', { seasonal: { sylwester: { year: 2026 } } });
 });
 
 test('counting: a channel turns it on, the system and the start number change, null turns it off', async () => {

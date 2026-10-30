@@ -25,7 +25,7 @@ export default {
         if (user.bot) {
             throw createError("Bot has no badges", ErrorTypes.VALIDATION, t("Bots don't have an economy balance."), { expected: true });
         }
-        const { settings, userData } = await loadBadges({ client, guildId: interaction.guildId, user });
-        await InteractionHelper.safeEditReply(interaction, buildAchievementsView({ guildId: interaction.guildId, settings, user, userData, viewerId: interaction.user.id }));
+        const loaded = await loadBadges({ client, guildId: interaction.guildId, user });
+        await InteractionHelper.safeEditReply(interaction, buildAchievementsView({ guildId: interaction.guildId, user, viewerId: interaction.user.id, ...loaded }));
     }, { command: 'osiagniecia' })
 };

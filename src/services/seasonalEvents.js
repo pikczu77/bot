@@ -29,7 +29,7 @@ import { getGuildLocale } from './languageService.js';
 import { getEconomySettings, money, scaleEarnings } from './economySettings.js';
 import { withEconomyLock } from './economyUpgrades.js';
 import { addBoost, getBoostType, MAX_BOOST_HOURS } from './boosts.js';
-import { openBonusPack, recordProgress } from './progress.js';
+import { YEAR_BADGES, openBonusPack, recordProgress } from './progress.js';
 import { getSpouseId } from './marriageService.js';
 
 export const SHOP_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -39,7 +39,8 @@ const nextDay = (day) => dayKey(midnightOf(day) + 36 * 3_600_000);
 
 // texts are functions: they run in the server's language when used. `variable` is the {name} of the per-message amount.
 // Optional: `rankPrice` (default 3,000), `dateReward` (an accepted /randka gives both people this much, x2 for a married couple)
-// and `marriedDailyPercent` (married members get this much more from the daily collection).
+// and `marriedDailyPercent` (married members get this much more from the daily collection). `yearBadge`: this event carries the badge of its
+// year (see claimYearBadge).
 export const SEASONAL_EVENTS = Object.freeze([
   {
     id: 'halloween', year: 2026, emoji: '🎃', currency: '🍬', variable: 'cukierki',
@@ -71,7 +72,7 @@ export const SEASONAL_EVENTS = Object.freeze([
   },
   {
     id: 'sylwester', year: 2026, emoji: '🥂', currency: '🎆', variable: 'fajerwerki',
-    roleBase: 'Sylwester', color: '#D4AF37',
+    roleBase: 'Sylwester', color: '#D4AF37', yearBadge: true,
     // 30 December through 2 January.
     days: (y) => ({ firstDay: `${y}-12-30`, lastDay: `${y + 1}-01-02`, dayRange: [`${y}-12-26`, `${y + 1}-01-10`] }),
     texts: {
@@ -249,6 +250,8 @@ export const seasonDefaults = (event) => ({
   channelId: null,
   // A role pinged with the announcement (picked in the panel; none = no ping).
   pingRoleId: null,
+  // When the badge of the year can be collected (picked in the panel; off until then).
+  ...(event.yearBadge ? { yearClaim: { enabled: false, startsAt: null, hours: 72 } } : {}),
 });
 
 const stores = new Map(SEASONAL_EVENTS.map((event) => [event.id,
@@ -285,6 +288,7 @@ export function moveSeasonToYear(event, data, year) {
   const target = eventOf(event, { year });
   const { startsAt, endsAt } = seasonDefaults(target);
   Object.assign(data, { year, startsAt, endsAt, roleId: null, totals: {}, announcement: null, finished: false });
+  if (event.yearBadge) data.yearClaim = seasonDefaults(target).yearClaim;
   return data;
 }
 
@@ -639,6 +643,54 @@ export async function ownedRanks(guild, member, userData) {
     return { key, event: eventOf(base, { year: Number(year) }), roleId, role, worn: Boolean(role && member.roles?.cache?.has?.(role.id)) };
   }).filter(Boolean).sort((a, b) => a.event.firstDay.localeCompare(b.event.firstDay));
   return { ranks, changed };
+}
+
+// Owner (2026-10-30): "daj mi w eventy zebym mogl sobie sam dodac kiedy mozna kliknac i na jak dlugo (najlepiej jakby to bylo po prostu w
+// sylwestrze jako dodatek, ci co maja wszystkie rangi danego roku moga odebrac Rok 2026)". Panel, New Year's Eve tab: `yearClaim` = { enabled,
+// startsAt, hours }. While it is open /osiagniecia shows the badge and a button.
+
+/** The server's window: { open, year, badgeId, closesAt }. */
+export async function yearClaimState(guildId, now = Date.now()) {
+  const base = SEASONAL_EVENTS.find((event) => event.yearBadge);
+  const settings = await getSeason(base, guildId);
+  const { year } = eventOf(base, settings);
+  const claim = settings.yearClaim ?? {};
+  const closesAt = claim.startsAt ? claim.startsAt + (Number(claim.hours) || 0) * 3_600_000 : 0;
+  const badgeId = YEAR_BADGES[year] ?? null;
+  return { open: Boolean(badgeId && claim.enabled && now >= claim.startsAt && now < closesAt), year, badgeId, closesAt };
+}
+
+/** The events whose ranks count for a year: every event that is on, in that year. */
+async function yearRankEvents(guildId, year) {
+  const events = [];
+  for (const base of SEASONAL_EVENTS) {
+    const settings = await getSeason(base, guildId);
+    const event = eventOf(base, settings);
+    if (settings.enabled && event.year === year) events.push(event);
+  }
+  return events;
+}
+
+/**
+ * The button of the year badge. Returns { closed: true }, { missing: [rank names] } or { progress } (null when the member already has it).
+ */
+export function claimYearBadge({ client, guild, member, now = Date.now() }) {
+  return withEconomyLock(guild.id, member.id, async () => {
+    const state = await yearClaimState(guild.id, now);
+    if (!state.open) return { closed: true };
+    const userData = await getEconomyData(client, guild.id, member.id, { joint: false });
+    if (userData.achievements?.[state.badgeId]) return { progress: null };
+    const { ranks, changed } = await ownedRanks(guild, member, userData);
+    const owned = new Set(ranks.map((rank) => rank.key));
+    const missing = (await yearRankEvents(guild.id, state.year)).filter((event) => !owned.has(rankKey(event))).map((event) => event.roleName);
+    if (missing.length) {
+      if (changed) await setEconomyData(client, guild.id, member.id, userData);
+      return { missing };
+    }
+    const progress = recordProgress(userData, { [state.badgeId]: 1 }, { settings: await getEconomySettings(guild.id), now });
+    await setEconomyData(client, guild.id, member.id, userData);
+    return { progress };
+  });
 }
 
 /** Take off every worn event rank except `keepKey`. Returns how many were taken off. Throws when Discord refuses. */

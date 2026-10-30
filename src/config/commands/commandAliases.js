@@ -82,9 +82,6 @@ export const commandAliases = {
     'bday': 'urodziny',
     'b': 'urodziny',
 
-    'gdelete': 'gdelete',
-    'greroll': 'greroll',
-    'groll': 'greroll',
 
     'ticket': 'ticket',
     't': 'ticket',
@@ -106,8 +103,6 @@ export const commandAliases = {
     'priority': 'priorytet',
     'zaproszenia': 'zaproszenia',
     'invites': 'zaproszenia',
-    'konkurs': 'konkurs',
-    'giveaway': 'konkurs',
 
     'np': 'nowplaying',
     'now': 'nowplaying',

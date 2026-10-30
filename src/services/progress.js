@@ -171,8 +171,8 @@ const eventBadge = ({ id, emoji, name, description, reward = 2000, field, year, 
   id, emoji, name, description, reward, section: 'event', startsAt, endsAt,
   progress: (userData) => [Math.min(goal, userData?.[field]?.year === year ? Number(userData[field].earned) || 0 : 0), goal],
 });
-// Pressing the "2026" button in the event section gives it (claimYearBadge in modules/progress_view.js).
-export const YEAR_BADGE = 'year_2026';
+// The badge of a year: an add-on of New Year's Eve (claimYearBadge in services/seasonalEvents.js). A new year = a new entry here and in ACHIEVEMENTS.
+export const YEAR_BADGES = Object.freeze({ 2026: 'year_2026' });
 
 export const ACHIEVEMENTS = [
   { id: 'first_fish', emoji: '🎣', name: t('First catch'), description: t('Catch your first fish.'), reward: 500, progress: (u) => [Math.min(1, fishCaught(u)), 1] },
@@ -253,7 +253,8 @@ export const ACHIEVEMENTS = [
   // The summer lasts two months, so its goal is higher.
   eventBadge({ id: 'wakacje_2027', emoji: '🏖️', name: t('Summer holidays 2027'), description: t('Collect 5,000 seashells in the summer holidays 2027 event.'), reward: 5000, field: 'wakacje', year: 2027, goal: 5000, startsAt: firstDay(2027, 6, 26), endsAt: dayAfter(2027, 8, 31) }),
   { id: 'event_podium', emoji: '🎪', name: t('Event podium'), description: t('Finish in the top 3 of a holiday event.'), reward: 10000, section: 'event', progress: counter('eventPodium', 1) },
-  { id: YEAR_BADGE, emoji: '🎉', name: t('Year 2026'), description: t('Press the 2026 button under this list.'), reward: 2000, section: 'event', endsAt: dayAfter(2026, 12, 31), progress: counter('year2026', 1) },
+  // `manual`: hidden until the server opens it in the panel (the list adds it then) or the member has it.
+  { id: 'year_2026', emoji: '🎉', name: t('Year 2026'), description: t('Have all event ranks of 2026 and press the 2026 button under this list.'), reward: 50000, section: 'event', manual: true, progress: counter('year_2026', 1) },
   // Last on purpose: it counts the badges unlocked by the same action.
   { id: 'badge_hunter', emoji: '🏅', name: t('Badge hunter'), description: t('Get 25 badges.'), reward: 25000, progress: (u) => [Math.min(25, unlockedCount(u)), 25] },
 ];
@@ -267,6 +268,7 @@ export const isEventBadge = (achievement) => achievement.section === 'event';
 /** False for a holiday badge the member did not earn, when its time has not come or is over. */
 export function badgeVisible(achievement, userData, now = Date.now()) {
   if (isUnlocked(userData, achievement.id)) return true;
+  if (achievement.manual) return false;
   return now >= (achievement.startsAt ?? 0) && now < (achievement.endsAt ?? Infinity);
 }
 

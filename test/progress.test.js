@@ -11,13 +11,13 @@ import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { getEconomySettings, updateEconomySettings } from '../src/services/economySettings.js';
 import {
-  ACHIEVEMENTS, MISSIONS, YEAR_BADGE, badgeCount, ensureMissions, isEventBadge, progressEmbeds, progressOptions, recordProgress, rerollMission, visibleBadges,
+  ACHIEVEMENTS, MISSIONS, YEAR_BADGES, badgeCount, ensureMissions, isEventBadge, progressEmbeds, progressOptions, recordProgress, rerollMission, visibleBadges,
 } from '../src/services/progress.js';
 import { UPGRADES } from '../src/services/economyUpgrades.js';
 import { payBail } from '../src/services/economyJail.js';
-import { getSeasonEvent, tickSeason, updateSeason } from '../src/services/seasonalEvents.js';
+import { claimYearBadge, getSeasonEvent, tickSeason, updateSeason, yearClaimState } from '../src/services/seasonalEvents.js';
 import { getUserLevelData, saveUserLevelData } from '../src/services/leveling/leveling.js';
-import { buildAchievementsView, claimYearBadge, loadBadges } from '../src/commands/Economy/modules/progress_view.js';
+import { buildAchievementsView, loadBadges } from '../src/commands/Economy/modules/progress_view.js';
 import achievementButtons from '../src/interactions/buttons/economy/achievements.js';
 import { dayKey, weekKey } from '../src/utils/warsawTime.js';
 import missionsMenu from '../src/interactions/selectMenus/economy/missions.js';
@@ -314,7 +314,7 @@ test('/osiagniecia: holiday badges in their own section, only while they can be 
   const before = Date.UTC(2026, 9, 30);
   const later = Date.UTC(2030, 0, 1);
 
-  assert.deepEqual(visibleBadges({}, 'event', before).map((badge) => badge.id), ['halloween_2026', 'event_podium', YEAR_BADGE], 'later holidays wait for their first day');
+  assert.deepEqual(visibleBadges({}, 'event', before).map((badge) => badge.id), ['halloween_2026', 'event_podium'], 'later holidays wait for their first day, the year badge for the server');
   assert.ok(visibleBadges({}, 'event', Date.UTC(2026, 11, 19)).some((badge) => badge.id === 'swieta_2026'));
   assert.deepEqual(visibleBadges({}, 'event', later).map((badge) => badge.id), ['event_podium'], 'nobody can earn the old ones');
   assert.ok(visibleBadges({}, 'main', before).every((badge) => !isEventBadge(badge)));
@@ -344,25 +344,37 @@ test('/osiagniecia: holiday badges in their own section, only while they can be 
     assert.doesNotMatch(replyText({ replies: [reply] }), /Halloween 2026/);
   }
   const labels = (reply) => reply.components[0].toJSON().components.map((button) => button.label ?? button.emoji?.name);
-  assert.deepEqual(labels(view({}, { tab: 'event', now: before })), ['Badges', 'Event badges', '2026'], 'no page buttons in a short list');
-  assert.equal(labels(view({}, { tab: 'event', now: before, viewerId: '1' })).length, 2, 'not on someone else\'s list');
-  assert.equal(labels(view({ achievements: { [YEAR_BADGE]: 1 } }, { tab: 'event', now: before })).length, 2, 'gone once earned');
-  assert.equal(labels(view({}, { tab: 'event', now: later })).length, 2, 'gone after 2026');
+  assert.deepEqual(labels(view({}, { tab: 'event', now: before })), ['Badges', 'Event badges'], 'no page buttons in a short list, no year button while closed');
+  const open = { open: true, year: 2026, badgeId: YEAR_BADGES[2026] };
+  assert.deepEqual(labels(view({}, { tab: 'event', now: before, yearClaim: open })), ['Badges', 'Event badges', '2026']);
+  assert.match(replyText({ replies: [view({}, { tab: 'event', now: before, yearClaim: open })] }), /Year 2026/);
+  assert.equal(labels(view({}, { tab: 'event', now: before, viewerId: '1', yearClaim: open })).length, 2, 'not on someone else\'s list');
+  assert.equal(labels(view({ achievements: { [YEAR_BADGES[2026]]: 1 } }, { tab: 'event', now: before, yearClaim: open })).length, 2, 'gone once earned');
 });
 
-test('the 2026 button gives "Year 2026" once, only in 2026', async () => {
+test('the badge of the year: closed until the server opens it, needs every rank of that year, paid once', async () => {
   const fan = newMember('Klikacz');
-  const in2026 = Date.UTC(2026, 9, 30);
-  const first = await claimYearBadge({ client, guildId: guild.id, user: fan.user, now: in2026 });
-  assert.deepEqual(ids(first), [YEAR_BADGE]);
-  assert.equal((await data(fan)).wallet, 2000);
-  assert.equal(await claimYearBadge({ client, guildId: guild.id, user: fan.user, now: in2026 }), null);
-  assert.equal((await data(fan)).wallet, 2000, 'paid once');
-  const late = newMember('Spozniony2027');
-  assert.equal(await claimYearBadge({ client, guildId: guild.id, user: late.user, now: Date.UTC(2027, 0, 1) }), null);
-  assert.equal((await data(late)).achievements?.[YEAR_BADGE], undefined);
-});
+  const event = getSeasonEvent('sylwester');
+  const now = Date.UTC(2026, 11, 31, 12);
+  assert.deepEqual(await claimYearBadge({ client, guild, member: fan, now }), { closed: true }, 'off by default');
 
+  await updateSeason(event, guild.id, (season) => { season.yearClaim = { enabled: true, startsAt: now - 3_600_000, hours: 2 }; });
+  assert.equal((await yearClaimState(guild.id, now)).open, true);
+  assert.equal((await yearClaimState(guild.id, now - 2 * 3_600_000)).open, false, 'not yet');
+  assert.deepEqual((await claimYearBadge({ client, guild, member: fan, now })).missing, ['Halloween 2026', 'Święta 2026', 'Sylwester 2026']);
+
+  await save(fan, { wallet: 0, eventRanks: { 'halloween:2026': { roleId: '1' }, 'swieta:2026': { roleId: '2' } } });
+  assert.deepEqual((await claimYearBadge({ client, guild, member: fan, now })).missing, ['Sylwester 2026']);
+  await save(fan, { eventRanks: { ...(await data(fan)).eventRanks, 'sylwester:2026': { roleId: '3' } } });
+  const first = await claimYearBadge({ client, guild, member: fan, now });
+  assert.deepEqual(ids(first.progress), [YEAR_BADGES[2026]]);
+  assert.equal((await data(fan)).wallet, 50_000);
+  assert.deepEqual(await claimYearBadge({ client, guild, member: fan, now }), { progress: null });
+  assert.equal((await data(fan)).wallet, 50_000, 'paid once');
+  assert.deepEqual(await claimYearBadge({ client, guild, member: fan, now: now + 3_600_000 }), { closed: true }, 'the window is over');
+
+  await updateSeason(event, guild.id, (season) => { season.yearClaim = { enabled: false, startsAt: null, hours: 72 }; });
+});
 test('the buttons of /osiagniecia: own message changes, anyone else gets a private copy', async () => {
   const owner = newMember('Wlasciciel');
   const other = newMember('Inny');

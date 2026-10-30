@@ -68,7 +68,9 @@ change you make, so the next session knows what was done and why.
   `progressOptions.enabled` is false under `NODE_ENV=test` (old tests check exact balances); `test/progress.test.js` turns it on.
   Since 2026-10-30 `/osiagniecia` has two sections and pages (`buildAchievementsView`, buttons `odznaki:<t|p>:<main|event>:<page>:<userId>:<viewerId>`
   in `interactions/buttons/economy/achievements.js`). Holiday badges: `eventBadge` with `startsAt`, `endsAt`; `badgeVisible` shows an unearned one only between them.
-  "Year 2026" (`YEAR_BADGE`): button `odznaki:rok:...` in the event section, `claimYearBadge`, until 31 Dec 2026.
+  Badge of a year (`YEAR_BADGES` in progress.js, `manual`): hidden until the server opens it on the New Year's Eve tab of the panel (`yearClaim`
+  { enabled, startsAt, hours } in that event's store, `yearClaimState`); then a button `odznaki:rok:...` in the event section, `claimYearBadge` needs every
+  rank of that year (every event that is on, in that year). A new year = a new entry in `YEAR_BADGES` and `ACHIEVEMENTS`.
   `loadBadges` also gives level badges for levels reached earlier. More events: level, robbed, bail, heistBank, clubWeekWin, eventPodium,
   casinoPayout, casinoDraw; best values `levelBest`, `casinoBiggestWin`, `casinoBestStreak`, `casinoBestLossStreak`; `dailySets`.
 - `/napad` (team heist, since 2026-10-26): `modules/heist.js` (`HEIST_TARGETS`, `heistChance`, lobbies in memory),
@@ -773,5 +775,13 @@ change you make, so the next session knows what was done and why.
   - Later the same night (owner: "niech narazie inne nie beda wyswietlane, caly rok swiat zrob za klikniecie reakcji 2026 i daj jako Rok 2026"): a holiday badge
     shows only from its event's first day. "Cały rok świąt" became "Rok 2026". Discord reactions are emoji only, so it is a button "2026" in the event section
     (my reading). My calls: reward 2,000 (was 50,000, too much for one click), until 31 Dec 2026, "Podium eventu" stays visible.
+  - Later still (owner on my question about `/konkurs utworz`: "tak tak wjeb to na strone wszystko"; mid-task about the year badge: "nie dodawaj do klikniecia
+    teraz, daj mi w eventy zebym mogl sobie sam dodac kiedy mozna kliknac i na jak dlugo (najlepiej jakby to bylo po prostu w sylwestrze jako dodatek, ci co
+    maja wszystkie rangi danego roku moga odebrac Rok 2026)"). This replaces the button-for-everyone above. 82 commands:
+    - `/konkurs` is gone completely (my reading of "wszystko"). Panel API `giveaways`: `start.requirements` { roleId, minLevel, minInvites, minAccountAgeDays,
+      minMemberDays }, `start.bonus` { roleId, entries }, `reroll: id`, `remove: id` (`services/giveawayActions.js`), `features` tells the site what the bot has.
+      The list carries `requirements` and `bonusEntries`. Site: boxes "Kto może się zapisać", "Dodatkowe losy", buttons "Losuj ponownie", "Usuń" (two clicks).
+    - "Rok 2026": off by default, `seasonal.sylwester.yearClaim` { enabled, day, hour, hours } in `PATCH /economy`, view adds `badgeName`, `ranks`. Button only in
+      `/osiagniecia` > Eventowe while open. Reward 50,000 again (my call: it is no longer free). Moving New Year's Eve to another year turns the window off.
   - Found, not changed: in `/modmail`, `ADMIN_SUBCOMMANDS` lists English names (`block`, `snippet-add` ...) while the commands are Polish, so any modmail
     staff can block and edit snippets; and `/modmail szablony` answers "not recognised" because the code checks for `snippets`.

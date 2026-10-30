@@ -90,6 +90,8 @@ import { MAX_BACKUP_HOURS } from '../services/minecraftServer.js';
 import { getQuizSettings, updateQuizSettings } from '../services/quiz.js';
 import { deleteBirthday, getAllBirthdays } from '../services/birthdayService.js';
 import { getGuildGiveaways, saveGiveaway } from '../utils/giveaways.js';
+import { removeGiveaway, rerollGiveaway } from '../services/giveawayActions.js';
+import { YEAR_BADGES, getAchievement } from '../services/progress.js';
 import { createGiveawayButtons, createGiveawayEmbed } from '../services/giveawayService.js';
 import {
   disableCountingGame, getCountingGameConfig, getCountingSystemChoices, getExpectedCountValue, resetCountingGame, saveCountingGameConfig,
@@ -459,6 +461,24 @@ function lotteryView(lottery, settings) {
   };
 }
 
+// The badge of the year on the New Year's Eve tab: when it opens and for how long. Null in a year that has no such badge.
+function yearClaimView(event, settings) {
+  const badge = getAchievement(YEAR_BADGES[event.year]);
+  if (!badge) return null;
+  const claim = settings.yearClaim ?? {};
+  const startsAt = claim.startsAt ?? settings.startsAt;
+  const day = dayKey(startsAt);
+  return {
+    enabled: Boolean(claim.enabled),
+    day,
+    hour: Math.round((startsAt - midnightOf(day)) / 3_600_000),
+    hours: Number(claim.hours) || 72,
+    badgeName: tr(badge.name),
+    reward: badge.reward,
+    limits: { hours: [1, 720] },
+  };
+}
+
 // Holiday events (services/seasonalEvents.js) for the economy view: `firstDay` / `lastDay` = the days the currency is given.
 // `year` = the year the server picked (`years` = what it can pick); name, rank, days and `dayRange` are of that year.
 function seasonView(base, settings) {
@@ -503,12 +523,17 @@ function seasonView(base, settings) {
     variables: event.variables,
     limits: { title: SEASON_TITLE_LIMIT, text: SEASON_TEXT_LIMIT },
     posted: Boolean(settings.announcement?.messageId),
+    ...(base.yearBadge ? { yearClaim: yearClaimView(event, settings) } : {}),
   };
 }
 
 async function seasonViews(guildId) {
   const views = [];
   for (const event of SEASONAL_EVENTS) views.push(seasonView(event, await getSeason(event, guildId)));
+  // The ranks a member needs for the badge of the year: every event of that year that is on.
+  for (const view of views) {
+    if (view.yearClaim) view.yearClaim.ranks = views.filter((other) => other.enabled && other.year === view.year).map((other) => other.roleName);
+  }
   return views;
 }
 
@@ -555,6 +580,19 @@ function seasonPatch(guild, base, body, field, currentYear) {
     const clean = (textValue ?? '').trim();
     if (clean.length > limit) throw new ApiError(400, `${field}.${key}: at most ${limit} characters`);
     patch[key] = clean || null;
+  }
+  if ('yearClaim' in value) {
+    if (!base.yearBadge || !YEAR_BADGES[event.year]) throw new ApiError(400, `${field}.yearClaim: this event has no badge of the year`);
+    const claim = plainObject(value.yearClaim, `${field}.yearClaim`);
+    const claimDay = String(claim.day ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(claimDay) || claimDay < event.dayRange[0] || claimDay > event.dayRange[1]) {
+      throw new ApiError(400, `${field}.yearClaim.day: a day from ${event.dayRange[0]} to ${event.dayRange[1]} expected`);
+    }
+    patch.yearClaim = {
+      enabled: boolean(claim.enabled, `${field}.yearClaim.enabled`),
+      startsAt: midnightOf(claimDay) + integer(claim.hour, `${field}.yearClaim.hour`, 0, 23) * 3_600_000,
+      hours: integer(claim.hours, `${field}.yearClaim.hours`, 1, 720),
+    };
   }
   if ('announceNow' in value) patch.announceNow = boolean(value.announceNow, `${field}.announceNow`);
   return patch;
@@ -1376,6 +1414,7 @@ async function applyBirthdays(client, guild, body) {
 // ends it within a minute, the same way as when its time is up).
 const GIVEAWAY_LIST_LIMIT = 15;
 const GIVEAWAY_MAX_MINUTES = 30 * 24 * 60;
+const GIVEAWAY_RULE_LIMITS = { minLevel: [1, 1000], minInvites: [1, 10000], minAccountAgeDays: [1, 3650], minMemberDays: [1, 3650] };
 
 async function giveawaysView(client, guild) {
   const all = await getGuildGiveaways(client, guild.id);
@@ -1393,16 +1432,54 @@ async function giveawaysView(client, guild) {
       entries: (giveaway.participants ?? []).length,
       ended: ended(giveaway),
       winnerNames: (giveaway.winnerIds ?? []).map((id) => userName(client, guild, id) ?? id),
+      requirements: giveaway.requirements ?? null,
+      bonusEntries: giveaway.bonusEntries ?? [],
     })),
-    limits: { winners: [1, 10], minutes: [1, GIVEAWAY_MAX_MINUTES], prize: 100 },
+    // Tells the site which fields and buttons this bot has.
+    features: ['requirements', 'reroll', 'remove'],
+    limits: { winners: [1, 10], minutes: [1, GIVEAWAY_MAX_MINUTES], prize: 100, ...GIVEAWAY_RULE_LIMITS, bonusEntries: [1, 20] },
   };
 }
 
+/** Who may enter: nothing filled in = everyone. */
+function giveawayRequirements(guild, start) {
+  const rules = 'requirements' in start ? plainObject(start.requirements, 'start.requirements') : {};
+  const limit = (key) => (rules[key] === null || rules[key] === undefined ? null : integer(rules[key], `start.requirements.${key}`, ...GIVEAWAY_RULE_LIMITS[key]));
+  return {
+    roleId: rules.roleId ? requireRole(guild, rules.roleId, 'start.requirements.roleId') : null,
+    minLevel: limit('minLevel'),
+    minInvites: limit('minInvites'),
+    minAccountAgeDays: limit('minAccountAgeDays'),
+    minMemberDays: limit('minMemberDays'),
+  };
+}
+
+/** A role with extra entries; none without a role. */
+function giveawayBonus(guild, start) {
+  const bonus = start.bonus ? plainObject(start.bonus, 'start.bonus') : null;
+  if (!bonus?.roleId) return [];
+  return [{ roleId: requireRole(guild, bonus.roleId, 'start.bonus.roleId'), entries: integer(bonus.entries ?? 1, 'start.bonus.entries', 1, 20) }];
+}
+
 async function applyGiveaways(client, guild, body) {
-  if ('end' in body) {
-    const id = String(body.end ?? '');
+  const find = async (field) => {
+    const id = String(body[field] ?? '');
     const giveaway = (await getGuildGiveaways(client, guild.id)).find((entry) => String(entry.messageId) === id);
-    if (!giveaway) throw new ApiError(404, 'end: no such giveaway');
+    if (!giveaway) throw new ApiError(404, `${field}: no such giveaway`);
+    return giveaway;
+  };
+  if ('reroll' in body) {
+    const giveaway = await find('reroll');
+    if (!giveaway.ended && !giveaway.isEnded) throw new ApiError(400, 'reroll: this giveaway is still running');
+    if ((giveaway.participants ?? []).length < giveaway.winnerCount) throw new ApiError(400, 'reroll: not enough entries for that many winners');
+    await rerollGiveaway(client, guild, giveaway);
+  }
+  if ('remove' in body) {
+    const giveaway = await find('remove');
+    if (!(await removeGiveaway(client, guild, giveaway))) throw new Error('Could not delete the giveaway');
+  }
+  if ('end' in body) {
+    const giveaway = await find('end');
     if (giveaway.ended || giveaway.isEnded) throw new ApiError(400, 'end: this giveaway has already ended');
     await saveGiveaway(client, guild.id, { ...giveaway, endTime: Date.now() - 1, endsAt: Date.now() - 1 });
   }
@@ -1421,8 +1498,8 @@ async function applyGiveaways(client, guild, body) {
     const giveaway = {
       messageId: 'placeholder', channelId, guildId: guild.id, prize, hostId: client.user?.id ?? null,
       endTime, endsAt: endTime, winnerCount, participants: [], tickets: {},
-      requirements: { roleId: null, minLevel: null, minInvites: null, minAccountAgeDays: null, minMemberDays: null },
-      bonusEntries: [], isEnded: false, ended: false, createdAt: new Date().toISOString(),
+      requirements: giveawayRequirements(guild, start),
+      bonusEntries: giveawayBonus(guild, start), isEnded: false, ended: false, createdAt: new Date().toISOString(),
     };
     const message = await channel.send({
       content: pingRoleId ? `${t('🎉 **NEW GIVEAWAY** 🎉')} <@&${pingRoleId}>` : t('🎉 **NEW GIVEAWAY** 🎉'),

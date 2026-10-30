@@ -30,7 +30,6 @@ const COMMAND_ERROR_SUBTYPES = {
   unmute: 'untimeout_failed',
   warnings: 'warnings_view_failed',
   ticket: 'ticket_failed',
-  konkurs: 'giveaway_failed',
 };
 
 function withTraceContext(context = {}, traceContext = {}) {

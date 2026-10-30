@@ -43,15 +43,13 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
   ];
   assert.deepEqual(removed.filter((name) => client.commands.has(name)), []);
   // 2026-10-30 (owner: what the web panel can do needs no command).
-  const panelOnly = ['logi', 'liczenie', 'statystyki', 'jointocreate', 'reactroles', 'xp', 'configwizard', 'say'];
+  const panelOnly = ['logi', 'liczenie', 'statystyki', 'jointocreate', 'reactroles', 'xp', 'configwizard', 'say', 'konkurs'];
   assert.deepEqual(panelOnly.filter((name) => client.commands.has(name)), []);
   const subcommands = (name) => client.commands.get(name).data.toJSON().options.map((option) => option.name);
   assert.deepEqual(subcommands('ticket'), ['dodaj', 'usun', 'rename']);
   assert.deepEqual(subcommands('economy'), ['gracz', 'poradnik']);
   assert.deepEqual(subcommands('quiz'), ['pytanie']);
   assert.deepEqual(subcommands('loteria'), ['kup', 'info']);
-  assert.ok(subcommands('konkurs').includes('utworz'), 'the panel has no entry requirements yet');
-  assert.ok(!subcommands('konkurs').includes('zakoncz'));
   assert.ok(!subcommands('modmail').includes('setup'));
   assert.ok(!subcommands('zaproszenia').includes('settings'));
   assert.ok(!subcommands('urodziny').includes('kanal'));
@@ -59,8 +57,8 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
   assert.deepEqual(['konsola', 'czat', 'kopie'].filter((name) => subcommands('minecraft').includes(name)), []);
   // 64 on 2026-10-14 morning; then /hajs /ruletka /blackjack /slots /ekwipunek and /randka /slub.
   // 2026-10-26: /misje /osiagniecia /wymiana /wordle /quiz, then /napad, then /profil, then /loteria /pojedynek.
-  // 2026-10-30: eight panel-only commands went.
-  assert.equal(client.commands.size, 83);
+  // 2026-10-30: nine panel-only commands went.
+  assert.equal(client.commands.size, 82);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);
@@ -113,7 +111,6 @@ test('/channel wolny-tryb goes through the command group', async () => {
 
 test('empty lists explain what to do next', async () => {
   assert.match(replyText(await run('minecraft', { subcommand: 'list' })), /minecraft track/);
-  assert.match(replyText(await run('konkurs', { subcommand: 'list' })), /konkurs utworz/);
   assert.match(replyText(await run('role', { subcommand: 'info', options: { role: mockRole(guild, 'VIP') } })), /VIP/);
 });
 
