@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags, ChannelType } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { createEmbed, successEmbed } from '../../utils/embeds.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
 
@@ -7,7 +7,6 @@ import birthdayInfo from './modules/birthday_info.js';
 import birthdayList from './modules/birthday_list.js';
 import birthdayRemove from './modules/birthday_remove.js';
 import nextBirthdays from './modules/next_birthdays.js';
-import birthdaySetchannel from './modules/birthday_setchannel.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { t } from '../../i18n/index.js';
@@ -61,18 +60,6 @@ export default {
             subcommand
                 .setName('nastepne')
                 .setDescription('Show upcoming birthdays')
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('kanal')
-                .setDescription('Set or disable the channel for birthday announcements. (Manage Server required)')
-                .addChannelOption(option =>
-                    option
-                        .setName('channel')
-                        .setDescription('The text channel for announcements. Leave empty to disable.')
-                        .addChannelTypes(ChannelType.GuildText)
-                        .setRequired(false)
-                )
         ),
 
     async execute(interaction, config, client) {
@@ -89,8 +76,6 @@ export default {
                 return await birthdayRemove.execute(interaction, config, client);
             case 'nastepne':
                 return await nextBirthdays.execute(interaction, config, client);
-            case 'kanal':
-                return await birthdaySetchannel.execute(interaction, config, client);
             default:
                 return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('Unknown subcommand') });
         }

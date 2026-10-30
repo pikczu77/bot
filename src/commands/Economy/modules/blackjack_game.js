@@ -100,6 +100,8 @@ function finish(userData, game, { stand, settings }) {
   result.progress = recordProgress(userData, {
     casino: 1,
     casinoWin: ['win', 'blackjack'].includes(result.outcome) ? 1 : 0,
+    casinoPayout: ['win', 'blackjack'].includes(result.outcome) ? result.payout : 0,
+    casinoDraw: result.outcome === 'push' ? 1 : 0,
     blackjackNatural: result.outcome === 'blackjack' ? 1 : 0,
   }, { settings });
   return result;

@@ -8,6 +8,8 @@ import { Mutex } from '../../utils/mutex.js';
 import { wrapServiceBoundary } from '../../utils/errorHandler.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { getEconomySettings, money, scaleEarnings } from '../economySettings.js';
+import { withEconomyLock } from '../economyUpgrades.js';
+import { recordProgress } from '../progress.js';
 import { t, trAny } from '../../i18n/index.js';
 
 /**
@@ -57,6 +59,7 @@ export const addXp = wrapServiceBoundary(async function addXp(client, guild, mem
 
     if (didLevelUp) {
       const moneyReward = await payLevelMoney(client, guild, member, config, levelData.level - initialLevel);
+      await noteLevelBadges(client, guild, member, levelData.level);
 
       if (config.announceLevelUp) {
         await sendLevelUpAnnouncement(guild, member, levelData, config, { channel: options.channel, moneyReward, rewardRole });
@@ -143,6 +146,20 @@ async function payLevelMoney(client, guild, member, config, levelsGained) {
   } catch (error) {
     logger.error(`Failed to pay the level reward to ${member.user.id}:`, error);
     return 0;
+  }
+}
+
+// The level badges of /osiagniecia start at level 10 (services/progress.js).
+async function noteLevelBadges(client, guild, member, level) {
+  if (level < 10) return;
+  try {
+    await withEconomyLock(guild.id, member.user.id, async () => {
+      const account = await getEconomyData(client, guild.id, member.user.id);
+      recordProgress(account, { level }, { settings: await getEconomySettings(guild.id) });
+      await setEconomyData(client, guild.id, member.user.id, account);
+    });
+  } catch (error) {
+    logger.error(`Failed to record the level of ${member.user.id}:`, error);
   }
 }
 

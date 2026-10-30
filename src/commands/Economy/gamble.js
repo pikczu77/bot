@@ -36,7 +36,7 @@ export default {
             const amountWon = Math.floor(betAmount * gamble.payoutPercent / 100);
             // The bet was at stake, not taken in advance: a win replaces it with the payout.
             userData.wallet = (userData.wallet || 0) + (win ? amountWon - betAmount : -betAmount);
-            return { base, chance, win, amountWon, events: { casinoWin: win ? 1 : 0 } };
+            return { base, chance, win, amountWon, events: { casinoWin: win ? 1 : 0, casinoPayout: win ? amountWon : 0 } };
         });
 
         const resultEmbed = round.win

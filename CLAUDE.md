@@ -10,6 +10,8 @@ change you make, so the next session knows what was done and why.
 - Never commit `.env`, `data/`, keys or the bot's address. **This repository is public.**
 - Never remove bot commands on your own. List the candidates and let the owner choose.
   Never propose removing economy commands (the owner said the economy is very important).
+- Never add a slash command for a setting the web panel can hold (owner, 2026-10-30: "jak moge zrobic cos na stronie
+  internetowej to po co mi komenda"). Settings go to the panel; commands are for members and for what the panel cannot do.
 
 ## Test and ship
 - `npm test` uses in-memory storage and mock Discord objects. All tests must pass.
@@ -64,6 +66,10 @@ change you make, so the next session knows what was done and why.
   (`BONUS_PACKS`), one swap per period (`misje:zmien`). Badges: `ACHIEVEMENTS` with `progress(userData)`, paid once.
   Views: `modules/progress_view.js` (`/misje`, `/osiagniecia`). Day/week keys: `src/utils/warsawTime.js`.
   `progressOptions.enabled` is false under `NODE_ENV=test` (old tests check exact balances); `test/progress.test.js` turns it on.
+  Since 2026-10-30 `/osiagniecia` has two sections and pages (`buildAchievementsView`, buttons `odznaki:<t|p>:<main|event>:<page>:<userId>:<viewerId>`
+  in `interactions/buttons/economy/achievements.js`). Holiday badges: `eventBadge` with `endsAt`; `badgeVisible` hides one nobody can earn any more.
+  `loadBadges` also gives level badges for levels reached earlier. More events: level, robbed, bail, heistBank, clubWeekWin, eventPodium,
+  casinoPayout, casinoDraw; best values `levelBest`, `casinoBiggestWin`, `casinoBestStreak`, `casinoBestLossStreak`; `dailySets`.
 - `/napad` (team heist, since 2026-10-26): `modules/heist.js` (`HEIST_TARGETS`, `heistChance`, lobbies in memory),
   buttons `napad:dolacz|zapros|start|wyjdz:<id>` (`interactions/buttons/economy/heist.js`), invite picker `napad:kogo:<id>`
   (`selectMenus/economy/heist.js`). Settings `commands.heist` (cooldownMinutes, payoutPercent). Events heist, heistWin, earned, jail.
@@ -174,14 +180,14 @@ change you make, so the next session knows what was done and why.
   with the saved key (same panel). A new channel (while on) or `postGuide: true` posts the guide message.
   Saves go through `updateWhitelistSettings` (same lock as the member changes).
 - Console channel: `src/services/minecraftConsole.js` (`handleConsoleMessage`, called from
-  `featureMessages.js` after the whitelist handler), `/minecraft konsola [kanal]` in
-  `src/commands/Minecraft/modules/console.js` (no channel = off). Same store and panel key as the
+  `featureMessages.js` after the whitelist handler), channel picked in the web panel (the command went on 2026-10-30)
+  (no channel = off). Same store and panel key as the
   whitelist, field `consoleChannelId`. Only Administrator / server owner / bot owners may run
   commands (and set the channel): the console can op players and stop the server. Output is read
   from the panel websocket (`GET /websocket`, `ws` with `origin` = panel address, Wings checks it;
   confirmed on the real MatHost panel 2026-10-23), for `consoleTiming.outputMs` after the commands.
-- Chat link (since 2026-10-26): `src/services/minecraftChat.js`, `/minecraft czat [kanal] [wydarzenia]` in
-  `src/commands/Minecraft/modules/chat.js` (Manage Server; no channel = off). Same store and panel key, fields
+- Chat link (since 2026-10-26): `src/services/minecraftChat.js`, channel picked in the web panel (the command went on 2026-10-30)
+  (no channel = off). Same store and panel key, fields
   `chatChannelId`, `chatEvents`. One long-lived panel websocket per guild reads the console (`parseChatLine`:
   vanilla/Paper chat, joins, leaves, advancements, deaths, start/stop); chat goes out through a "Minecraft"
   webhook with the player's name and mc-heads.net head (plain bot messages without Manage Webhooks), never pings.
@@ -193,7 +199,7 @@ change you make, so the next session knows what was done and why.
   `test/minecraft-panel.test.js` (panel API over HTTP, fake hosting panel), `test/minecraft-console.test.js`
   (fake websocket through `consoleSocket.create`), `test/minecraft-chat.test.js`, `test/minecraft-server.test.js`.
 - Power and backups (since 2026-10-26): `src/services/minecraftServer.js` (`serverStatus`, `sendPower`, `createBackup`,
-  `tickBackup`), `/minecraft serwer` + `/minecraft kopie [co_ile]` in `src/commands/Minecraft/modules/server.js`, buttons
+  `tickBackup`), `/minecraft serwer` in `src/commands/Minecraft/modules/server.js` (backup schedule: panel only since 2026-10-30), buttons
   `mcserwer:start|restart|stop[:tak]|kopia|odswiez` (`src/interactions/buttons/minecraft/server.js`). Administrator only
   (`canUseConsole`). Store fields `backupEveryHours`, `lastAutoBackupAt`, `lastBackup`. Job `minecraft_backup` every minute.
   Automatic backups are named `Discord auto ...`; a full plan deletes only the oldest unlocked automatic backup. Panel API:
@@ -745,3 +751,23 @@ change you make, so the next session knows what was done and why.
   plus the nicks signed up through the bot, each nick once (the server's spelling wins), offline ones sorted by "last seen" as before.
   Only names leave the bot: no UUIDs, no whitelist count of its own, no address, version, limit, Discord names or chat
   (`test/minecraft-live.test.js` checks it; 3 new tests). The website (pikczu.pl/smp, `/api/smp`) needed no change.
+- **2026-10-30, night** (owner: new badges and a list of ones to remove; "usun tez komendy ktore sa niepotrzebne, jak moge zrobic cos na stronie
+  internetowej to po co mi komenda"; "dopisz ... pytania dnia, ze trzeba mu ODPISAC"). Owner picked from my lists. Live after the owner restarts the bot:
+  - Commands gone, 91 -> 83: `/logi`, `/liczenie`, `/statystyki`, `/jointocreate`, `/reactroles`, `/xp`, `/configwizard`, `/say`. Subcommands gone:
+    `/ticket setup|dashboard` (the file is now `Ticket/modules/ticket_panel.js`), `/modmail setup|wylacz|status`, `/urodziny kanal`, `/zaproszenia settings`,
+    `/channel zdjecia`, `/konkurs zakoncz`, `/minecraft konsola|czat|kopie`, `/economy dashboard|rola-premium|event *`, `/loteria ustaw`, `/quiz ustaw`.
+    The features run as before; everything is set in pikczu.pl/bot. Tests moved to the services and panel API. No site change was needed.
+  - Lost with them: changing the prefix (only `/configwizard` did it; the panel has no field, the stored prefix stays); editing old `/reactroles` panels
+    (the messages keep working through `interactions/selectMenus/reactionRoles`; new ones are "Role na przycisk").
+  - Kept against the owner's pick: `/konkurs utworz`. The owner picked it on my word that the panel starts giveaways, but only the command has entry
+    requirements and bonus entries (`required_role`, `min_level`, `min_invites`, `min_account_age`, `min_member_days`, `bonus_role`, `bonus_entries`).
+    It can go when the panel has them. Also kept because the panel lacks them: `/minecraft serwer` (power), `/minecraft whitelista ustaw` (API key),
+    `/economy gracz`, `/economy poradnik`, `/quiz pytanie`, `/zaproszenia bonus|reset|nagroda-*|synchronizuj`, `/konkurs losuj-ponownie|usun|list`, `/zglos setchannel`.
+    The owner advised against nothing else; `/ban /unban /kick /mute /unmute` stayed by the owner's choice (the panel can do them).
+  - Badges 44 -> 77 (33 new, numbers mine, full list in `ACHIEVEMENTS`). None removed: I proposed six, the owner kept the first-time ones, Blackjack! and
+    Mistrz Wordle ("37 fajne", my reading: keep it); Klubowicz was not named, I kept it too as a first-time badge. "Na maksa" now needs one upgrade at its
+    top level, not level 10 (owner). Fixes: badges of a finished holiday event are hidden unless earned, Bogacz/Milioner count own money only (not a
+    spouse's bank), duplicate emoji changed (Misjonarz 🧭, Ani dnia przerwy 📆). Owner: holiday badges in their own section "Eventowe".
+  - Question of the day says loudly that members must REPLY to the bot's message; a normal chat message does not count. The quiz uses buttons, so it is unchanged.
+  - Found, not changed: in `/modmail`, `ADMIN_SUBCOMMANDS` lists English names (`block`, `snippet-add` ...) while the commands are Polish, so any modmail
+    staff can block and edit snippets; and `/modmail szablony` answers "not recognised" because the code checks for `snippets`.

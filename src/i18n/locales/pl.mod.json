@@ -39,7 +39,7 @@
   "Giveaway Ended ✅": "Giveaway zakończony ✅",
   "Successfully ended the giveaway for **{0}** in {1}. Selected {2} winner(s) from {3} entries.": "Zakończono giveaway **{0}** na {1}. Wylosowano zwycięzców: {2} (zgłoszeń: {3}).",
   "You need the 'Manage Server' permission to reroll a giveaway.": "Aby losować ponownie, potrzebujesz uprawnienia „Zarządzanie serwerem”.",
-  "This giveaway is still active. Please use `/gend` to end it first.": "Ten giveaway nadal trwa. Najpierw zakończ go przez `/konkurs zakoncz`.",
+  "This giveaway is still active. Please use the web panel (pikczu.pl/bot) to end it first.": "Ten giveaway nadal trwa. Najpierw zakończ go w panelu (pikczu.pl/bot).",
   "Not enough entries to pick the required number of winners.": "Za mało zgłoszeń, aby wylosować wymaganą liczbę zwycięzców.",
   "Reroll Complete": "Ponowne losowanie zakończone",
   "The new winners have been selected and saved to the database. Could not find channel to announce.": "Nowi zwycięzcy zostali wylosowani i zapisani. Nie znaleziono kanału, aby ich ogłosić.",

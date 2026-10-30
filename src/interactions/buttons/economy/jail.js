@@ -6,6 +6,7 @@
 import { MessageFlags } from 'discord.js';
 import { payBail } from '../../../services/economyJail.js';
 import { getEconomyAccessDenial, money } from '../../../services/economySettings.js';
+import { progressEmbeds } from '../../../services/progress.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
 import { infoEmbed, successEmbed, warningEmbed } from '../../../utils/embeds.js';
 import { t } from '../../../i18n/index.js';
@@ -51,10 +52,10 @@ export default {
 
       // Own message: swap the button for the result once the member is out (or was already out).
       if (ownMessage(interaction) && (result.ok || result.reason === 'free')) {
-        await interaction.update({ embeds: [embed], components: [] });
+        await interaction.update({ embeds: [embed, ...(result.ok ? progressEmbeds(result.progress, guildId) : [])], components: [] });
         return;
       }
-      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      await interaction.reply({ embeds: [embed, ...(result.ok ? progressEmbeds(result.progress, guildId) : [])], flags: MessageFlags.Ephemeral });
     } catch (error) {
       await handleInteractionError(interaction, error, { type: 'button', customId: interaction.customId });
     }

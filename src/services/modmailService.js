@@ -81,7 +81,7 @@ export function closeButtonRow() {
 export async function openThread(client, guild, user, { openedBy = null } = {}) {
   const config = await configStore.get(guild.id);
   if (!config.enabled || !config.categoryId) {
-    throw userError(t('Modmail is not set up on this server. An admin can enable it with `/modmail setup`.'));
+    throw userError(t('Modmail is not set up on this server. An admin can enable it in the web panel (pikczu.pl/bot).'));
   }
   if (config.blocked.includes(user.id)) {
     throw userError(t('This user is blocked from modmail.'));
@@ -93,7 +93,7 @@ export async function openThread(client, guild, user, { openedBy = null } = {}) 
 
   const category = guild.channels.cache.get(config.categoryId);
   if (!category || category.type !== ChannelType.GuildCategory) {
-    throw userError(t('The modmail category no longer exists. Run `/modmail setup` again.'));
+    throw userError(t('The modmail category no longer exists. Pick a new one in the web panel (pikczu.pl/bot).'));
   }
 
   const member = await guild.members.fetch(user.id).catch(() => null);

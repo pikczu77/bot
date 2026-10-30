@@ -14,6 +14,7 @@ import { t } from '../i18n/index.js';
 import { createEmbed } from '../utils/embeds.js';
 import { dayKey, nextMidnight, nextWeekStart, weekKey } from '../utils/warsawTime.js';
 import { money, scaleEarnings } from './economySettings.js';
+import { UPGRADES, getUpgradeLevel } from './economyUpgrades.js';
 import {
   CARDS, FISH, addTo, getPack, hasAllCards, hasAllFish, hasAny, indexKey, parseIndexKey, rollCard,
 } from './collections.js';
@@ -28,8 +29,11 @@ const fishCaught = (userData) => Math.max(stat(userData, 'fish'),
 const legendaryFish = (userData) => Math.max(stat(userData, 'fishLegendary'),
   Object.entries(userData?.fishIndex ?? {}).filter(([key, count]) =>
     count > 0 && FISH.find((fish) => fish.id === parseIndexKey(key).id)?.rarity === 'legendary').length > 0 ? 1 : 0);
-const netWorth = (userData) => (Number(userData?.wallet) || 0) + (Number(userData?.bank) || 0);
-const maxedUpgrade = (userData) => Object.values(userData?.upgrades ?? {}).some((level) => level >= 10);
+// Own money only: for a married member `bank` is the joint bank, and marrying someone rich earns no badge.
+const netWorth = (userData) => (Number(userData?.wallet) || 0) + (Number(userData?._joint?.ownBank ?? userData?.bank) || 0);
+const upgradesAtTop = (userData) => UPGRADES.filter((upgrade) => getUpgradeLevel(userData, upgrade.id) >= upgrade.maxLevel).length;
+const hasDiamond = (userData) => [userData?.fishIndex, userData?.cards]
+  .some((map) => Object.entries(map ?? {}).some(([key, count]) => count > 0 && key.endsWith(':diamond')));
 
 // ---------------------------------------------------------------- missions
 
@@ -155,65 +159,125 @@ export function rerollMission(userData, scope, index, now = Date.now(), random =
 // reward: paid once when the badge is unlocked (times the server multiplier).
 // progress(userData) -> [current, goal] for the list of locked badges.
 const counter = (key, goal) => (userData) => [Math.min(goal, stat(userData, key)), goal];
+const worth = (goal) => (userData) => [Math.min(goal, netWorth(userData)), goal];
+const prestigeLevel = (goal) => (userData) => [Math.min(goal, Number(userData?.prestige) || 0), goal];
+const dailyInARow = (goal) => (userData) => [Math.min(goal, Math.max(stat(userData, 'dailyBestStreak'), Number(userData?.dailyStreak) || 0)), goal];
+
+// Holiday badges have their own section in /osiagniecia (owner, 2026-10-30). `endsAt`: the day after the event's last day;
+// a badge not earned by then is hidden, because nobody can earn it any more.
+const dayAfter = (year, month, day) => Date.UTC(year, month - 1, day + 1);
+const eventBadge = ({ id, emoji, name, description, reward = 2000, field, year, goal = 1000, endsAt }) => ({
+  id, emoji, name, description, reward, section: 'event', endsAt,
+  progress: (userData) => [Math.min(goal, userData?.[field]?.year === year ? Number(userData[field].earned) || 0 : 0), goal],
+});
+const HOLIDAY_BADGES = ['halloween_2026', 'swieta_2026', 'sylwester_2026', 'walentynki_2027', 'wielkanoc_2027', 'dzien_dziecka_2027', 'wakacje_2027'];
+
 export const ACHIEVEMENTS = [
   { id: 'first_fish', emoji: '🎣', name: t('First catch'), description: t('Catch your first fish.'), reward: 500, progress: (u) => [Math.min(1, fishCaught(u)), 1] },
   { id: 'fisher', emoji: '🐟', name: t('Angler'), description: t('Catch 100 fish.'), reward: 5000, progress: (u) => [Math.min(100, fishCaught(u)), 100] },
+  { id: 'sea_wolf', emoji: '🦈', name: t('Old sea dog'), description: t('Catch 100 rare or better fish.'), reward: 5000, progress: counter('fishRare', 100) },
   { id: 'sea_legend', emoji: '🐋', name: t('Legend of the seas'), description: t('Catch a legendary fish.'), reward: 5000, progress: (u) => [legendaryFish(u), 1] },
   { id: 'full_fish', emoji: '📖', name: t('Fish atlas'), description: t('Catch every fish species.'), reward: 10000, progress: (u) => [FISH.filter((fish) => hasAny(u?.fishIndex, fish.id)).length, FISH.length] },
   { id: 'first_video', emoji: '🎬', name: t('First upload'), description: t('Record your first video.'), reward: 500, progress: counter('nagraj', 1) },
   { id: 'youtuber', emoji: '📹', name: t('YouTuber'), description: t('Record 100 videos.'), reward: 5000, progress: counter('nagraj', 100) },
+  { id: 'yt_star', emoji: '📺', name: t('YouTube star'), description: t('Record 25 epic or legendary videos.'), reward: 10000, progress: counter('videoViral', 25) },
   { id: 'viral', emoji: '🔥', name: t('Gone viral'), description: t('Record a legendary video.'), reward: 5000, progress: counter('videoLegendary', 1) },
+  { id: 'pack_addict', emoji: '📦', name: t('Pack addict'), description: t('Open 100 packs.'), reward: 5000, progress: counter('packs', 100) },
+  { id: 'merger', emoji: '🔨', name: t('Card smith'), description: t('Merge cards 10 times with `/polacz`.'), reward: 3000, progress: counter('merges', 10) },
+  { id: 'diamond_luck', emoji: '💠', name: t('Diamond luck'), description: t('Get a diamond fish or a diamond card.'), reward: 5000, progress: (u) => [hasDiamond(u) ? 1 : 0, 1] },
+  { id: 'king_pikczu', emoji: '🤴', name: t('King Pikczu'), description: t('Hold the Król Pikczu card.'), reward: 10000, progress: (u) => [hasAny(u?.cards, 'krolpikczu') ? 1 : 0, 1] },
   { id: 'collector', emoji: '🃏', name: t('Collector'), description: t('Hold every Club\'o\'mony card at once.'), reward: 15000, progress: (u) => [CARDS.filter((card) => hasAny(u?.cards, card.id)).length, CARDS.length] },
+  { id: 'trader', emoji: '🤝', name: t('Trader'), description: t('Finish 5 trades.'), reward: 3000, progress: counter('trades', 5) },
   { id: 'hard_worker', emoji: '💼', name: t('Hard worker'), description: t('Work 100 shifts.'), reward: 5000, progress: counter('work', 100) },
+  { id: 'beg_king', emoji: '🥫', name: t('King of beggars'), description: t('Beg 100 times with `/beg`.'), reward: 3000, progress: counter('beg', 100) },
+  { id: 'job_million', emoji: '💪', name: t('Hard-earned million'), description: t('Earn 1,000,000 from jobs.'), reward: 25000, progress: counter('earned', 1_000_000) },
   { id: 'gambler', emoji: '🎰', name: t('Gambler'), description: t('Play 100 casino games.'), reward: 3000, progress: counter('casino', 100) },
+  { id: 'card_sharp', emoji: '🤵', name: t('Card sharp'), description: t('Win 500 casino games.'), reward: 10000, progress: counter('casinoWin', 500) },
+  { id: 'natural', emoji: '♠️', name: t('Blackjack!'), description: t('Get a blackjack.'), reward: 1000, progress: counter('blackjackNatural', 1) },
+  { id: 'hot_hand', emoji: '♨️', name: t('Hot hand'), description: t('Win 10 casino games in a row.'), reward: 10000, progress: counter('casinoBestStreak', 10) },
+  { id: 'unlucky', emoji: '🌧️', name: t('Unlucky'), description: t('Lose 10 casino games in a row.'), reward: 5000, progress: counter('casinoBestLossStreak', 10) },
+  { id: 'whale', emoji: '🐳', name: t('Whale'), description: t('Win 100,000 or more in one casino game.'), reward: 10000, progress: counter('casinoBiggestWin', 100_000) },
   { id: 'jackpot', emoji: '💎', name: t('Jackpot'), description: t('Hit the slots jackpot.'), reward: 5000, progress: counter('jackpot', 1) },
   { id: 'lucky_number', emoji: '🎯', name: t('Lucky number'), description: t('Win a roulette bet on one number.'), reward: 5000, progress: counter('rouletteNumber', 1) },
-  { id: 'natural', emoji: '♠️', name: t('Blackjack!'), description: t('Get a blackjack.'), reward: 1000, progress: counter('blackjackNatural', 1) },
+  { id: 'lottery_win', emoji: '🎟️', name: t('Lucky ticket'), description: t('Win the weekly lottery.'), reward: 2000, progress: counter('lotteryWin', 1) },
   { id: 'criminal', emoji: '🦹', name: t('Career criminal'), description: t('Pull off 25 successful crimes.'), reward: 5000, progress: counter('crimeWin', 25) },
   { id: 'jailbird', emoji: '🚔', name: t('Jailbird'), description: t('Go to jail 5 times.'), reward: 1000, progress: counter('jail', 5) },
+  { id: 'bail_10', emoji: '🔓', name: t('Regular client'), description: t('Pay bail 10 times.'), reward: 3000, progress: counter('bail', 10) },
   { id: 'thief', emoji: '🥷', name: t('Master thief'), description: t('Rob someone successfully 10 times.'), reward: 5000, progress: counter('robWin', 10) },
+  { id: 'robbed_10', emoji: '😵', name: t('Favourite target'), description: t('Get robbed 10 times.'), reward: 3000, progress: counter('robbed', 10) },
   { id: 'lawyer', emoji: '⚖️', name: t('Lawyer'), description: t('Win 3 lawsuits.'), reward: 3000, progress: counter('sueWin', 3) },
-  { id: 'rich', emoji: '💵', name: t('Well off'), description: t('Have 100,000 in cash and bank.'), reward: 5000, progress: (u) => [Math.min(100_000, netWorth(u)), 100_000] },
-  { id: 'millionaire', emoji: '🤑', name: t('Millionaire'), description: t('Have 1,000,000 in cash and bank.'), reward: 25000, progress: (u) => [Math.min(1_000_000, netWorth(u)), 1_000_000] },
+  { id: 'heist_crew', emoji: '💣', name: t('The crew'), description: t('Pull off 10 successful `/napad` heists.'), reward: 10000, progress: counter('heistWin', 10) },
+  { id: 'heist_bank', emoji: '🏛️', name: t('Heist of the century'), description: t('Pull off a `/napad` on the bank.'), reward: 15000, progress: counter('heistBank', 1) },
+  { id: 'rich', emoji: '💵', name: t('Well off'), description: t('Have 100,000 in cash and bank.'), reward: 5000, progress: worth(100_000) },
+  { id: 'millionaire', emoji: '🤑', name: t('Millionaire'), description: t('Have 1,000,000 in cash and bank.'), reward: 25000, progress: worth(1_000_000) },
+  { id: 'multimillionaire', emoji: '💰', name: t('Multimillionaire'), description: t('Have 10,000,000 in cash and bank.'), reward: 100000, progress: worth(10_000_000) },
   { id: 'wordle_master', emoji: '🟩', name: t('Wordle master'), description: t('Solve Wordle in 2 guesses or fewer.'), reward: 5000, progress: (u) => [stat(u, 'wordleBest') > 0 && stat(u, 'wordleBest') <= 2 ? 1 : 0, 1] },
   { id: 'wordle_streak', emoji: '📅', name: t('Wordle week'), description: t('Solve Wordle 7 days in a row.'), reward: 5000, progress: (u) => [Math.min(7, Math.max(stat(u, 'wordleBestStreak'), Number(u?.wordle?.streak) || 0)), 7] },
+  { id: 'dictionary', emoji: '📚', name: t('Dictionary'), description: t('Solve `/wordle` 100 times.'), reward: 10000, progress: counter('wordle', 100) },
   { id: 'quiz_master', emoji: '🧠', name: t('Big brain'), description: t('Win 25 quiz questions.'), reward: 5000, progress: counter('quiz', 25) },
-  { id: 'trader', emoji: '🤝', name: t('Trader'), description: t('Finish 5 trades.'), reward: 3000, progress: counter('trades', 5) },
-  { id: 'missionary', emoji: '🎯', name: t('On a mission'), description: t('Finish 50 missions.'), reward: 10000, progress: counter('missions', 50) },
-  { id: 'married', emoji: '💍', name: t('For better or worse'), description: t('Get married with `/slub`.'), reward: 2000, progress: (u) => [u?._joint?.partnerId || stat(u, 'married') ? 1 : 0, 1] },
-  { id: 'maxed', emoji: '⬆️', name: t('Maxed out'), description: t('Take any upgrade to level 10.'), reward: 5000, progress: (u) => [maxedUpgrade(u) ? 1 : 0, 1] },
-  { id: 'lottery_win', emoji: '🎟️', name: t('Lucky ticket'), description: t('Win the weekly lottery.'), reward: 2000, progress: counter('lotteryWin', 1) },
-  { id: 'chat_star', emoji: '💬', name: t('Chat star'), description: t('Answer the question of the day first 5 times.'), reward: 5000, progress: counter('questionWin', 5) },
   { id: 'duelist', emoji: '⚔️', name: t('Duelist'), description: t('Win 10 duels.'), reward: 5000, progress: counter('duelWin', 10) },
-  { id: 'daily_month', emoji: '🔥', name: t('Never missed a day'), description: t('Claim /daily 30 days in a row.'), reward: 10000, progress: (u) => [Math.min(30, Math.max(stat(u, 'dailyBestStreak'), Number(u?.dailyStreak) || 0)), 30] },
+  { id: 'chat_star', emoji: '💬', name: t('Chat star'), description: t('Answer the question of the day first 5 times.'), reward: 5000, progress: counter('questionWin', 5) },
+  { id: 'drop_hunter', emoji: '🪂', name: t('Drop hunter'), description: t('Catch 25 chat drops.'), reward: 5000, progress: counter('drop', 25) },
+  { id: 'level_10', emoji: '🎖️', name: t('Level 10'), description: t('Reach server level 10.'), reward: 2000, progress: counter('levelBest', 10) },
+  { id: 'level_50', emoji: '🏵️', name: t('Level 50'), description: t('Reach server level 50.'), reward: 10000, progress: counter('levelBest', 50) },
+  { id: 'level_100', emoji: '👑', name: t('Level 100'), description: t('Reach server level 100.'), reward: 50000, progress: counter('levelBest', 100) },
+  { id: 'daily_week', emoji: '🗓️', name: t('Seven days straight'), description: t('Claim /daily 7 days in a row.'), reward: 1000, progress: dailyInARow(7) },
+  { id: 'daily_month', emoji: '📆', name: t('Never missed a day'), description: t('Claim /daily 30 days in a row.'), reward: 10000, progress: dailyInARow(30) },
+  { id: 'daily_100', emoji: '🏆', name: t('Daily regular'), description: t('Claim /daily 100 days in a row.'), reward: 25000, progress: dailyInARow(100) },
+  { id: 'daily_sets', emoji: '✅', name: t('Full set'), description: t('Finish all daily missions 25 times.'), reward: 10000, progress: counter('dailySets', 25) },
+  { id: 'missionary', emoji: '🧭', name: t('On a mission'), description: t('Finish 50 missions.'), reward: 10000, progress: counter('missions', 50) },
+  { id: 'married', emoji: '💍', name: t('For better or worse'), description: t('Get married with `/slub`.'), reward: 2000, progress: (u) => [u?._joint?.partnerId || stat(u, 'married') ? 1 : 0, 1] },
   { id: 'club_member', emoji: '🛡️', name: t('Club member'), description: t('Join or found a club with `/klub`.'), reward: 1000, progress: (u) => [u?.club?.id || stat(u, 'clubJoin') ? 1 : 0, 1] },
+  { id: 'league_champ', emoji: '🥇', name: t('League champion'), description: t('Be in the club that wins the week.'), reward: 10000, progress: counter('clubWeekWin', 1) },
+  { id: 'broker', emoji: '🧾', name: t('Broker'), description: t('Make 100 trades on `/gielda`.'), reward: 5000, progress: counter('stockTrades', 100) },
   { id: 'stock_shark', emoji: '📈', name: t('Market shark'), description: t('Make 50,000 profit on the stock market.'), reward: 10000, progress: counter('stockProfit', 50_000) },
+  { id: 'rentier', emoji: '🏦', name: t('Rentier'), description: t('Collect 250,000 of rent.'), reward: 10000, progress: counter('propertyIncome', 250_000) },
   { id: 'landlord', emoji: '🏘️', name: t('Landlord'), description: t('Own 3 buildings at once.'), reward: 5000, progress: (u) => [Math.min(3, Object.keys(u?.properties ?? {}).length), 3] },
   { id: 'castle', emoji: '🏰', name: t('Lord of the castle'), description: t('Buy the castle.'), reward: 25000, progress: (u) => [u?.properties?.zamek ? 1 : 0, 1] },
-  { id: 'prestige_1', emoji: '⭐', name: t('Fresh start'), description: t('Do your first prestige with `/prestiz`.'), reward: 5000, progress: (u) => [Math.min(1, Number(u?.prestige) || 0), 1] },
-  { id: 'prestige_10', emoji: '🌟', name: t('Server legend'), description: t('Reach prestige 10.'), reward: 100000, progress: (u) => [Math.min(10, Number(u?.prestige) || 0), 10] },
-  { id: 'merger', emoji: '🔨', name: t('Card smith'), description: t('Merge cards 10 times with `/polacz`.'), reward: 3000, progress: counter('merges', 10) },
-  { id: 'halloween_2026', emoji: '🎃', name: t('Halloween 2026'), description: t('Collect 1,000 candies in the Halloween 2026 event.'), reward: 2000,
-    progress: (u) => [Math.min(1000, u?.halloween?.year === 2026 ? Number(u.halloween.earned) || 0 : 0), 1000] },
-  { id: 'swieta_2026', emoji: '🎄', name: t('Christmas 2026'), description: t('Collect 1,000 gingerbread in the Christmas 2026 event.'), reward: 2000,
-    progress: (u) => [Math.min(1000, u?.swieta?.year === 2026 ? Number(u.swieta.earned) || 0 : 0), 1000] },
-  { id: 'wielkanoc_2027', emoji: '🐣', name: t('Easter 2027'), description: t('Collect 1,000 eggs in the Easter 2027 event.'), reward: 2000,
-    progress: (u) => [Math.min(1000, u?.wielkanoc?.year === 2027 ? Number(u.wielkanoc.earned) || 0 : 0), 1000] },
-  // 2026-10-29: the next holiday events (services/seasonalEvents.js); the summer lasts two months, so its goal is higher.
-  { id: 'sylwester_2026', emoji: '🥂', name: t("New Year's Eve 2026"), description: t("Collect 1,000 fireworks in the New Year's Eve 2026 event."), reward: 2000,
-    progress: (u) => [Math.min(1000, u?.sylwester?.year === 2026 ? Number(u.sylwester.earned) || 0 : 0), 1000] },
-  { id: 'walentynki_2027', emoji: '💘', name: t("Valentine's Day 2027"), description: t("Collect 1,000 love letters in the Valentine's Day 2027 event."), reward: 2000,
-    progress: (u) => [Math.min(1000, u?.walentynki?.year === 2027 ? Number(u.walentynki.earned) || 0 : 0), 1000] },
-  { id: 'dzien_dziecka_2027', emoji: '🎈', name: t("Children's Day 2027"), description: t("Collect 1,000 lollipops in the Children's Day 2027 event."), reward: 2000,
-    progress: (u) => [Math.min(1000, u?.dzien_dziecka?.year === 2027 ? Number(u.dzien_dziecka.earned) || 0 : 0), 1000] },
-  { id: 'wakacje_2027', emoji: '🏖️', name: t('Summer holidays 2027'), description: t('Collect 5,000 seashells in the summer holidays 2027 event.'), reward: 5000,
-    progress: (u) => [Math.min(5000, u?.wakacje?.year === 2027 ? Number(u.wakacje.earned) || 0 : 0), 5000] },
+  // Six = PROPERTIES.length in services/properties.js (that file imports this one).
+  { id: 'developer', emoji: '🏗️', name: t('Developer'), description: t('Own all 6 buildings at once.'), reward: 50000, progress: (u) => [Math.min(6, Object.keys(u?.properties ?? {}).length), 6] },
+  // Owner, 2026-10-30: one whole upgrade at its top level (it was "any upgrade at level 10", and Luck has 15).
+  { id: 'maxed', emoji: '⬆️', name: t('Maxed out'), description: t('Take one upgrade all the way to its top level.'), reward: 5000, progress: (u) => [upgradesAtTop(u) > 0 ? 1 : 0, 1] },
+  { id: 'all_maxed', emoji: '🚀', name: t('Everything maxed'), description: t('Take every upgrade to its top level.'), reward: 100000, progress: (u) => [upgradesAtTop(u), UPGRADES.length] },
+  { id: 'prestige_1', emoji: '⭐', name: t('Fresh start'), description: t('Do your first prestige with `/prestiz`.'), reward: 5000, progress: prestigeLevel(1) },
+  { id: 'prestige_5', emoji: '🌠', name: t('Halfway there'), description: t('Reach prestige 5.'), reward: 25000, progress: prestigeLevel(5) },
+  { id: 'prestige_10', emoji: '🌟', name: t('Server legend'), description: t('Reach prestige 10.'), reward: 100000, progress: prestigeLevel(10) },
+  eventBadge({ id: 'halloween_2026', emoji: '🎃', name: t('Halloween 2026'), description: t('Collect 1,000 candies in the Halloween 2026 event.'), field: 'halloween', year: 2026, endsAt: dayAfter(2026, 11, 2) }),
+  eventBadge({ id: 'swieta_2026', emoji: '🎄', name: t('Christmas 2026'), description: t('Collect 1,000 gingerbread in the Christmas 2026 event.'), field: 'swieta', year: 2026, endsAt: dayAfter(2026, 12, 29) }),
+  eventBadge({ id: 'sylwester_2026', emoji: '🥂', name: t("New Year's Eve 2026"), description: t("Collect 1,000 fireworks in the New Year's Eve 2026 event."), field: 'sylwester', year: 2026, endsAt: dayAfter(2027, 1, 2) }),
+  eventBadge({ id: 'walentynki_2027', emoji: '💘', name: t("Valentine's Day 2027"), description: t("Collect 1,000 love letters in the Valentine's Day 2027 event."), field: 'walentynki', year: 2027, endsAt: dayAfter(2027, 2, 16) }),
+  eventBadge({ id: 'wielkanoc_2027', emoji: '🐣', name: t('Easter 2027'), description: t('Collect 1,000 eggs in the Easter 2027 event.'), field: 'wielkanoc', year: 2027, endsAt: dayAfter(2027, 3, 29) }),
+  eventBadge({ id: 'dzien_dziecka_2027', emoji: '🎈', name: t("Children's Day 2027"), description: t("Collect 1,000 lollipops in the Children's Day 2027 event."), field: 'dzien_dziecka', year: 2027, endsAt: dayAfter(2027, 6, 2) }),
+  // The summer lasts two months, so its goal is higher.
+  eventBadge({ id: 'wakacje_2027', emoji: '🏖️', name: t('Summer holidays 2027'), description: t('Collect 5,000 seashells in the summer holidays 2027 event.'), reward: 5000, field: 'wakacje', year: 2027, goal: 5000, endsAt: dayAfter(2027, 8, 31) }),
+  { id: 'event_podium', emoji: '🎪', name: t('Event podium'), description: t('Finish in the top 3 of a holiday event.'), reward: 10000, section: 'event', progress: counter('eventPodium', 1) },
+  { id: 'full_year', emoji: '🎉', name: t('A whole year of holidays'), description: t('Get all 7 holiday badges.'), reward: 50000, section: 'event', needs: HOLIDAY_BADGES, progress: (u) => [HOLIDAY_BADGES.filter((id) => isUnlocked(u, id)).length, HOLIDAY_BADGES.length] },
+  // Last on purpose: it counts the badges unlocked by the same action.
+  { id: 'badge_hunter', emoji: '🏅', name: t('Badge hunter'), description: t('Get 25 badges.'), reward: 25000, progress: (u) => [Math.min(25, unlockedCount(u)), 25] },
 ];
 const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
 export const getAchievement = (id) => ACHIEVEMENT_BY_ID.get(id) ?? null;
 
 export const isUnlocked = (userData, id) => Boolean(userData?.achievements?.[id]);
 export const unlockedCount = (userData) => ACHIEVEMENTS.filter((achievement) => isUnlocked(userData, achievement.id)).length;
+export const isEventBadge = (achievement) => achievement.section === 'event';
+
+/** False for a holiday badge the member did not earn and cannot earn any more. */
+export function badgeVisible(achievement, userData, now = Date.now()) {
+  if (isUnlocked(userData, achievement.id)) return true;
+  if (achievement.needs) return achievement.needs.every((id) => badgeVisible(getAchievement(id), userData, now));
+  return !achievement.endsAt || now < achievement.endsAt;
+}
+
+/** The badges of one section ('main' or 'event') that a member sees. */
+export const visibleBadges = (userData, section, now = Date.now()) => ACHIEVEMENTS
+  .filter((achievement) => isEventBadge(achievement) === (section === 'event') && badgeVisible(achievement, userData, now));
+
+/** { got, total } over every badge the member sees, for /profil. */
+export function badgeCount(userData, now = Date.now()) {
+  const visible = ACHIEVEMENTS.filter((achievement) => badgeVisible(achievement, userData, now));
+  return { got: visible.filter((achievement) => isUnlocked(userData, achievement.id)).length, total: visible.length };
+}
 
 /** Badges reached but not yet given: gives them and pays their rewards. Mutates `userData`. */
 export function checkAchievements(userData, settings, now = Date.now()) {
@@ -267,9 +331,22 @@ export function recordProgress(userData, events, { settings, now = Date.now(), r
   }
   if (events?.wordleStreak > 0) stats.wordleBestStreak = Math.max(Number(stats.wordleBestStreak) || 0, events.wordleStreak);
   if (events?.dailyStreak > 0) stats.dailyBestStreak = Math.max(Number(stats.dailyBestStreak) || 0, events.dailyStreak);
+  if (events?.level > 0) stats.levelBest = Math.max(Number(stats.levelBest) || 0, events.level);
+  if (events?.casinoPayout > 0) stats.casinoBiggestWin = Math.max(Number(stats.casinoBiggestWin) || 0, events.casinoPayout);
+  // Casino games in a row. These two go back to 0; a blackjack draw counts for neither side.
+  if (events?.casino > 0 && !events.casinoDraw) {
+    const won = events.casinoWin > 0;
+    stats.casinoStreak = won ? (Number(stats.casinoStreak) || 0) + 1 : 0;
+    stats.casinoLossStreak = won ? 0 : (Number(stats.casinoLossStreak) || 0) + 1;
+    stats.casinoBestStreak = Math.max(Number(stats.casinoBestStreak) || 0, stats.casinoStreak);
+    stats.casinoBestLossStreak = Math.max(Number(stats.casinoBestLossStreak) || 0, stats.casinoLossStreak);
+  }
   delete stats.wordleGuesses;
   delete stats.wordleStreak;
   delete stats.dailyStreak;
+  delete stats.level;
+  delete stats.casinoPayout;
+  delete stats.casinoDraw;
   userData.stats = stats;
 
   ensureMissions(userData, now, random);
@@ -293,6 +370,7 @@ export function recordProgress(userData, events, { settings, now = Date.now(), r
     const next = { ...state, list };
     if (!state.bonus && list.every((mission) => mission.done)) {
       next.bonus = true;
+      if (scope === 'daily') userData.stats.dailySets = (Number(userData.stats.dailySets) || 0) + 1;
       result.bonuses.push({ scope, ...openBonusPack(userData, BONUS_PACKS[scope], random) });
     }
     userData.missions = { ...userData.missions, [scope]: next };

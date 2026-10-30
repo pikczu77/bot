@@ -57,7 +57,7 @@ export async function reconcileTicketPanels(client) {
             } else if (panelStatus.reason === 'panel_deleted') {
                 summary.deletedPanels += 1;
                 logger.warn(
-                    `Ticket panel message deleted for guild ${guild.id} (${guild.name}) — admins can repost from /ticket dashboard`,
+                    `Ticket panel message deleted for guild ${guild.id} (${guild.name}) — admins can repost from the web panel`,
                 );
             }
         } catch (error) {
@@ -153,7 +153,7 @@ export async function reconcileReactionRolePanelHealth(client) {
                 } else if (panelStatus.reason === 'panel_deleted') {
                     summary.deletedPanels += 1;
                     logger.warn(
-                        `Reaction role panel deleted for guild ${guild.id} — repost from /reactroles dashboard`,
+                        `Reaction role panel deleted for guild ${guild.id} — old /reactroles panel, make a new one with the web panel`,
                     );
                 }
             }

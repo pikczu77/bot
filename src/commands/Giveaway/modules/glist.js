@@ -42,7 +42,7 @@ export default {
 
         return respond(interaction, createEmbed({
             title: t('🎉 Giveaways'),
-            description: t('End one early with `/konkurs zakoncz`, pick new winners with `/konkurs losuj-ponownie`.'),
+            description: t('End one early in the web panel (pikczu.pl/bot), pick new winners with `/konkurs losuj-ponownie`.'),
             fields,
             footer: false,
         }), { ephemeral: true });

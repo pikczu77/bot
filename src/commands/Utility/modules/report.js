@@ -23,7 +23,7 @@ export default {
         const reportChannelId = resolveLogChannel(guildConfig, 'reports');
 
         if (!reportChannelId) {
-            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('The report channel has not been set up. Ask a moderator to use `/logi dashboard` or `/logi channel`.') });
+            return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: t('The report channel has not been set up. Ask a moderator to use `/zglos setchannel`.') });
         }
 
         const ownerMention = interaction.guild.ownerId

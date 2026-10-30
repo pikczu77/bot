@@ -3,7 +3,7 @@
 //
 // One event at a time per server, kept in the economy settings (`events`, economySettings.js):
 //   { channelId, roleId, auto, everyHours, durationMinutes, active: { type, startedAt, endsAt, messageId, channelId } | null, nextAutoAt }
-// An admin starts one with /economy event start, or the bot starts a random one every `everyHours`
+// An admin starts one in the web panel, or the bot starts a random one every `everyHours`
 // when `auto` is on. The announcement goes to `channelId` (with an optional role ping) and is
 // deleted when the event ends. Checked every minute (features.js).
 //

@@ -804,7 +804,16 @@ export async function tickSeason(base, client, guild, now = Date.now()) {
   if (messageId) await channel?.messages?.delete?.(messageId).catch(() => {});
   await updateSeason(event, guild.id, (data) => { data.announcement = null; data.finished = true; });
   const top = (await seasonRanking(event, guild.id, 3)).filter((row) => row.earned > 0);
-  if (!settings.enabled || !top.length || !channel?.send) return;
+  if (!settings.enabled || !top.length) return;
+  const economy = await getEconomySettings(guild.id);
+  for (const { userId } of top) {
+    await withEconomyLock(guild.id, userId, async () => {
+      const userData = await getEconomyData(client, guild.id, userId);
+      recordProgress(userData, { eventPodium: 1 }, { settings: economy, now });
+      await setEconomyData(client, guild.id, userId, userData);
+    });
+  }
+  if (!channel?.send) return;
   const medals = ['🥇', '🥈', '🥉'];
   await channel.send({
     embeds: [createEmbed({

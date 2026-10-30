@@ -391,9 +391,17 @@ export async function settleClubWeek(client, guild, now = Date.now()) {
     data.lastWeek = { week: data.week, ranking };
     data.week = week;
     await store.set(guild.id, data);
-    return { ranking, settings };
+    return { ranking, settings, champions: rows[0].total > 0 ? rows[0].club.members.map((member) => member.id) : [] };
   });
   if (!result) return null;
+
+  for (const userId of result.champions) {
+    await withEconomyLock(guild.id, userId, async () => {
+      const userData = await getEconomyData(client, guild.id, userId);
+      recordProgress(userData, { clubWeekWin: 1 }, { settings: result.settings, now });
+      await setEconomyData(client, guild.id, userId, userData);
+    });
+  }
 
   const winners = result.ranking.filter((row) => row.prize > 0);
   const channel = result.settings.events?.channelId ? guild.channels.cache.get(result.settings.events.channelId) : null;

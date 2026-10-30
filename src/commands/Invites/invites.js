@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { createEmbed, successEmbed, infoEmbed, formatProgressBar } from '../../utils/embeds.js';
 import { respond, requireGuild, requirePermission, userError } from '../../utils/featureKit.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
@@ -15,7 +15,7 @@ import {
 import { t } from '../../i18n/index.js';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
-const ADMIN_SUBCOMMANDS = new Set(['bonus', 'reset', 'nagroda-dodaj', 'nagroda-usun', 'settings', 'synchronizuj']);
+const ADMIN_SUBCOMMANDS = new Set(['bonus', 'reset', 'nagroda-dodaj', 'nagroda-usun', 'synchronizuj']);
 
 function nextReward(rewards, total) {
     return [...rewards].sort((a, b) => a.invites - b.invites).find((reward) => reward.invites > total) ?? null;
@@ -60,18 +60,6 @@ export default {
                 .setName('nagroda-usun')
                 .setDescription('Remove an invite reward (admin)')
                 .addRoleOption((option) => option.setName('role').setDescription('Reward role').setRequired(true)),
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('settings')
-                .setDescription('Invite tracker settings (admin)')
-                .addBooleanOption((option) => option.setName('enabled').setDescription('Turn invite tracking on or off'))
-                .addChannelOption((option) =>
-                    option.setName('log_channel').setDescription('Channel for "invited by" messages').addChannelTypes(ChannelType.GuildText),
-                )
-                .addIntegerOption((option) =>
-                    option.setName('fake_days').setDescription('Accounts younger than this many days do not count').setMinValue(0).setMaxValue(365),
-                ),
         )
         .addSubcommand((sub) => sub.setName('synchronizuj').setDescription('Re-read all invites from Discord (admin)')),
     slashOnly: true,
@@ -177,30 +165,6 @@ export default {
             });
             if (!removed) throw userError(t`${role} is not an invite reward.`);
             return respond(interaction, successEmbed(t`${role} is no longer an invite reward.`));
-        }
-
-        if (subcommand === 'settings') {
-            const enabled = interaction.options.getBoolean('enabled');
-            const logChannel = interaction.options.getChannel('log_channel');
-            const fakeDays = interaction.options.getInteger('fake_days');
-            const updated = await updateInviteConfig(guild.id, (data) => {
-                if (enabled !== null) data.enabled = enabled;
-                if (logChannel) data.logChannelId = logChannel.id;
-                if (fakeDays !== null) data.fakeDays = fakeDays;
-            });
-            if (updated.enabled) await cacheGuildInvites(guild);
-            return respond(interaction, createEmbed({
-                title: t('📨 Invite tracker settings'),
-                description: [
-                    t`**Tracking:** ${updated.enabled ? t('on') : t('off')}`,
-                    t`**Log channel:** ${updated.logChannelId ? `<#${updated.logChannelId}>` : t('not set')}`,
-                    t`**Fake account age:** under ${updated.fakeDays} days`,
-                    t`**Rewards:** ${updated.rewards.length}`,
-                ].join('\n'),
-                footer: guild.members.me?.permissions.has(PermissionFlagsBits.ManageGuild)
-                    ? false
-                    : t('I need the Manage Server permission to read invites.'),
-            }), { ephemeral: true });
         }
 
         if (subcommand === 'synchronizuj') {

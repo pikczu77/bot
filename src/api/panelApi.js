@@ -19,7 +19,7 @@ import { getGuildLocale, setGuildLocale } from '../services/languageService.js';
 import { getGuildConfig, updateGuildConfig } from '../services/config/guildConfig.js';
 import { getEconomyPrefix, getJoinToCreateConfig, getWelcomeConfig, saveJoinToCreateConfig, updateWelcomeConfig } from '../utils/database.js';
 import { getGuildTicketStats } from '../utils/database/tickets.js';
-import { TICKET_BUTTON_STYLES, buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_dashboard.js';
+import { TICKET_BUTTON_STYLES, buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_panel.js';
 import { validateChannelNameTemplate } from '../services/joinToCreateService.js';
 import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
 import { getColor } from '../config/bot.js';
@@ -404,7 +404,7 @@ async function applyLogging(client, guild, body) {
     for (const [category, value] of Object.entries(plainObject(body.categories, 'categories'))) {
       if (!LOG_CATEGORIES.includes(category)) throw new ApiError(400, `categories.${category}: unknown category`);
       const enabled = boolean(value, `categories.${category}`);
-      // Same shape as /logi toggle: the category switch plus every event in it.
+      // The category switch plus every event in it.
       logging.enabledEvents[`${category}.*`] = enabled;
       for (const type of Object.values(EVENT_TYPES)) if (type.startsWith(`${category}.`)) logging.enabledEvents[type] = enabled;
     }
@@ -1276,7 +1276,7 @@ async function applyMinecraft(client, guild, body) {
   if ('backupEveryHours' in body) {
     updates.backupEveryHours = integer(body.backupEveryHours, 'backupEveryHours', 0, MAX_BACKUP_HOURS);
     if (updates.backupEveryHours > 0 && !current.apiKey) throw new ApiError(400, 'backupEveryHours: connect the server panel first with /minecraft whitelista ustaw on Discord');
-    // The first automatic backup comes a full period after turning it on (same as /minecraft kopie).
+    // The first automatic backup comes a full period after turning it on (setBackupSchedule).
     if (updates.backupEveryHours !== (Number(current.backupEveryHours) || 0)) updates.lastAutoBackupAt = Date.now();
   }
 
@@ -1294,14 +1294,14 @@ async function applyMinecraft(client, guild, body) {
   if (postGuide && !next.channelId) throw new ApiError(400, 'channelId: choose the channel for nicks first');
   if (next.channelId && (moved || postGuide)) requireWhitelistChannel(guild, next.channelId, 'channelId');
 
-  // Same rules as /minecraft konsola: a connected panel, not the nick channel, the bot can answer there.
+  // Rules: a connected panel, not the nick channel, the bot can answer there.
   const consoleMoved = 'consoleChannelId' in updates && updates.consoleChannelId !== (current.consoleChannelId ?? null);
   if (consoleMoved && next.consoleChannelId) {
     if (!current.apiKey) throw new ApiError(400, 'consoleChannelId: connect the server panel first with /minecraft whitelista ustaw on Discord');
     if (next.enabled && next.consoleChannelId === next.channelId) throw new ApiError(400, 'consoleChannelId: this is the whitelist channel, pick another channel for the console');
     requireWhitelistChannel(guild, next.consoleChannelId, 'consoleChannelId');
   }
-  // Same rules as /minecraft czat: a connected panel, not the nick or console channel.
+  // Rules: a connected panel, not the nick or console channel.
   const chatMoved = 'chatChannelId' in updates && updates.chatChannelId !== (current.chatChannelId ?? null);
   if (chatMoved && next.chatChannelId) {
     if (!current.apiKey) throw new ApiError(400, 'chatChannelId: connect the server panel first with /minecraft whitelista ustaw on Discord');
@@ -1436,7 +1436,7 @@ async function applyGiveaways(client, guild, body) {
   return giveawaysView(client, guild);
 }
 
-// ---- Counting game (/liczenie): channel (null = off), number system, reset, the top counters.
+// ---- Counting game: channel (null = off), number system, reset, the top counters.
 async function countingView(client, guild) {
   const config = await getCountingGameConfig(client, guild.id);
   const top = Object.entries(config.leaderboard ?? {})
@@ -1476,7 +1476,7 @@ async function applyCounting(client, guild, body) {
   return countingView(client, guild);
 }
 
-// ---- Server stats counters (/statystyki): add a counter channel in a category, rename or remove one.
+// ---- Server stats counters: add a counter channel in a category, rename or remove one.
 const COUNTER_TYPES = Object.keys(COUNTER_TYPE_CONFIG);
 
 async function serverStatsView(client, guild) {

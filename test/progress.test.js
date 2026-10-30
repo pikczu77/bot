@@ -11,8 +11,14 @@ import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { getEconomySettings, updateEconomySettings } from '../src/services/economySettings.js';
 import {
-  ACHIEVEMENTS, MISSIONS, ensureMissions, progressEmbeds, progressOptions, recordProgress, rerollMission,
+  ACHIEVEMENTS, MISSIONS, badgeCount, ensureMissions, isEventBadge, progressEmbeds, progressOptions, recordProgress, rerollMission, visibleBadges,
 } from '../src/services/progress.js';
+import { UPGRADES } from '../src/services/economyUpgrades.js';
+import { payBail } from '../src/services/economyJail.js';
+import { getSeasonEvent, tickSeason, updateSeason } from '../src/services/seasonalEvents.js';
+import { getUserLevelData, saveUserLevelData } from '../src/services/leveling/leveling.js';
+import { buildAchievementsView, loadBadges } from '../src/commands/Economy/modules/progress_view.js';
+import achievementButtons from '../src/interactions/buttons/economy/achievements.js';
 import { dayKey, weekKey } from '../src/utils/warsawTime.js';
 import missionsMenu from '../src/interactions/selectMenus/economy/missions.js';
 
@@ -216,4 +222,143 @@ test('panel switches: missions off pay nothing (stats still count), the mission 
   recordProgress(none, { heist: 1 }, { settings: { ...settings, missions: { enabled: true, rewardPercent: 0 } }, now: MONDAY });
   assert.equal(none.wallet, 0);
   assert.equal(none.missions.daily.list[0].done, true);
+});
+
+const ids = (result) => result.achievements.map(({ achievement }) => achievement.id);
+const play = (userData, events, times = 1) => {
+  let last;
+  for (let round = 0; round < times; round += 1) last = recordProgress(userData, events, { settings, now: MONDAY });
+  return last;
+};
+
+test('new badges: casino games in a row, a draw counts for neither side, the biggest win', () => {
+  const userData = { wallet: 0 };
+  play(userData, { casino: 1, casinoWin: 1 }, 9);
+  play(userData, { casino: 1, casinoDraw: 1 });
+  assert.equal(userData.stats.casinoStreak, 9, 'a draw does not end the row');
+  assert.ok(ids(play(userData, { casino: 1, casinoWin: 1 })).includes('hot_hand'));
+  play(userData, { casino: 1 }, 9);
+  assert.equal(userData.stats.casinoStreak, 0);
+  assert.equal(userData.stats.casinoBestStreak, 10);
+  assert.ok(ids(play(userData, { casino: 1 })).includes('unlucky'));
+  assert.equal(userData.stats.casinoDraw, undefined);
+
+  assert.deepEqual(ids(play(userData, { casino: 1, casinoWin: 1, casinoPayout: 99_999 })), []);
+  assert.ok(ids(play(userData, { casino: 1, casinoWin: 1, casinoPayout: 100_000 })).includes('whale'));
+  play(userData, { casino: 1, casinoWin: 1, casinoPayout: 50 });
+  assert.equal(userData.stats.casinoBiggestWin, 100_000);
+  assert.equal(userData.stats.casinoPayout, undefined);
+});
+
+test('new badges: levels, own money only, one or all upgrades at the top, diamonds, the rarest card', () => {
+  const levels = { wallet: 0 };
+  assert.deepEqual(ids(play(levels, { level: 50 })), ['level_10', 'level_50']);
+  play(levels, { level: 12 });
+  assert.equal(levels.stats.levelBest, 50, 'the best level stays');
+
+  const spouse = { wallet: 0, bank: 200_000, _joint: { partnerId: '1', ownBank: 0, partnerBank: 200_000 } };
+  assert.ok(!ids(play(spouse, { beg: 1 })).includes('rich'), 'the joint bank does not count');
+  assert.ok(ids(play({ wallet: 0, bank: 200_000 }, { beg: 1 })).includes('rich'));
+
+  assert.ok(!ids(play({ wallet: 0, upgrades: { luck: 10 } }, { beg: 1 })).includes('maxed'), 'Luck has 15 levels');
+  assert.ok(ids(play({ wallet: 0, upgrades: { work: 10 } }, { beg: 1 })).includes('maxed'));
+  const top = Object.fromEntries(UPGRADES.map((upgrade) => [upgrade.id, upgrade.maxLevel]));
+  assert.ok(ids(play({ wallet: 0, upgrades: top }, { beg: 1 })).includes('all_maxed'));
+
+  assert.ok(ids(play({ wallet: 0, fishIndex: { 'bass:diamond': 1 } }, { beg: 1 })).includes('diamond_luck'));
+  assert.ok(ids(play({ wallet: 0, cards: { 'krolpikczu:golden': 1 } }, { beg: 1 })).includes('king_pikczu'));
+  assert.ok(!ids(play({ wallet: 0, cards: { bulwazaur: 1 } }, { beg: 1 })).includes('king_pikczu'));
+
+  const others = ACHIEVEMENTS.filter((achievement) => achievement.id !== 'beg_king').slice(0, 24);
+  const hunter = { wallet: 0, achievements: Object.fromEntries(others.map((achievement) => [achievement.id, 1])), stats: { beg: 99 } };
+  assert.ok(ids(play(hunter, { beg: 1 })).includes('badge_hunter'), 'counts the badge unlocked by the same action');
+});
+
+test('bail, the podium of a holiday event and levels from before the badges reach the member', async () => {
+  const prisoner = newMember('Wiezien');
+  await save(prisoner, { wallet: 5000, jailedUntil: Date.now() + 60_000 });
+  const bail = await payBail(client, guild.id, prisoner.id);
+  assert.equal(bail.ok, true);
+  assert.equal((await data(prisoner)).stats.bail, 1);
+
+  const event = getSeasonEvent('halloween');
+  const room = mockChannel(guild, 'ogloszenia');
+  const fan = newMember('Fan');
+  await updateSeason(event, guild.id, (season) => {
+    Object.assign(season, { enabled: true, endsAt: MONDAY, announcement: { channelId: room.id, messageId: null }, totals: { [fan.id]: 50 } });
+  });
+  await runWithLocale('en', () => tickSeason(event, client, guild, MONDAY + 60_000));
+  assert.ok((await data(fan)).achievements.event_podium);
+
+  const veteran = newMember('Weteran');
+  await saveUserLevelData(client, guild.id, veteran.id, { ...(await getUserLevelData(client, guild.id, veteran.id)), level: 12 });
+  await loadBadges({ client, guildId: guild.id, user: veteran.user });
+  const account = await data(veteran);
+  assert.equal(account.stats.levelBest, 12);
+  assert.ok(account.achievements.level_10);
+  assert.equal(account.achievements.level_50, undefined);
+});
+
+test('a full set of daily missions is counted', () => {
+  const userData = { wallet: 0, missions: {
+    daily: { period: '2026-10-26', rerolled: false, bonus: false, list: [{ id: 'beg', goal: 1, reward: 250, progress: 0, done: false }] },
+    weekly: { period: '2026-10-26', rerolled: false, bonus: true, list: [] },
+  } };
+  play(userData, { beg: 1 }, 2);
+  assert.equal(userData.stats.dailySets, 1);
+});
+
+test('/osiagniecia: holiday badges in their own section, ended ones hidden unless earned, the rest in pages', async () => {
+  const user = mockUser('Zbieracz');
+  const view = (userData, extra = {}) => runWithLocale('en', () => buildAchievementsView({ guildId: guild.id, settings, user, userData, ...extra }));
+  const before = Date.UTC(2026, 9, 30);
+  const later = Date.UTC(2030, 0, 1);
+
+  assert.equal(visibleBadges({}, 'event', before).length, 9);
+  assert.deepEqual(visibleBadges({}, 'event', later).map((badge) => badge.id), ['event_podium'], 'nobody can earn the old ones, or the full year');
+  assert.ok(visibleBadges({}, 'main', before).every((badge) => !isEventBadge(badge)));
+  assert.equal(badgeCount({}, later).total, ACHIEVEMENTS.length - 8);
+  const earned = { achievements: { halloween_2026: Date.UTC(2026, 10, 1) } };
+  assert.deepEqual(visibleBadges(earned, 'event', later).map((badge) => badge.id), ['halloween_2026', 'event_podium']);
+  assert.deepEqual(badgeCount(earned, later), { got: 1, total: ACHIEVEMENTS.length - 7 });
+
+  const eventText = replyText({ replies: [view(earned, { tab: 'event', now: later })] });
+  assert.match(eventText, /Event badges of Zbieracz · 1\/2/);
+  assert.match(eventText, /Halloween 2026/);
+  assert.doesNotMatch(eventText, /Christmas 2026/);
+
+  const main = visibleBadges({}, 'main', before).length;
+  const pages = Math.ceil(main / 12);
+  for (let page = 0; page < pages; page += 1) {
+    const reply = view({}, { page, now: before });
+    const embed = reply.embeds[0].toJSON();
+    const size = (embed.title?.length ?? 0) + (embed.description?.length ?? 0) + (embed.footer?.text.length ?? 0)
+      + (embed.fields ?? []).reduce((sum, field) => sum + field.name.length + field.value.length, 0);
+    assert.ok(size < 6000, `page ${page}: ${size}`);
+    assert.equal(embed.footer.text, `Page ${page + 1}/${pages}`);
+    const buttons = reply.components[0].toJSON().components;
+    assert.equal(new Set(buttons.map((button) => button.custom_id)).size, buttons.length, 'custom ids are unique');
+    assert.equal(buttons.at(-2).disabled, page === 0);
+    assert.equal(buttons.at(-1).disabled, page === pages - 1);
+    assert.doesNotMatch(replyText({ replies: [reply] }), /Halloween 2026/);
+  }
+  assert.equal(view({}, { tab: 'event', now: before }).components[0].toJSON().components.length, 2, 'no page buttons in a short list');
+});
+
+test('the buttons of /osiagniecia: own message changes, anyone else gets a private copy', async () => {
+  const owner = newMember('Wlasciciel');
+  const other = newMember('Inny');
+  const calls = { reply: [], update: [] };
+  const press = (member, args) => runWithLocale('en', () => achievementButtons.execute({
+    id: snowflake(), client: localClient, guild, guildId: guild.id, channel, member, user: member.user, customId: `odznaki:${args.join(':')}`,
+    reply: async (payload) => { calls.reply.push(payload); },
+    update: async (payload) => { calls.update.push(payload); },
+  }, localClient, args));
+  const localClient = { ...client, users: { fetch: async () => owner.user } };
+  await press(owner, ['t', 'event', '0', owner.id, owner.id]);
+  assert.match(replyText({ replies: [calls.update[0]] }), /Event badges of Wlasciciel/);
+  await press(other, ['p', 'main', '1', owner.id, owner.id]);
+  assert.equal(calls.update.length, 1);
+  assert.match(replyText({ replies: [calls.reply[0]] }), /Page 2\//);
+  assert.ok(calls.reply[0].flags);
 });

@@ -2,9 +2,7 @@
 // member, as a private reply. Anyone may look; only the owner can swap missions there.
 
 import { MessageFlags } from 'discord.js';
-import { getEconomyData } from '../../../utils/economy.js';
-import { getEconomySettings } from '../../../services/economySettings.js';
-import { buildAchievementsView, showMissions } from '../../../commands/Economy/modules/progress_view.js';
+import { buildAchievementsView, loadBadges, showMissions } from '../../../commands/Economy/modules/progress_view.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
 
 export default {
@@ -21,9 +19,8 @@ export default {
         await interaction.reply({ ...view, flags: MessageFlags.Ephemeral });
         return;
       }
-      const settings = await getEconomySettings(guildId);
-      const userData = await getEconomyData(client, guildId, userId);
-      await interaction.reply({ ...buildAchievementsView({ guildId, settings, user, userData }), flags: MessageFlags.Ephemeral });
+      const { settings, userData } = await loadBadges({ client, guildId, user });
+      await interaction.reply({ ...buildAchievementsView({ guildId, settings, user, userData, viewerId: interaction.user.id }), flags: MessageFlags.Ephemeral });
     } catch (error) {
       await handleInteractionError(interaction, error, { type: 'button', customId: interaction.customId });
     }

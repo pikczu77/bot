@@ -16,6 +16,7 @@ import { formatDuration } from '../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { getEconomySettings, money } from './economySettings.js';
 import { spendMoney, withEconomyLock } from './economyUpgrades.js';
+import { recordProgress } from './progress.js';
 import { t } from '../i18n/index.js';
 
 export const BAIL_BUTTON_ID = 'wiezienie:wykup';
@@ -73,7 +74,8 @@ export function payBail(client, guildId, userId, now = Date.now()) {
     if (!price) return { ok: false, reason: 'off', userData };
     if (!spendMoney(userData, price)) return { ok: false, reason: 'money', price, userData };
     userData.jailedUntil = 0;
+    const progress = recordProgress(userData, { bail: 1 }, { settings, now });
     await setEconomyData(client, guildId, userId, userData);
-    return { ok: true, price, userData };
+    return { ok: true, price, userData, progress };
   });
 }

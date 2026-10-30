@@ -154,7 +154,9 @@ export default {
                 );
             }
 
-            const progress = recordProgress(robberData, { rob: 1, robWin: isSuccessful ? 1 : 0 }, { settings: await getEconomySettings(guildId), now });
+            const economySettings = await getEconomySettings(guildId);
+            const progress = recordProgress(robberData, { rob: 1, robWin: isSuccessful ? 1 : 0 }, { settings: economySettings, now });
+            if (isSuccessful) recordProgress(victimData, { robbed: 1 }, { settings: economySettings, now });
             await setEconomyData(client, guildId, robberId, robberData);
             await setEconomyData(client, guildId, victimUser.id, victimData);
 

@@ -220,7 +220,7 @@ export async function initializeJoinToCreate(client, guildId, channelId, options
             throw new TitanBotError(
                 'Guild already has a Join to Create trigger configured',
                 ErrorTypes.VALIDATION,
-                t('This server already has a Join to Create channel configured. Use `/jointocreate dashboard` to modify it, or remove it before creating a new one.'),
+                t('This server already has a Join to Create channel configured. Change it in the web panel (pikczu.pl/bot).'),
                 {
                     guildId,
                     existingTriggerChannelId: config.triggerChannels[0],

@@ -32,23 +32,14 @@ before(async () => {
   });
 });
 
-const admin = () => mockMember(guild, mockUser('Szef'), { permissions: ['Administrator', 'ManageGuild'] });
-
-async function economy(member, group, sub, options = {}) {
-  const interaction = mockInteraction({ client, guild, channel, member, commandName: 'economy', options, subcommand: sub, group });
-  await runWithLocale('en', () => client.commands.get('economy').execute(interaction, {}, client));
-  return interaction.replies.at(-1);
-}
-
-test('/economy event ustaw + start: the announcement goes to its channel with a ping, stop deletes it', async () => {
+test('an event started from the panel: the announcement goes to its channel with a ping, ending it deletes it', async () => {
   const role = mockRole(guild, 'Eventy');
-  const boss = admin();
-  const saved = await economy(boss, 'event', 'ustaw', { kanal: news, rola: role });
-  assert.match(replyText({ replies: [saved] }), /Saved/);
-  assert.match(replyText({ replies: [saved] }), /No event is running/);
+  await updateEconomySettings(guild.id, (settings) => {
+    settings.events.channelId = news.id;
+    settings.events.roleId = role.id;
+  });
 
-  const started = await economy(boss, 'event', 'start', { typ: 'kasa', minuty: 30 });
-  assert.match(replyText({ replies: [started] }), /Running: \*\*💸 Double money\*\*/);
+  await runWithLocale('en', () => startEvent(guild, 'kasa', 30));
   assert.equal(news.sent.length, 1);
   assert.equal(news.sent[0].content, `<@&${role.id}>`);
   assert.match(news.sent[0].embeds[0].toJSON().title, /EVENT: Double money/);
@@ -58,8 +49,7 @@ test('/economy event ustaw + start: the announcement goes to its channel with a 
 
   const deleted = [];
   news.messages.delete = async (id) => { deleted.push(id); };
-  const stopped = await economy(boss, 'event', 'stop');
-  assert.match(replyText({ replies: [stopped] }), /ended/);
+  await runWithLocale('en', () => endEvent(guild));
   assert.deepEqual(deleted, [active.messageId]);
   assert.equal((await getEconomySettings(guild.id)).events.active, null);
 });

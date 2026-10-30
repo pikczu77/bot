@@ -5,14 +5,13 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Collection } from 'discord.js';
-import { mockChannel, mockGuild, mockInteraction, mockMember, mockUser, replyText } from './helpers/mock.js';
-import { runWithLocale } from '../src/i18n/index.js';
+import { mockChannel, mockGuild, mockMember, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getWhitelistConfig, updateWhitelistConfig } from '../src/services/minecraftWhitelist.js';
 import { consoleSocket } from '../src/services/minecraftConsole.js';
 import {
-  chatBridgeOf, chatTiming, handleChatBridgeMessage, parseChatLine, syncChatBridge, tellrawCommand,
+  chatBridgeOf, chatTiming, handleChatBridgeMessage, parseChatLine, setChatChannel, syncChatBridge, tellrawCommand,
 } from '../src/services/minecraftChat.js';
 
 const PANEL = 'https://ptero.mathost.eu';
@@ -121,11 +120,9 @@ test('tellraw: one line, at most 200 characters, quotes and backslashes escaped'
   assert.equal(JSON.parse(tellrawCommand('A', 'x'.repeat(500)).slice(11))[3].text.length, 202);
 });
 
-test('/minecraft czat links the channel; game chat comes through a webhook, events as lines', async () => {
-  const admin = mockMember(guild, mockUser('Admin'), { permissions: ['Administrator', 'ManageGuild'] });
-  const interaction = mockInteraction({ client, guild, channel: chat, member: admin, commandName: 'minecraft', subcommand: 'czat', options: { kanal: chat } });
-  await runWithLocale('en', () => client.commands.get('minecraft').execute(interaction, {}, client));
-  assert.match(replyText(interaction), /Minecraft chat is linked/);
+test('a linked channel (set in the panel): game chat comes through a webhook, events as lines', async () => {
+  await setChatChannel(guild.id, chat.id);
+  await syncChatBridge(guild);
   assert.equal((await getWhitelistConfig(guild.id)).chatChannelId, chat.id);
   await new Promise((resolve) => setImmediate(resolve));
   const socket = fake.sockets.at(-1);
@@ -168,19 +165,10 @@ test('Discord messages on the chat channel go to the game; other channels do not
   assert.equal(fake.commands.length, 1);
 });
 
-test('turning it off closes the connection; the whitelist and console channels cannot be the chat', async () => {
-  await updateWhitelistConfig(guild.id, (data) => { data.consoleChannelId = chat.id; });
-  const admin = mockMember(guild, mockUser('Admin2'), { permissions: ['Administrator', 'ManageGuild'] });
-  const run = async (options) => {
-    const interaction = mockInteraction({ client, guild, channel: chat, member: admin, commandName: 'minecraft', subcommand: 'czat', options });
-    await runWithLocale('en', () => client.commands.get('minecraft').execute(interaction, {}, client)).catch((error) => interaction.replies.push({ content: error.userMessage }));
-    return replyText(interaction);
-  };
-  assert.match(await run({ kanal: chat }), /console channel/);
-  await updateWhitelistConfig(guild.id, (data) => { data.consoleChannelId = null; });
-
+test('turning it off closes the connection', async () => {
   const socket = fake.sockets.at(-1);
-  assert.match(await run({}), /link is off/);
+  await setChatChannel(guild.id, null);
+  await syncChatBridge(guild);
   assert.equal(socket.closed, true);
   assert.equal(chatBridgeOf(guild.id), null);
   assert.equal(await syncChatBridge(guild), null);

@@ -9,7 +9,7 @@ import { runWithLocale } from '../src/i18n/index.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getWhitelistConfig, updateWhitelistConfig } from '../src/services/minecraftWhitelist.js';
-import { AUTO_PREFIX, createBackup, tickBackup } from '../src/services/minecraftServer.js';
+import { AUTO_PREFIX, createBackup, setBackupSchedule, tickBackup } from '../src/services/minecraftServer.js';
 import serverButtons from '../src/interactions/buttons/minecraft/server.js';
 
 const PANEL = 'https://ptero.mathost.eu';
@@ -152,8 +152,7 @@ test('backup by hand: started with the name of the admin; a full plan is explain
 });
 
 test('automatic backups: every N hours, the oldest automatic one is replaced, locked and hand-made ones stay', async () => {
-  const set = await run('kopie', { co_ile: 6 });
-  assert.match(replyText(set), /every \*\*6 h\*\*/);
+  await setBackupSchedule(guild.id, 6);
   const config = await getWhitelistConfig(guild.id);
   assert.equal(config.backupEveryHours, 6);
 
@@ -179,7 +178,6 @@ test('automatic backups: every N hours, the oldest automatic one is replaced, lo
   fake.limit = 0;
   await assert.rejects(createBackup({ panelUrl: PANEL, serverId: SERVER_ID, apiKey: KEY }), (error) => error.reason === 'none');
   fake.limit = 2;
-  const off = await run('kopie', { co_ile: 0 });
-  assert.match(replyText(off), /Automatic backups are off/);
+  await setBackupSchedule(guild.id, 0);
   assert.equal(await tickBackup(guild, due + 100 * 3_600_000), false);
 });

@@ -5,7 +5,7 @@
 // default) and, when `thread` is on, its own thread for comments. Any other message is deleted at once with a short
 // notice that disappears too. Members with Manage Messages may write normally (pins, rules, answers).
 // Settings: guild:{id}:media-channels = { channels: [{ channelId, reactions, deleteOther, thread }] }, set with
-// /channel zdjecia and in the web panel ("Kanały na zdjęcia").
+// the web panel ("Kanały na zdjęcia").
 
 import { PermissionFlagsBits } from 'discord.js';
 import { createEmbed } from '../utils/embeds.js';

@@ -113,7 +113,9 @@ test('automatic questions: on the set channel, only after someone talked since t
   assert.equal(await tickQuiz(guild, now + 31 * 60_000), true);
   await expireQuestion(guild.id, runningQuestion(guild.id).id);
 
-  const status = await quiz(admin(), 'ustaw', { nagroda: 500, automatyczny: false });
+  await updateQuizSettings(guild.id, (settings) => Object.assign(settings, { reward: 500, auto: false }));
+  const status = await quiz(admin(), 'pytanie');
   assert.match(replyText({ replies: [status] }), /Automatic questions: off/);
   assert.match(replyText({ replies: [status] }), /\$500/);
+  await expireQuestion(guild.id, runningQuestion(guild.id).id);
 });

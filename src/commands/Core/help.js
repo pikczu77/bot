@@ -61,7 +61,7 @@ export async function createInitialHelpMenu(client) {
             {
                 name: t('🚀 Getting Started'),
                 value: [
-                    t('**1. Launch setup** — Run `/configwizard` to configure prefix, mod role, and logs.'),
+                    t('**1. Launch setup** — Set everything up in the web panel: pikczu.pl/bot.'),
                     t('**2. Enable systems** — Use `/komendy dashboard` to turn categories on or off.'),                    t('**3. Browse commands** — Use the menu below to view categories and commands.'),
                 ].join('\n'),
                 inline: false,
@@ -69,7 +69,7 @@ export async function createInitialHelpMenu(client) {
             {
                 name: t('ℹ️ How It Works'),
                 value: [
-                    t('• Dashboard commands manage each feature visually'),
+                    t('• The web panel manages each feature visually'),
                     t('• Settings are saved per server'),
                     t('• Slash commands and prefixes both work once enabled'),
                 ].join('\n'),

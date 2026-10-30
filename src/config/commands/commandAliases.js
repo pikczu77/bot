@@ -82,10 +82,6 @@ export const commandAliases = {
     'bday': 'urodziny',
     'b': 'urodziny',
 
-    'gcreate': 'gcreate',
-    'gstart': 'gcreate',
-    'gend': 'gend',
-    'gstop': 'gend',
     'gdelete': 'gdelete',
     'greroll': 'greroll',
     'groll': 'greroll',
@@ -102,11 +98,6 @@ export const commandAliases = {
     'whois': 'userinfo',
     'ui': 'userinfo',
 
-    'statystyki': 'statystyki',
-    'serverstats': 'statystyki',
-    'ss': 'statystyki',
-    'sstats': 'statystyki',
-
     'przejmij': 'przejmij',
     'claim': 'przejmij',
     'zamknij': 'zamknij',
@@ -117,16 +108,6 @@ export const commandAliases = {
     'invites': 'zaproszenia',
     'konkurs': 'konkurs',
     'giveaway': 'konkurs',
-    'liczenie': 'liczenie',
-    'count': 'liczenie',
-    'logi': 'logi',
-    'logging': 'logi',
-
-    'rr': 'reactroles',
-    'reactionroles': 'reactroles',
-
-    'jtc': 'jointocreate',
-    'jointocreate': 'jointocreate',
 
     'np': 'nowplaying',
     'now': 'nowplaying',

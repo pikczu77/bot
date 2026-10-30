@@ -7,7 +7,7 @@ import { getEconomySettings, money } from '../../services/economySettings.js';
 import { getUserLevelData, getXpForLevel } from '../../services/leveling/leveling.js';
 import { getSpouseId } from '../../services/marriageService.js';
 import { CARDS, FISH, cardsCollected, fishCollected } from '../../services/collections.js';
-import { ACHIEVEMENTS, isUnlocked } from '../../services/progress.js';
+import { ACHIEVEMENTS, badgeCount, isUnlocked } from '../../services/progress.js';
 import { renderProfileCard } from '../../services/profileCard.js';
 import { t, tr } from '../../i18n/index.js';
 
@@ -34,6 +34,7 @@ export async function profileData({ client, guild, user, member }) {
     const unlocked = ACHIEVEMENTS
         .filter((achievement) => isUnlocked(account, achievement.id))
         .sort((a, b) => Number(account.achievements[b.id]) - Number(account.achievements[a.id]));
+    const badges = badgeCount(account);
     const color = member?.displayHexColor && member.displayHexColor !== '#000000' ? member.displayHexColor : DEFAULT_ACCENT;
 
     return {
@@ -51,7 +52,7 @@ export async function profileData({ client, guild, user, member }) {
             { label: t("Club'o'mony cards"), value: `${cardsCollected(account)}/${CARDS.length}` },
             { label: t('Fish species'), value: `${fishCollected(account)}/${FISH.length}` },
         ],
-        badgesTitle: t`Badges ${unlocked.length}/${ACHIEVEMENTS.length}`,
+        badgesTitle: t`Badges ${badges.got}/${badges.total}`,
         badges: unlocked.slice(0, BADGES_ON_CARD).map((achievement) => tr(achievement.name)),
         badgeEmoji: unlocked.slice(0, 12).map((achievement) => achievement.emoji).join(' '),
         noBadges: t('No badges yet - see /osiagniecia'),

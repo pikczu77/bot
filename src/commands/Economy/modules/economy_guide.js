@@ -43,7 +43,7 @@ import { MERGE_COUNT } from '../../../services/cardMerge.js';
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 6;
+export const GUIDE_VERSION = 7;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -323,7 +323,7 @@ function commands() {
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
       field(t('💍 Relationships'), '`/randka` `/slub`'),
-      field(t('🛠️ Admins'), '`/economy dashboard`\n`/economy poradnik`\n`/economy rola-premium`'),
+      field(t('🛠️ Admins'), '`/economy poradnik`\n`/economy gracz`\npikczu.pl/bot'),
     ],
   };
 }

@@ -143,7 +143,7 @@
   "System error occurred. Please try again.": "Wystąpił błąd systemu. Spróbuj ponownie.",
   "Invalid guild or channel information provided.": "Podano nieprawidłowe dane serwera lub kanału.",
   "This channel is already set up as a Join to Create trigger.": "Ten kanał jest już ustawiony jako kanał Join to Create.",
-  "This server already has a Join to Create channel configured. Use `/jointocreate dashboard` to modify it, or remove it before creating a new one.": "Ten serwer ma już ustawiony kanał Join to Create. Zmień go przez `/jointocreate dashboard` albo usuń przed utworzeniem nowego.",
+  "This server already has a Join to Create channel configured. Change it in the web panel (pikczu.pl/bot).": "Ten serwer ma już ustawiony kanał Join to Create. Zmień go w panelu (pikczu.pl/bot).",
   "Failed to set up Join to Create system. Please try again.": "Nie udało się skonfigurować systemu Join to Create. Spróbuj ponownie.",
   "Database service is currently unavailable. Please try again later.": "Baza danych jest obecnie niedostępna. Spróbuj ponownie później.",
   "This channel is not set up as a Join to Create trigger.": "Ten kanał nie jest ustawiony jako kanał Join to Create.",

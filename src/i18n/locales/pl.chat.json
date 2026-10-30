@@ -14,7 +14,7 @@
   "Chat star": "Gwiazda czatu",
   "❓ Question of the day - solved": "❓ Pytanie dnia - rozwiązane",
   "✅ {0} answered first: **{1}** · **+{2}**": "✅ {0} odpowiedział(a) pierwszy(a): **{1}** · **+{2}**",
-  "**Reply to this message** with your answer (a word or a number). One answer per person, the first right one gets **{0}**.\n-# Until <t:{1}:t>": "**Odpowiedz na tę wiadomość** (słowo albo liczba). Każdy ma jedną odpowiedź, pierwsza dobra dostaje **{0}**.\n-# Do <t:{1}:t>",
+  "⚠️ **You must REPLY to this message** (hold it or right-click it, then choose Reply). A normal message on the chat does not count.\nAnswer with a word or a number. One answer per person, the first right one gets **{0}**.\n-# Until <t:{1}:t>": "⚠️ **Musisz ODPISAĆ na tę wiadomość** (przytrzymaj ją albo kliknij prawym i wybierz „Odpowiedz”). Zwykła wiadomość na czacie się nie liczy.\nPisz słowo albo liczbę. Każdy ma jedną odpowiedź, pierwsza dobra dostaje **{0}**.\n-# Do <t:{1}:t>",
   "⏰ Time is up, nobody got it. The answer: **{0}**": "⏰ Koniec czasu, nikt nie trafił. Odpowiedź: **{0}**",
   "Answer the question of the day first 5 times.": "Odpowiedz pierwszy na pytanie dnia 5 razy.",
   "🟩 **Wordle #{0}** is ready: `/wordle`, up to **{1}**": "🟩 **Wordle #{0}** już czeka: `/wordle`, do **{1}**",

@@ -34,8 +34,7 @@ const RISKY_COMMAND_NAMES = new Set([
   'unban',
   'lock',
   'unlock',
-  'ticket',
-  'reactroles'
+  'ticket'
 ]);
 
 const blockedAttemptStore = new Map();

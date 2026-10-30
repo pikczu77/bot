@@ -3,11 +3,10 @@ import { createCommandGroup } from '../../utils/commandGroup.js';
 import lock from './modules/lock.js';
 import unlock from './modules/unlock.js';
 import { slowmode, sticky, unsticky, nuke, lockdown } from './modules/channelTools.js';
-import { mediaChannel } from './modules/mediaChannel.js';
 
 export default createCommandGroup({
     name: 'channel',
-    description: 'Channel moderation: lock, slowmode, sticky message, wipe, lockdown, picture channels',
+    description: 'Channel moderation: lock, slowmode, sticky message, wipe, lockdown',
     defaultMemberPermissions: PermissionFlagsBits.ManageMessages,
     members: [
         { command: lock, as: 'zablokuj' },
@@ -17,6 +16,5 @@ export default createCommandGroup({
         { command: unsticky, as: 'odepnij' },
         nuke,
         lockdown,
-        { command: mediaChannel, as: 'zdjecia' },
     ],
 });

@@ -76,7 +76,7 @@ export default {
             throw new TitanBotError(
                 `Giveaway still active: ${messageId}`,
                 ErrorTypes.VALIDATION,
-                t("This giveaway is still active. Please use `/gend` to end it first."),
+                t("This giveaway is still active. Please use the web panel (pikczu.pl/bot) to end it first."),
                 { messageId, status: 'active' }
             );
         }

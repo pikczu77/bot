@@ -1,7 +1,6 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { createCommandGroup } from '../../utils/commandGroup.js';
 import gcreate from './modules/gcreate.js';
-import gend from './modules/gend.js';
 import gdelete from './modules/gdelete.js';
 import greroll from './modules/greroll.js';
 import glist from './modules/glist.js';
@@ -12,7 +11,6 @@ export default createCommandGroup({
     defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
     members: [
         { command: gcreate, as: 'utworz' },
-        { command: gend, as: 'zakoncz' },
         { command: gdelete, as: 'usun' },
         { command: greroll, as: 'losuj-ponownie' },
         { command: glist, as: 'list' },

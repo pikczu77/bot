@@ -6,7 +6,7 @@
   "⚫ Recently finished": "⚫ Ostatnio zakończone",
   "no winner": "brak zwycięzcy",
   "🎉 Giveaways": "🎉 Giveawaye",
-  "End one early with `/konkurs zakoncz`, pick new winners with `/konkurs losuj-ponownie`.": "Zakończ wcześniej przez `/konkurs zakoncz`, wylosuj nowych zwycięzców przez `/konkurs losuj-ponownie`.",
+  "End one early in the web panel (pikczu.pl/bot), pick new winners with `/konkurs losuj-ponownie`.": "Zakończ wcześniej w panelu (pikczu.pl/bot), wylosuj nowych zwycięzców przez `/konkurs losuj-ponownie`.",
   "You left the giveaway. Click the button again to rejoin.": "Opuszczasz giveaway. Kliknij przycisk ponownie, aby wrócić.",
   "You cannot enter this giveaway yet:": "Nie możesz jeszcze wziąć udziału w tym giveawayu:",
   "You are in! 🎉": "Bierzesz udział! 🎉",

@@ -1,6 +1,6 @@
 // /sklep — opens the shop. With `kup` it buys that item right away (the item comes from
 // the autocomplete list). The inventory is /ekwipunek, the premium role is set in
-// /economy rola-premium.
+// the web panel.
 
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { getEconomyData } from '../../utils/economy.js';

@@ -42,9 +42,25 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
     'tools', 'poll', 'embedbuilder', 'tag', 'apply', 'app-admin', 'verification', 'verify', 'autoverify', 'rank',
   ];
   assert.deepEqual(removed.filter((name) => client.commands.has(name)), []);
+  // 2026-10-30 (owner: what the web panel can do needs no command).
+  const panelOnly = ['logi', 'liczenie', 'statystyki', 'jointocreate', 'reactroles', 'xp', 'configwizard', 'say'];
+  assert.deepEqual(panelOnly.filter((name) => client.commands.has(name)), []);
+  const subcommands = (name) => client.commands.get(name).data.toJSON().options.map((option) => option.name);
+  assert.deepEqual(subcommands('ticket'), ['dodaj', 'usun', 'rename']);
+  assert.deepEqual(subcommands('economy'), ['gracz', 'poradnik']);
+  assert.deepEqual(subcommands('quiz'), ['pytanie']);
+  assert.deepEqual(subcommands('loteria'), ['kup', 'info']);
+  assert.ok(subcommands('konkurs').includes('utworz'), 'the panel has no entry requirements yet');
+  assert.ok(!subcommands('konkurs').includes('zakoncz'));
+  assert.ok(!subcommands('modmail').includes('setup'));
+  assert.ok(!subcommands('zaproszenia').includes('settings'));
+  assert.ok(!subcommands('urodziny').includes('kanal'));
+  assert.ok(!subcommands('channel').includes('zdjecia'));
+  assert.deepEqual(['konsola', 'czat', 'kopie'].filter((name) => subcommands('minecraft').includes(name)), []);
   // 64 on 2026-10-14 morning; then /hajs /ruletka /blackjack /slots /ekwipunek and /randka /slub.
   // 2026-10-26: /misje /osiagniecia /wymiana /wordle /quiz, then /napad, then /profil, then /loteria /pojedynek.
-  assert.equal(client.commands.size, 91);
+  // 2026-10-30: eight panel-only commands went.
+  assert.equal(client.commands.size, 83);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);
@@ -97,7 +113,6 @@ test('/channel wolny-tryb goes through the command group', async () => {
 
 test('empty lists explain what to do next', async () => {
   assert.match(replyText(await run('minecraft', { subcommand: 'list' })), /minecraft track/);
-  assert.match(replyText(await run('modmail', { subcommand: 'status' })), /Modmail/);
   assert.match(replyText(await run('konkurs', { subcommand: 'list' })), /konkurs utworz/);
   assert.match(replyText(await run('role', { subcommand: 'info', options: { role: mockRole(guild, 'VIP') } })), /VIP/);
 });
@@ -386,19 +401,4 @@ test('leveling follows the server settings: multipliers, exceptions, rewards, vo
   } finally {
     delete guild.systemChannel;
   }
-});
-
-test('/jointocreate interface posts the message with the control buttons', async () => {
-  const target = mockChannel(guild, 'kanaly-glosowe');
-  const interaction = await run('jointocreate', { subcommand: 'interface', options: { channel: target } });
-
-  assert.equal(target.sent.length, 1);
-  assert.deepEqual(target.sent[0].components.map((row) => row.toJSON().components.length), [5, 4]);
-  assert.match(replyText(interaction), new RegExp(`controls are now in <#${target.id}>`));
-
-  // Without a channel the message goes where the command was used.
-  await run('jointocreate', { subcommand: 'interface' });
-  assert.equal(channel.sent.at(-1).components.length, 2);
-  assert.equal((await run('jointocreate', { subcommand: 'interface', member: regular })).replies.length > 0, true);
-  assert.equal(channel.sent.filter((message) => message.components?.length === 2).length, 1);
 });

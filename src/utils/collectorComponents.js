@@ -1,7 +1,5 @@
 /** Component custom IDs handled by ephemeral message collectors — skip global handlers. */
 const COLLECTOR_MANAGED_PREFIXES = [
-  'config_select',
-  'config_wizard',
   'cmdaccess_',
 ];
 

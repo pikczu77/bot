@@ -1,16 +1,13 @@
 // /minecraft serwer — server status with Start / Restart / Stop and "Backup now" buttons (Administrator).
-// /minecraft kopie [co_ile] — automatic backups every N hours (0 = off), shows the latest backups.
 // Service: src/services/minecraftServer.js. Buttons: src/interactions/buttons/minecraft/server.js (mcserwer:*).
 // Stop and Restart ask once more before they are sent (players get disconnected).
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, PermissionFlagsBits } from 'discord.js';
-import { createEmbed, successEmbed } from '../../../utils/embeds.js';
-import { requirePermission, respond, userError } from '../../../utils/featureKit.js';
+import { createEmbed } from '../../../utils/embeds.js';
+import { requirePermission, userError } from '../../../utils/featureKit.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { getWhitelistConfig, panelErrorText, panelOf } from '../../../services/minecraftWhitelist.js';
-import {
-  MAX_BACKUP_HOURS, backupErrorText, listBackups, serverStatus, setBackupSchedule,
-} from '../../../services/minecraftServer.js';
+import { listBackups, serverStatus } from '../../../services/minecraftServer.js';
 import { t } from '../../../i18n/index.js';
 
 export const SERVER_BUTTON = 'mcserwer';
@@ -19,15 +16,6 @@ export function serverSubcommand(sub) {
   return sub
     .setName('serwer')
     .setDescription('Minecraft server status with start, restart, stop and backup buttons (Administrator)');
-}
-
-export function backupSubcommand(sub) {
-  return sub
-    .setName('kopie')
-    .setDescription('Automatic backups of the Minecraft server (Administrator)')
-    .addIntegerOption((option) =>
-      option.setName('co_ile').setDescription('Hours between backups; 0 turns them off').setMinValue(0).setMaxValue(MAX_BACKUP_HOURS),
-    );
 }
 
 /** "1.2 GB", "512 MB" */
@@ -145,37 +133,4 @@ export async function runServer(interaction) {
   requirePermission(interaction, PermissionFlagsBits.Administrator);
   const view = await buildServerView(interaction.guild);
   return InteractionHelper.universalReply(interaction, { ...view, flags: MessageFlags.Ephemeral });
-}
-
-export async function runBackups(interaction) {
-  requirePermission(interaction, PermissionFlagsBits.Administrator);
-  const guild = interaction.guild;
-  const config = await getWhitelistConfig(guild.id);
-  if (!config.apiKey) throw userError(t('Connect the server panel first with `/minecraft whitelista ustaw`.'));
-  const hours = interaction.options.getInteger('co_ile');
-  if (hours !== null) await setBackupSchedule(guild.id, hours);
-  const current = hours ?? (Number(config.backupEveryHours) || 0);
-
-  let list = '';
-  try {
-    const backups = (await listBackups(panelOf(config))).slice(0, 5);
-    list = backups.length
-      ? backups.map((backup) => `${backup.ok ? (backup.completedAt ? '✅' : '⏳') : '❌'} **${backup.name}** · ${size(backup.bytes)} · ${stamp(backup.createdAt)}${backup.locked ? ' 🔒' : ''}`).join('\n')
-      : t('No backups on the panel yet.');
-  } catch (error) {
-    list = `❌ ${backupErrorText(error)}`;
-  }
-
-  const description = [
-    hours === null ? null : (hours > 0
-      ? t`The bot makes a backup every **${hours} h**. The first one comes in ${hours} h; \`/minecraft serwer\` has a button for one now.`
-      : t('Automatic backups are off.')),
-    t`Automatic backups: ${scheduleText(current)}. When all slots of your plan are taken, the oldest automatic backup is replaced. Backups made by hand or locked in the panel are never deleted.`,
-    '',
-    t('**Latest backups**'),
-    list,
-  ].filter((line) => line !== null).join('\n');
-  return respond(interaction, hours === null
-    ? createEmbed({ title: t('💾 Minecraft backups'), description, color: 'info', footer: false })
-    : successEmbed(t('💾 Minecraft backups'), description), { ephemeral: true });
 }

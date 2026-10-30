@@ -68,7 +68,7 @@ export default {
             const spin = spinRoulette(betId, number, luck.total);
             const payout = spin.win ? Math.floor(bet * spin.bet.payout) : 0;
             userData.wallet = (userData.wallet || 0) - bet + payout;
-            return { ...spin, payout, events: { casinoWin: spin.win ? 1 : 0, rouletteNumber: spin.win && spin.bet.payout === 36 ? 1 : 0 } };
+            return { ...spin, payout, events: { casinoWin: spin.win ? 1 : 0, casinoPayout: payout, rouletteNumber: spin.win && spin.bet.payout === 36 ? 1 : 0 } };
         });
 
         const target = betId === 'liczba' ? t`number ${number}` : tr(round.bet.name);

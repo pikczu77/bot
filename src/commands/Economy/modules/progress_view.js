@@ -2,14 +2,15 @@
 // Data and rules: services/progress.js. The swap menu: interactions/selectMenus/economy/missions.js
 // (custom id misje:zmien:<ownerId>).
 
-import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
 import { createEmbed } from '../../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../../utils/economy.js';
 import { getEconomySettings, money, scaleEarnings } from '../../../services/economySettings.js';
 import { withEconomyLock } from '../../../services/economyUpgrades.js';
 import { getPack } from '../../../services/collections.js';
+import { getServerLevel } from '../../../services/economyJobs.js';
 import {
-  ACHIEVEMENTS, BONUS_PACKS, ensureMissions, isUnlocked, missionReward, missionText, missionsEnabled, periodEnd, rerollMission, unlockedCount,
+  BONUS_PACKS, ensureMissions, isUnlocked, missionReward, missionText, missionsEnabled, periodEnd, recordProgress, rerollMission, stat, visibleBadges,
 } from '../../../services/progress.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -106,11 +107,49 @@ export function swapMission({ client, guildId, user, value }) {
 
 // ---------------------------------------------------------------- badges
 
-/** The /osiagniecia view: unlocked badges with their dates, then locked ones with progress. */
-export function buildAchievementsView({ guildId, settings, user, userData }) {
+const BADGES_PER_PAGE = 12;
+
+/** The member's data for the list. Levels reached before the level badges existed are given here. */
+export function loadBadges({ client, guildId, user }) {
+  return withEconomyLock(guildId, user.id, async () => {
+    const settings = await getEconomySettings(guildId);
+    const userData = await getEconomyData(client, guildId, user.id);
+    const level = await getServerLevel(client, guildId, user.id);
+    if (level > stat(userData, 'levelBest')) {
+      recordProgress(userData, { level }, { settings });
+      await setEconomyData(client, guildId, user.id, userData);
+    }
+    return { settings, userData };
+  });
+}
+
+function badgeButtons({ userId, viewerId, tab, page, pages }) {
+  const id = (kind, toTab, toPage) => `odznaki:${kind}:${toTab}:${toPage}:${userId}:${viewerId}`;
+  const section = (target, label, emoji) => new ButtonBuilder()
+    .setCustomId(id('t', target, 0))
+    .setLabel(label)
+    .setEmoji(emoji)
+    .setStyle(tab === target ? ButtonStyle.Primary : ButtonStyle.Secondary);
+  const buttons = [section('main', t('Badges'), '🏅'), section('event', t('Event badges'), '🎃')];
+  if (pages > 1) {
+    buttons.push(
+      new ButtonBuilder().setCustomId(id('p', tab, Math.max(0, page - 1))).setEmoji('◀️').setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+      new ButtonBuilder().setCustomId(id('p', tab, Math.min(pages - 1, page + 1))).setEmoji('▶️').setStyle(ButtonStyle.Secondary).setDisabled(page === pages - 1),
+    );
+  }
+  return [new ActionRowBuilder().addComponents(buttons)];
+}
+
+/**
+ * The /osiagniecia view: unlocked badges with their dates, then a page of locked ones with progress.
+ * `tab`: 'main', or 'event' for the holiday badges (owner, 2026-10-30: their own section).
+ */
+export function buildAchievementsView({ guildId, settings, user, userData, viewerId = user.id, tab = 'main', page = 0, now = Date.now() }) {
+  const section = tab === 'event' ? 'event' : 'main';
+  const badges = visibleBadges(userData, section, now);
   const unlocked = [];
   const locked = [];
-  for (const achievement of ACHIEVEMENTS) {
+  for (const achievement of badges) {
     const reward = scaleEarnings(settings, achievement.reward);
     if (isUnlocked(userData, achievement.id)) {
       const at = Math.floor(Number(userData.achievements[achievement.id]) / 1000);
@@ -121,16 +160,23 @@ export function buildAchievementsView({ guildId, settings, user, userData }) {
       locked.push(`🔒 **${tr(achievement.name)}** - ${tr(achievement.description)} · ${money(guildId, reward)}\n-# ${progressBar(current, goal)}${counter}`);
     }
   }
+  const pages = Math.max(1, Math.ceil(locked.length / BADGES_PER_PAGE));
+  const current = Math.min(pages - 1, Math.max(0, page));
+  const empty = section === 'event'
+    ? t('No event badges to get right now. New ones come with the next holiday.')
+    : t('No badges yet. Every one pays a reward once.');
   const embed = createEmbed({
-    title: t`🏅 Badges of ${user.username} · ${unlockedCount(userData)}/${ACHIEVEMENTS.length}`,
-    description: unlocked.length ? unlocked.join('\n') : t('No badges yet. Every one pays a reward once.'),
+    title: section === 'event'
+      ? t`🎃 Event badges of ${user.username} · ${unlocked.length}/${badges.length}`
+      : t`🏅 Badges of ${user.username} · ${unlocked.length}/${badges.length}`,
+    description: current > 0 ? null : (unlocked.length ? unlocked.join('\n') : (locked.length ? t('No badges yet. Every one pays a reward once.') : empty)),
     color: '#F1C40F',
-    footer: false,
+    footer: pages > 1 ? t`Page ${current + 1}/${pages}` : false,
   });
   // Field values are limited to 1024 characters, so the locked list is split.
   let chunk = '';
   let part = 0;
-  for (const line of locked) {
+  for (const line of locked.slice(current * BADGES_PER_PAGE, (current + 1) * BADGES_PER_PAGE)) {
     if ((chunk + line).length > 1000) {
       embed.addFields({ name: part === 0 ? t('🔒 Still to get') : '​', value: chunk });
       chunk = '';
@@ -139,5 +185,5 @@ export function buildAchievementsView({ guildId, settings, user, userData }) {
     chunk += `${line}\n`;
   }
   if (chunk) embed.addFields({ name: part === 0 ? t('🔒 Still to get') : '​', value: chunk });
-  return { embeds: [embed] };
+  return { embeds: [embed], components: badgeButtons({ userId: user.id, viewerId, tab: section, page: current, pages }) };
 }

@@ -304,7 +304,8 @@ export async function postQuestion(guild, settings, { now = Date.now(), random =
   const question = { index };
   const message = await channel.send({
     embeds: [questionEmbed(guild, question, settings, {
-      note: t`**Reply to this message** with your answer (a word or a number). One answer per person, the first right one gets **${money(guild.id, scaleEarnings(economy, settings.question.reward))}**.\n-# Until <t:${Math.floor(closesAt / 1000)}:t>`,
+      // Owner 2026-10-30: members kept writing the answer on the chat instead of replying, so it says so loudly.
+      note: t`⚠️ **You must REPLY to this message** (hold it or right-click it, then choose Reply). A normal message on the chat does not count.\nAnswer with a word or a number. One answer per person, the first right one gets **${money(guild.id, scaleEarnings(economy, settings.question.reward))}**.\n-# Until <t:${Math.floor(closesAt / 1000)}:t>`,
     })],
   }).catch((error) => { logger.warn(`Question of the day not posted in guild ${guild.id}: ${error.message}`); return null; });
   if (!message) return null;

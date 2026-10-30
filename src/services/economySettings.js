@@ -1,6 +1,6 @@
 // economySettings.js — per-guild economy settings: currency, starting money, payouts
 // and cooldowns of the earning commands, where the commands work, and the shop.
-// Edited from the web panel (src/api/panelApi.js) and the /economy dashboard.
+// Edited from the web panel (src/api/panelApi.js).
 
 import { PermissionFlagsBits } from 'discord.js';
 import { guildStore } from '../utils/featureKit.js';

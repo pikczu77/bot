@@ -251,7 +251,7 @@ export async function startHeist({ client, lobby, now = Date.now(), random = Mat
           const base = target.loot[0] + Math.floor(random() * (target.loot[1] - target.loot[0] + 1));
           const share = scaleEarnings(settings, base * settings.commands.heist.payoutPercent / 100 * earningMultiplier(userData, 'crime'), userData);
           userData.wallet = (userData.wallet || 0) + share;
-          progress = recordProgress(userData, { heist: 1, heistWin: 1, earned: share }, { settings, now });
+          progress = recordProgress(userData, { heist: 1, heistWin: 1, heistBank: target.id === 'bank' ? 1 : 0, earned: share }, { settings, now });
           lines.push(t`💰 <@${member.id}>: **+${money(guildId, share)}**`);
         } else {
           userData.jailedUntil = jailMs > 0 ? now + jailMs : 0;

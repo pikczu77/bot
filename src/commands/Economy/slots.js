@@ -33,7 +33,7 @@ export default {
             const spin = spinSlots(luck.total);
             const payout = spin.outcome ? Math.floor(bet * spin.outcome.payout) : 0;
             userData.wallet = (userData.wallet || 0) - bet + payout;
-            return { ...spin, payout, events: { casinoWin: spin.outcome ? 1 : 0, jackpot: spin.outcome?.id === 'jackpot' ? 1 : 0 } };
+            return { ...spin, payout, events: { casinoWin: spin.outcome ? 1 : 0, casinoPayout: payout, jackpot: spin.outcome?.id === 'jackpot' ? 1 : 0 } };
         });
 
         const machine = `🎰 **|** ${round.reels.join(' **|** ')} **|**`;

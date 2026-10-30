@@ -9,7 +9,7 @@ import { mockChannel, mockGuild, mockInteraction, mockMember, mockUser, replyTex
 import { runWithLocale } from '../src/i18n/index.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
-import { getMediaChannels, handleMediaMessage, hasMedia, parseReactions, setMediaChannel } from '../src/services/mediaChannels.js';
+import { handleMediaMessage, hasMedia, parseReactions, setMediaChannel } from '../src/services/mediaChannels.js';
 
 const KEY = 'test-panel-key-0123456789abcdef';
 const client = { guilds: { cache: new Collection() }, users: { fetch: async () => null } };
@@ -88,20 +88,6 @@ test('a picture gets hearts (and a thread when on); text disappears with a short
   const elsewhere = post(artist, { content: 'hej', channel: other });
   assert.equal(await handleMediaMessage(elsewhere), false);
   assert.equal(elsewhere.deleted, false);
-});
-
-test('/channel zdjecia sets and removes a picture channel', async () => {
-  const admin = mockMember(guild, mockUser('Admin'), { permissions: ['Administrator', 'ManageChannels', 'ManageMessages'] });
-  const gallery = mockChannel(guild, 'galeria');
-  const run = async (options) => {
-    const interaction = mockInteraction({ client, guild, channel: gallery, member: admin, commandName: 'channel', subcommand: 'zdjecia', options });
-    await runWithLocale('en', () => client.commands.get('channel').execute(interaction, {}, client));
-    return replyText(interaction);
-  };
-  assert.match(await run({ emotki: '💖 🎨' }), /Under every picture: 💖 🎨/);
-  assert.deepEqual((await getMediaChannels(guild.id)).find((entry) => entry.channelId === gallery.id).reactions, ['💖', '🎨']);
-  assert.match(await run({ wylacz: true }), /normal channel again/);
-  assert.equal((await getMediaChannels(guild.id)).some((entry) => entry.channelId === gallery.id), false);
 });
 
 test('panel: the list of picture channels is saved as a whole', async () => {

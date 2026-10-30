@@ -1,6 +1,6 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { createEmbed, successEmbed, infoEmbed } from '../../utils/embeds.js';
-import { respond, requireGuild, requirePermission, requireBotPermission, userError, truncate } from '../../utils/featureKit.js';
+import { respond, requireGuild, requirePermission, userError, truncate } from '../../utils/featureKit.js';
 import { ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import {
@@ -16,7 +16,7 @@ import {
 } from '../../services/modmailService.js';
 import { t } from '../../i18n/index.js';
 
-const ADMIN_SUBCOMMANDS = new Set(['setup', 'disable', 'block', 'unblock', 'snippet-add', 'snippet-remove']);
+const ADMIN_SUBCOMMANDS = new Set(['block', 'unblock', 'snippet-add', 'snippet-remove']);
 
 async function requireThread(interaction) {
     const thread = await getThreadByChannel(interaction.guildId, interaction.channelId);
@@ -29,22 +29,6 @@ export default {
         .setName('modmail')
         .setDescription('Private conversations between members and staff through bot DMs')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-        .addSubcommand((sub) =>
-            sub
-                .setName('setup')
-                .setDescription('Turn modmail on and choose where conversations go')
-                .addRoleOption((option) => option.setName('staff_role').setDescription('Role that answers modmail').setRequired(true))
-                .addChannelOption((option) =>
-                    option.setName('category').setDescription('Category for conversation channels (created if empty)').addChannelTypes(ChannelType.GuildCategory),
-                )
-                .addChannelOption((option) =>
-                    option.setName('log_channel').setDescription('Channel for transcripts of closed conversations').addChannelTypes(ChannelType.GuildText),
-                )
-                .addBooleanOption((option) => option.setName('anonymous').setDescription('Hide staff names from members (default: no)'))
-                .addStringOption((option) => option.setName('greeting').setDescription('Text sent to a member after their first message').setMaxLength(1000)),
-        )
-        .addSubcommand((sub) => sub.setName('wylacz').setDescription('Turn modmail off'))
-        .addSubcommand((sub) => sub.setName('status').setDescription('Show modmail settings'))
         .addSubcommand((sub) =>
             sub
                 .setName('kontakt')
@@ -105,63 +89,6 @@ export default {
             requirePermission(interaction, PermissionFlagsBits.ManageGuild);
         } else if (!isModmailStaff(interaction.member, config)) {
             throw userError(t('Only modmail staff can use this.'), ErrorTypes.PERMISSION);
-        }
-
-        if (subcommand === 'setup') {
-            await InteractionHelper.safeDefer(interaction);
-            requireBotPermission(guild, [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles]);
-            const staffRole = interaction.options.getRole('staff_role');
-            let category = interaction.options.getChannel('category');
-            if (!category) {
-                category = guild.channels.cache.get(config.categoryId) ?? await guild.channels.create({
-                    name: 'Modmail',
-                    type: ChannelType.GuildCategory,
-                    permissionOverwrites: [{ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }],
-                    reason: 'Modmail setup',
-                });
-            }
-            const logChannel = interaction.options.getChannel('log_channel');
-            const updated = await updateModmailConfig(guild.id, (data) => {
-                data.enabled = true;
-                data.categoryId = category.id;
-                data.staffRoleId = staffRole.id;
-                if (logChannel) data.logChannelId = logChannel.id;
-                const anonymous = interaction.options.getBoolean('anonymous');
-                if (anonymous !== null) data.anonymous = anonymous;
-                const greeting = interaction.options.getString('greeting');
-                if (greeting) data.greeting = greeting;
-            });
-            return respond(interaction, successEmbed(
-                t('Modmail is on'),
-                [
-                    t`**Staff role:** ${staffRole}`,
-                    t`**Category:** ${category.name}`,
-                    t`**Transcripts:** ${updated.logChannelId ? `<#${updated.logChannelId}>` : t('not set')}`,
-                    '',
-                    t`Members write to me in a private message (${client.user}) and a channel opens here for the staff.`,
-                ].join('\n'),
-            ));
-        }
-
-        if (subcommand === 'wylacz') {
-            await updateModmailConfig(guild.id, (data) => { data.enabled = false; });
-            return respond(interaction, successEmbed(t('Modmail is off. Open conversations stay until they are closed.')));
-        }
-
-        if (subcommand === 'status') {
-            return respond(interaction, createEmbed({
-                title: t('📬 Modmail'),
-                description: [
-                    t`**Status:** ${config.enabled ? t('on') : t('off')}`,
-                    t`**Staff role:** ${config.staffRoleId ? `<@&${config.staffRoleId}>` : t('not set')}`,
-                    t`**Category:** ${config.categoryId ? `<#${config.categoryId}>` : t('not set')}`,
-                    t`**Transcripts:** ${config.logChannelId ? `<#${config.logChannelId}>` : t('not set')}`,
-                    t`**Anonymous answers:** ${config.anonymous ? t('Yes') : t('No')}`,
-                    t`**Blocked users:** ${config.blocked.length}`,
-                    t`**Snippets:** ${Object.keys(config.snippets).length}`,
-                ].join('\n'),
-                footer: false,
-            }), { ephemeral: true });
         }
 
         if (subcommand === 'kontakt') {

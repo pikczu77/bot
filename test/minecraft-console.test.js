@@ -4,7 +4,7 @@ import test, { before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Collection, PermissionFlagsBits } from 'discord.js';
-import { mockChannel, mockGuild, mockInteraction, mockMember, mockUser, replyText } from './helpers/mock.js';
+import { mockChannel, mockGuild, mockMember, mockUser, replyText } from './helpers/mock.js';
 import { runWithLocale } from '../src/i18n/index.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
@@ -175,32 +175,4 @@ test('without the websocket the command still runs; errors and limits are explai
 
   const other = mockMessage(admin, 'list', mockChannel(guild, 'ogolny'));
   assert.equal(await handleConsoleMessage(other), false);
-});
-
-test('/minecraft konsola sets and clears the channel, Administrator only', async () => {
-  const command = client.commands.get('minecraft');
-  const run = (member, options = {}, locale = 'en') => {
-    const interaction = mockInteraction({ client, guild, channel: consoleChannel, member, commandName: 'minecraft', subcommand: 'konsola', options });
-    interaction.options.getSubcommandGroup = () => null;
-    return runWithLocale(locale, () => command.execute(interaction, {}, client)).then(() => interaction);
-  };
-  await updateWhitelistConfig(guild.id, (data) => { data.consoleChannelId = null; });
-  const channel = mockChannel(guild, 'konsola-mc');
-
-  await assert.rejects(run(manager, { kanal: channel }));
-  const sentBefore = channel.sent.length;
-  const on = await run(admin, { kanal: channel }, 'pl');
-  assert.match(replyText(on), /Konsola Minecraft włączona/);
-  assert.match(replyText(on), /Każdy widzi ten kanał/, 'a public channel gets a warning');
-  assert.equal(channel.sent.length, sentBefore + 1, 'the guide is posted');
-  assert.equal((await getWhitelistConfig(guild.id)).consoleChannelId, channel.id);
-
-  await updateWhitelistConfig(guild.id, (data) => { Object.assign(data, { enabled: true, channelId: channel.id }); });
-  await assert.rejects(run(admin, { kanal: channel }), /whitelist channel/);
-
-  await run(admin, {});
-  assert.equal((await getWhitelistConfig(guild.id)).consoleChannelId, null);
-
-  await updateWhitelistConfig(guild.id, (data) => { data.apiKey = null; });
-  await assert.rejects(run(admin, { kanal: consoleChannel }), /Connect the server panel first/);
 });

@@ -121,7 +121,7 @@ test('question of the day at 18:00: replies only, one answer per person, the fir
   await runWithLocale('en', () => tickChatEngagement(guild, at(18, 0), () => 0));
   const question = chat.sent.at(-1);
   assert.match(question.embeds[0].toJSON().title, /Question of the day/);
-  assert.match(question.embeds[0].toJSON().description, /Reply to this message/);
+  assert.match(question.embeds[0].toJSON().description, /You must REPLY to this message.*does not count/);
   await runWithLocale('en', () => tickChatEngagement(guild, at(18, 1), () => 0));
   assert.equal(chat.sent.length, before + 1, 'once a day');
   const state = await getChatState(guild.id);

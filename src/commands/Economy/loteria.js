@@ -1,14 +1,14 @@
-import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { createEmbed } from '../../utils/embeds.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { requirePermission, userError } from '../../utils/featureKit.js';
-import { MAX_MONEY, money } from '../../services/economySettings.js';
-import { buyTickets, lotteryState, updateLottery } from '../../services/lottery.js';
+import { userError } from '../../utils/featureKit.js';
+import { money } from '../../services/economySettings.js';
+import { buyTickets, lotteryState } from '../../services/lottery.js';
 import { progressEmbeds } from '../../services/progress.js';
 import { t } from '../../i18n/index.js';
 
-// /loteria kup | info | ustaw — weekly lottery with a draw on Sunday at 20:00 (2026-10-26). Rules: services/lottery.js.
+// /loteria kup | info — weekly lottery with a draw on Sunday at 20:00 (2026-10-26). Rules: services/lottery.js, settings in the web panel.
 
 const percent = (chance) => `${Number((chance * 100).toFixed(chance < 0.1 ? 1 : 0))}%`;
 
@@ -41,14 +41,7 @@ export default {
             .addIntegerOption((option) => option.setName('ilosc').setDescription('How many tickets (default 1)').setMinValue(1).setMaxValue(1000)))
         .addSubcommand((sub) => sub
             .setName('info')
-            .setDescription('Pot, draw time and your chance'))
-        .addSubcommand((sub) => sub
-            .setName('ustaw')
-            .setDescription('Lottery channel, ticket price and bonus (Manage Server)')
-            .addChannelOption((option) => option.setName('kanal').setDescription('Channel for the draw').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
-            .addIntegerOption((option) => option.setName('cena').setDescription('Price of one ticket').setMinValue(1).setMaxValue(MAX_MONEY))
-            .addIntegerOption((option) => option.setName('bonus').setDescription('Money the server adds to every pot').setMinValue(0).setMaxValue(MAX_MONEY))
-            .addIntegerOption((option) => option.setName('max').setDescription('Most tickets one person can buy a week').setMinValue(1).setMaxValue(1000))),
+            .setDescription('Pot, draw time and your chance')),
 
     execute: withErrorHandling(async (interaction, config, client) => {
         const sub = interaction.options.getSubcommand();
@@ -63,20 +56,6 @@ export default {
             });
             const notice = t`✅ You bought **${result.bought}** {0|ticket|tickets} for ${money(guildId, result.cost)}.`;
             return InteractionHelper.safeEditReply(interaction, { embeds: [await infoEmbed(guildId, interaction.user.id, notice), ...progressEmbeds(result.progress, guildId)] });
-        }
-        if (sub === 'ustaw') {
-            requirePermission(interaction, PermissionFlagsBits.ManageGuild);
-            const channel = interaction.options.getChannel('kanal');
-            const price = interaction.options.getInteger('cena');
-            const bonus = interaction.options.getInteger('bonus');
-            const max = interaction.options.getInteger('max');
-            await updateLottery(guildId, (data) => {
-                if (channel) data.channelId = channel.id;
-                if (price) data.ticketPrice = price;
-                if (bonus !== null) data.bonus = bonus;
-                if (max) data.maxTickets = max;
-            });
-            return InteractionHelper.safeEditReply(interaction, { embeds: [await infoEmbed(guildId, interaction.user.id, t('✅ Saved.'))] });
         }
         return InteractionHelper.safeEditReply(interaction, { embeds: [await infoEmbed(guildId, interaction.user.id)] });
     }, { command: 'loteria' })

@@ -184,7 +184,7 @@ export async function handleConsoleMessage(message) {
   return true;
 }
 
-/** Checks for `/minecraft konsola`; throws a user error when the channel cannot be used. */
+/** Checks for the console channel; throws a user error when the channel cannot be used. */
 export async function assertConsoleChannelAllowed(guild, channel) {
   const config = await getWhitelistConfig(guild.id);
   if (!config.apiKey) throw userError(t('Connect the server panel first with `/minecraft whitelista ustaw`.'));
