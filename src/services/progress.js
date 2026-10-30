@@ -163,14 +163,16 @@ const worth = (goal) => (userData) => [Math.min(goal, netWorth(userData)), goal]
 const prestigeLevel = (goal) => (userData) => [Math.min(goal, Number(userData?.prestige) || 0), goal];
 const dailyInARow = (goal) => (userData) => [Math.min(goal, Math.max(stat(userData, 'dailyBestStreak'), Number(userData?.dailyStreak) || 0)), goal];
 
-// Holiday badges have their own section in /osiagniecia (owner, 2026-10-30). `endsAt`: the day after the event's last day;
-// a badge not earned by then is hidden, because nobody can earn it any more.
+// Holiday badges have their own section in /osiagniecia (owner, 2026-10-30). They show from `startsAt`, the event's first day
+// (owner: "niech narazie inne nie beda wyswietlane"), to `endsAt`, the day after its last day; an earned one always shows.
 const dayAfter = (year, month, day) => Date.UTC(year, month - 1, day + 1);
-const eventBadge = ({ id, emoji, name, description, reward = 2000, field, year, goal = 1000, endsAt }) => ({
-  id, emoji, name, description, reward, section: 'event', endsAt,
+const firstDay = (year, month, day) => Date.UTC(year, month - 1, day);
+const eventBadge = ({ id, emoji, name, description, reward = 2000, field, year, goal = 1000, startsAt, endsAt }) => ({
+  id, emoji, name, description, reward, section: 'event', startsAt, endsAt,
   progress: (userData) => [Math.min(goal, userData?.[field]?.year === year ? Number(userData[field].earned) || 0 : 0), goal],
 });
-const HOLIDAY_BADGES = ['halloween_2026', 'swieta_2026', 'sylwester_2026', 'walentynki_2027', 'wielkanoc_2027', 'dzien_dziecka_2027', 'wakacje_2027'];
+// Pressing the "2026" button in the event section gives it (claimYearBadge in modules/progress_view.js).
+export const YEAR_BADGE = 'year_2026';
 
 export const ACHIEVEMENTS = [
   { id: 'first_fish', emoji: '🎣', name: t('First catch'), description: t('Catch your first fish.'), reward: 500, progress: (u) => [Math.min(1, fishCaught(u)), 1] },
@@ -242,16 +244,16 @@ export const ACHIEVEMENTS = [
   { id: 'prestige_1', emoji: '⭐', name: t('Fresh start'), description: t('Do your first prestige with `/prestiz`.'), reward: 5000, progress: prestigeLevel(1) },
   { id: 'prestige_5', emoji: '🌠', name: t('Halfway there'), description: t('Reach prestige 5.'), reward: 25000, progress: prestigeLevel(5) },
   { id: 'prestige_10', emoji: '🌟', name: t('Server legend'), description: t('Reach prestige 10.'), reward: 100000, progress: prestigeLevel(10) },
-  eventBadge({ id: 'halloween_2026', emoji: '🎃', name: t('Halloween 2026'), description: t('Collect 1,000 candies in the Halloween 2026 event.'), field: 'halloween', year: 2026, endsAt: dayAfter(2026, 11, 2) }),
-  eventBadge({ id: 'swieta_2026', emoji: '🎄', name: t('Christmas 2026'), description: t('Collect 1,000 gingerbread in the Christmas 2026 event.'), field: 'swieta', year: 2026, endsAt: dayAfter(2026, 12, 29) }),
-  eventBadge({ id: 'sylwester_2026', emoji: '🥂', name: t("New Year's Eve 2026"), description: t("Collect 1,000 fireworks in the New Year's Eve 2026 event."), field: 'sylwester', year: 2026, endsAt: dayAfter(2027, 1, 2) }),
-  eventBadge({ id: 'walentynki_2027', emoji: '💘', name: t("Valentine's Day 2027"), description: t("Collect 1,000 love letters in the Valentine's Day 2027 event."), field: 'walentynki', year: 2027, endsAt: dayAfter(2027, 2, 16) }),
-  eventBadge({ id: 'wielkanoc_2027', emoji: '🐣', name: t('Easter 2027'), description: t('Collect 1,000 eggs in the Easter 2027 event.'), field: 'wielkanoc', year: 2027, endsAt: dayAfter(2027, 3, 29) }),
-  eventBadge({ id: 'dzien_dziecka_2027', emoji: '🎈', name: t("Children's Day 2027"), description: t("Collect 1,000 lollipops in the Children's Day 2027 event."), field: 'dzien_dziecka', year: 2027, endsAt: dayAfter(2027, 6, 2) }),
+  eventBadge({ id: 'halloween_2026', emoji: '🎃', name: t('Halloween 2026'), description: t('Collect 1,000 candies in the Halloween 2026 event.'), field: 'halloween', year: 2026, startsAt: firstDay(2026, 10, 29), endsAt: dayAfter(2026, 11, 2) }),
+  eventBadge({ id: 'swieta_2026', emoji: '🎄', name: t('Christmas 2026'), description: t('Collect 1,000 gingerbread in the Christmas 2026 event.'), field: 'swieta', year: 2026, startsAt: firstDay(2026, 12, 19), endsAt: dayAfter(2026, 12, 29) }),
+  eventBadge({ id: 'sylwester_2026', emoji: '🥂', name: t("New Year's Eve 2026"), description: t("Collect 1,000 fireworks in the New Year's Eve 2026 event."), field: 'sylwester', year: 2026, startsAt: firstDay(2026, 12, 30), endsAt: dayAfter(2027, 1, 2) }),
+  eventBadge({ id: 'walentynki_2027', emoji: '💘', name: t("Valentine's Day 2027"), description: t("Collect 1,000 love letters in the Valentine's Day 2027 event."), field: 'walentynki', year: 2027, startsAt: firstDay(2027, 2, 12), endsAt: dayAfter(2027, 2, 16) }),
+  eventBadge({ id: 'wielkanoc_2027', emoji: '🐣', name: t('Easter 2027'), description: t('Collect 1,000 eggs in the Easter 2027 event.'), field: 'wielkanoc', year: 2027, startsAt: firstDay(2027, 3, 25), endsAt: dayAfter(2027, 3, 29) }),
+  eventBadge({ id: 'dzien_dziecka_2027', emoji: '🎈', name: t("Children's Day 2027"), description: t("Collect 1,000 lollipops in the Children's Day 2027 event."), field: 'dzien_dziecka', year: 2027, startsAt: firstDay(2027, 5, 29), endsAt: dayAfter(2027, 6, 2) }),
   // The summer lasts two months, so its goal is higher.
-  eventBadge({ id: 'wakacje_2027', emoji: '🏖️', name: t('Summer holidays 2027'), description: t('Collect 5,000 seashells in the summer holidays 2027 event.'), reward: 5000, field: 'wakacje', year: 2027, goal: 5000, endsAt: dayAfter(2027, 8, 31) }),
+  eventBadge({ id: 'wakacje_2027', emoji: '🏖️', name: t('Summer holidays 2027'), description: t('Collect 5,000 seashells in the summer holidays 2027 event.'), reward: 5000, field: 'wakacje', year: 2027, goal: 5000, startsAt: firstDay(2027, 6, 26), endsAt: dayAfter(2027, 8, 31) }),
   { id: 'event_podium', emoji: '🎪', name: t('Event podium'), description: t('Finish in the top 3 of a holiday event.'), reward: 10000, section: 'event', progress: counter('eventPodium', 1) },
-  { id: 'full_year', emoji: '🎉', name: t('A whole year of holidays'), description: t('Get all 7 holiday badges.'), reward: 50000, section: 'event', needs: HOLIDAY_BADGES, progress: (u) => [HOLIDAY_BADGES.filter((id) => isUnlocked(u, id)).length, HOLIDAY_BADGES.length] },
+  { id: YEAR_BADGE, emoji: '🎉', name: t('Year 2026'), description: t('Press the 2026 button under this list.'), reward: 2000, section: 'event', endsAt: dayAfter(2026, 12, 31), progress: counter('year2026', 1) },
   // Last on purpose: it counts the badges unlocked by the same action.
   { id: 'badge_hunter', emoji: '🏅', name: t('Badge hunter'), description: t('Get 25 badges.'), reward: 25000, progress: (u) => [Math.min(25, unlockedCount(u)), 25] },
 ];
@@ -262,11 +264,10 @@ export const isUnlocked = (userData, id) => Boolean(userData?.achievements?.[id]
 export const unlockedCount = (userData) => ACHIEVEMENTS.filter((achievement) => isUnlocked(userData, achievement.id)).length;
 export const isEventBadge = (achievement) => achievement.section === 'event';
 
-/** False for a holiday badge the member did not earn and cannot earn any more. */
+/** False for a holiday badge the member did not earn, when its time has not come or is over. */
 export function badgeVisible(achievement, userData, now = Date.now()) {
   if (isUnlocked(userData, achievement.id)) return true;
-  if (achievement.needs) return achievement.needs.every((id) => badgeVisible(getAchievement(id), userData, now));
-  return !achievement.endsAt || now < achievement.endsAt;
+  return now >= (achievement.startsAt ?? 0) && now < (achievement.endsAt ?? Infinity);
 }
 
 /** The badges of one section ('main' or 'event') that a member sees. */

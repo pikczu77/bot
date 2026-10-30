@@ -10,7 +10,7 @@ import { withEconomyLock } from '../../../services/economyUpgrades.js';
 import { getPack } from '../../../services/collections.js';
 import { getServerLevel } from '../../../services/economyJobs.js';
 import {
-  BONUS_PACKS, ensureMissions, isUnlocked, missionReward, missionText, missionsEnabled, periodEnd, recordProgress, rerollMission, stat, visibleBadges,
+  BONUS_PACKS, YEAR_BADGE, badgeVisible, ensureMissions, getAchievement, isUnlocked, missionReward, missionText, missionsEnabled, periodEnd, recordProgress, rerollMission, stat, visibleBadges,
 } from '../../../services/progress.js';
 import { t, tr } from '../../../i18n/index.js';
 
@@ -123,7 +123,23 @@ export function loadBadges({ client, guildId, user }) {
   });
 }
 
-function badgeButtons({ userId, viewerId, tab, page, pages }) {
+/**
+ * The "Year 2026" badge for pressing its button: whoever presses gets it. Returns the result of recordProgress,
+ * or null when they already have it or its time is over.
+ */
+export function claimYearBadge({ client, guildId, user, now = Date.now() }) {
+  return withEconomyLock(guildId, user.id, async () => {
+    const settings = await getEconomySettings(guildId);
+    const userData = await getEconomyData(client, guildId, user.id);
+    const badge = getAchievement(YEAR_BADGE);
+    if (isUnlocked(userData, badge.id) || !badgeVisible(badge, userData, now)) return null;
+    const progress = recordProgress(userData, { year2026: 1 }, { settings, now });
+    await setEconomyData(client, guildId, user.id, userData);
+    return progress;
+  });
+}
+
+function badgeButtons({ userId, viewerId, tab, page, pages, canClaimYear }) {
   const id = (kind, toTab, toPage) => `odznaki:${kind}:${toTab}:${toPage}:${userId}:${viewerId}`;
   const section = (target, label, emoji) => new ButtonBuilder()
     .setCustomId(id('t', target, 0))
@@ -131,6 +147,7 @@ function badgeButtons({ userId, viewerId, tab, page, pages }) {
     .setEmoji(emoji)
     .setStyle(tab === target ? ButtonStyle.Primary : ButtonStyle.Secondary);
   const buttons = [section('main', t('Badges'), '🏅'), section('event', t('Event badges'), '🎃')];
+  if (canClaimYear) buttons.push(new ButtonBuilder().setCustomId(id('rok', 'event', 0)).setLabel('2026').setEmoji('🎉').setStyle(ButtonStyle.Success));
   if (pages > 1) {
     buttons.push(
       new ButtonBuilder().setCustomId(id('p', tab, Math.max(0, page - 1))).setEmoji('◀️').setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
@@ -185,5 +202,6 @@ export function buildAchievementsView({ guildId, settings, user, userData, viewe
     chunk += `${line}\n`;
   }
   if (chunk) embed.addFields({ name: part === 0 ? t('🔒 Still to get') : '​', value: chunk });
-  return { embeds: [embed], components: badgeButtons({ userId: user.id, viewerId, tab: section, page: current, pages }) };
+  const canClaimYear = section === 'event' && viewerId === user.id && badges.some((achievement) => achievement.id === YEAR_BADGE && !isUnlocked(userData, YEAR_BADGE));
+  return { embeds: [embed], components: badgeButtons({ userId: user.id, viewerId, tab: section, page: current, pages, canClaimYear }) };
 }

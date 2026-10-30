@@ -11,13 +11,13 @@ import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { getEconomySettings, updateEconomySettings } from '../src/services/economySettings.js';
 import {
-  ACHIEVEMENTS, MISSIONS, badgeCount, ensureMissions, isEventBadge, progressEmbeds, progressOptions, recordProgress, rerollMission, visibleBadges,
+  ACHIEVEMENTS, MISSIONS, YEAR_BADGE, badgeCount, ensureMissions, isEventBadge, progressEmbeds, progressOptions, recordProgress, rerollMission, visibleBadges,
 } from '../src/services/progress.js';
 import { UPGRADES } from '../src/services/economyUpgrades.js';
 import { payBail } from '../src/services/economyJail.js';
 import { getSeasonEvent, tickSeason, updateSeason } from '../src/services/seasonalEvents.js';
 import { getUserLevelData, saveUserLevelData } from '../src/services/leveling/leveling.js';
-import { buildAchievementsView, loadBadges } from '../src/commands/Economy/modules/progress_view.js';
+import { buildAchievementsView, claimYearBadge, loadBadges } from '../src/commands/Economy/modules/progress_view.js';
 import achievementButtons from '../src/interactions/buttons/economy/achievements.js';
 import { dayKey, weekKey } from '../src/utils/warsawTime.js';
 import missionsMenu from '../src/interactions/selectMenus/economy/missions.js';
@@ -308,14 +308,15 @@ test('a full set of daily missions is counted', () => {
   assert.equal(userData.stats.dailySets, 1);
 });
 
-test('/osiagniecia: holiday badges in their own section, ended ones hidden unless earned, the rest in pages', async () => {
+test('/osiagniecia: holiday badges in their own section, only while they can be earned, the rest in pages', async () => {
   const user = mockUser('Zbieracz');
   const view = (userData, extra = {}) => runWithLocale('en', () => buildAchievementsView({ guildId: guild.id, settings, user, userData, ...extra }));
   const before = Date.UTC(2026, 9, 30);
   const later = Date.UTC(2030, 0, 1);
 
-  assert.equal(visibleBadges({}, 'event', before).length, 9);
-  assert.deepEqual(visibleBadges({}, 'event', later).map((badge) => badge.id), ['event_podium'], 'nobody can earn the old ones, or the full year');
+  assert.deepEqual(visibleBadges({}, 'event', before).map((badge) => badge.id), ['halloween_2026', 'event_podium', YEAR_BADGE], 'later holidays wait for their first day');
+  assert.ok(visibleBadges({}, 'event', Date.UTC(2026, 11, 19)).some((badge) => badge.id === 'swieta_2026'));
+  assert.deepEqual(visibleBadges({}, 'event', later).map((badge) => badge.id), ['event_podium'], 'nobody can earn the old ones');
   assert.ok(visibleBadges({}, 'main', before).every((badge) => !isEventBadge(badge)));
   assert.equal(badgeCount({}, later).total, ACHIEVEMENTS.length - 8);
   const earned = { achievements: { halloween_2026: Date.UTC(2026, 10, 1) } };
@@ -342,7 +343,24 @@ test('/osiagniecia: holiday badges in their own section, ended ones hidden unles
     assert.equal(buttons.at(-1).disabled, page === pages - 1);
     assert.doesNotMatch(replyText({ replies: [reply] }), /Halloween 2026/);
   }
-  assert.equal(view({}, { tab: 'event', now: before }).components[0].toJSON().components.length, 2, 'no page buttons in a short list');
+  const labels = (reply) => reply.components[0].toJSON().components.map((button) => button.label ?? button.emoji?.name);
+  assert.deepEqual(labels(view({}, { tab: 'event', now: before })), ['Badges', 'Event badges', '2026'], 'no page buttons in a short list');
+  assert.equal(labels(view({}, { tab: 'event', now: before, viewerId: '1' })).length, 2, 'not on someone else\'s list');
+  assert.equal(labels(view({ achievements: { [YEAR_BADGE]: 1 } }, { tab: 'event', now: before })).length, 2, 'gone once earned');
+  assert.equal(labels(view({}, { tab: 'event', now: later })).length, 2, 'gone after 2026');
+});
+
+test('the 2026 button gives "Year 2026" once, only in 2026', async () => {
+  const fan = newMember('Klikacz');
+  const in2026 = Date.UTC(2026, 9, 30);
+  const first = await claimYearBadge({ client, guildId: guild.id, user: fan.user, now: in2026 });
+  assert.deepEqual(ids(first), [YEAR_BADGE]);
+  assert.equal((await data(fan)).wallet, 2000);
+  assert.equal(await claimYearBadge({ client, guildId: guild.id, user: fan.user, now: in2026 }), null);
+  assert.equal((await data(fan)).wallet, 2000, 'paid once');
+  const late = newMember('Spozniony2027');
+  assert.equal(await claimYearBadge({ client, guildId: guild.id, user: late.user, now: Date.UTC(2027, 0, 1) }), null);
+  assert.equal((await data(late)).achievements?.[YEAR_BADGE], undefined);
 });
 
 test('the buttons of /osiagniecia: own message changes, anyone else gets a private copy', async () => {

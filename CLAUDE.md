@@ -67,7 +67,8 @@ change you make, so the next session knows what was done and why.
   Views: `modules/progress_view.js` (`/misje`, `/osiagniecia`). Day/week keys: `src/utils/warsawTime.js`.
   `progressOptions.enabled` is false under `NODE_ENV=test` (old tests check exact balances); `test/progress.test.js` turns it on.
   Since 2026-10-30 `/osiagniecia` has two sections and pages (`buildAchievementsView`, buttons `odznaki:<t|p>:<main|event>:<page>:<userId>:<viewerId>`
-  in `interactions/buttons/economy/achievements.js`). Holiday badges: `eventBadge` with `endsAt`; `badgeVisible` hides one nobody can earn any more.
+  in `interactions/buttons/economy/achievements.js`). Holiday badges: `eventBadge` with `startsAt`, `endsAt`; `badgeVisible` shows an unearned one only between them.
+  "Year 2026" (`YEAR_BADGE`): button `odznaki:rok:...` in the event section, `claimYearBadge`, until 31 Dec 2026.
   `loadBadges` also gives level badges for levels reached earlier. More events: level, robbed, bail, heistBank, clubWeekWin, eventPodium,
   casinoPayout, casinoDraw; best values `levelBest`, `casinoBiggestWin`, `casinoBestStreak`, `casinoBestLossStreak`; `dailySets`.
 - `/napad` (team heist, since 2026-10-26): `modules/heist.js` (`HEIST_TARGETS`, `heistChance`, lobbies in memory),
@@ -769,5 +770,8 @@ change you make, so the next session knows what was done and why.
     top level, not level 10 (owner). Fixes: badges of a finished holiday event are hidden unless earned, Bogacz/Milioner count own money only (not a
     spouse's bank), duplicate emoji changed (Misjonarz 🧭, Ani dnia przerwy 📆). Owner: holiday badges in their own section "Eventowe".
   - Question of the day says loudly that members must REPLY to the bot's message; a normal chat message does not count. The quiz uses buttons, so it is unchanged.
+  - Later the same night (owner: "niech narazie inne nie beda wyswietlane, caly rok swiat zrob za klikniecie reakcji 2026 i daj jako Rok 2026"): a holiday badge
+    shows only from its event's first day. "Cały rok świąt" became "Rok 2026". Discord reactions are emoji only, so it is a button "2026" in the event section
+    (my reading). My calls: reward 2,000 (was 50,000, too much for one click), until 31 Dec 2026, "Podium eventu" stays visible.
   - Found, not changed: in `/modmail`, `ADMIN_SUBCOMMANDS` lists English names (`block`, `snippet-add` ...) while the commands are Polish, so any modmail
     staff can block and edit snippets; and `/modmail szablony` answers "not recognised" because the code checks for `snippets`.
