@@ -763,7 +763,7 @@ change you make, so the next session knows what was done and why.
     requirements and bonus entries (`required_role`, `min_level`, `min_invites`, `min_account_age`, `min_member_days`, `bonus_role`, `bonus_entries`).
     It can go when the panel has them. Also kept because the panel lacks them: `/minecraft serwer` (power), `/minecraft whitelista ustaw` (API key),
     `/economy gracz`, `/economy poradnik`, `/quiz pytanie`, `/zaproszenia bonus|reset|nagroda-*|synchronizuj`, `/konkurs losuj-ponownie|usun|list`, `/zglos setchannel`.
-    The owner advised against nothing else; `/ban /unban /kick /mute /unmute` stayed by the owner's choice (the panel can do them).
+    `/ban /unban /kick /mute /unmute` stayed by the owner's choice (the panel can do them; I advised keeping them for moderators in chat).
   - Badges 44 -> 77 (33 new, numbers mine, full list in `ACHIEVEMENTS`). None removed: I proposed six, the owner kept the first-time ones, Blackjack! and
     Mistrz Wordle ("37 fajne", my reading: keep it); Klubowicz was not named, I kept it too as a first-time badge. "Na maksa" now needs one upgrade at its
     top level, not level 10 (owner). Fixes: badges of a finished holiday event are hidden unless earned, Bogacz/Milioner count own money only (not a
