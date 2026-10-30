@@ -485,6 +485,8 @@ function seasonView(base, settings) {
     gameCandies: settings.gameCandies,
     rankPrice: event.rankPrice ?? 3000,
     roleId: settings.roleId ?? null,
+    // Pinged with the announcement (null = no ping).
+    pingRoleId: settings.pingRoleId ?? null,
     roleName: event.roleName,
     channelId: settings.channelId ?? null,
     startsAt: settings.startsAt,
@@ -532,6 +534,7 @@ function seasonPatch(guild, base, body, field, currentYear) {
   if ('jobMin' in patch && 'jobMax' in patch && patch.jobMin > patch.jobMax) throw new ApiError(400, `${field}: jobMin is above jobMax`);
   if ('gameCandies' in value) patch.gameCandies = integer(value.gameCandies, `${field}.gameCandies`, 0, 10_000);
   if ('roleId' in value) patch.roleId = requireRole(guild, value.roleId, `${field}.roleId`);
+  if ('pingRoleId' in value) patch.pingRoleId = requireRole(guild, value.pingRoleId, `${field}.pingRoleId`);
   if ('channelId' in value) patch.channelId = requireTextChannel(guild, value.channelId, `${field}.channelId`);
   const day = (key) => {
     const text = String(value[key] ?? '');

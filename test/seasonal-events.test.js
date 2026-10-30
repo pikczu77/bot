@@ -16,7 +16,7 @@ import { marry } from '../src/services/marriageService.js';
 import { getDatePlace } from '../src/services/marriageService.js';
 import {
   QUESTION_FACTOR, SEASONAL_EVENTS, SEASON_REV, addSeasonReward, amountOf, buySeasonItem, claimSeasonDaily, easterSunday, eventOf, fillAnnouncement, getSeason,
-  getSeasonEvent, nextSeason, noteSeasonGifts, openSeason, seasonDefaults, seasonShop, tickSeason, updateSeason,
+  getSeasonEvent, nextSeason, noteSeasonGifts, openSeason, repostAnnouncement, seasonDefaults, seasonShop, tickSeason, updateSeason,
 } from '../src/services/seasonalEvents.js';
 import { runWork } from '../src/commands/Economy/modules/work_shift.js';
 import { settleDate } from '../src/commands/Fun/modules/relationships.js';
@@ -195,6 +195,9 @@ test('years: each event has days for any year (Easter by the computus), the pane
 
     assert.equal((await patch({ seasonal: { halloween: { year: 2025 } } })).status, 400, 'not before the first year');
     assert.equal((await patch({ seasonal: { halloween: { year: 2027, lastDay: '2026-11-02' } } })).status, 400, 'days of the old year');
+    const pingRole = mockRole(room, 'dodatkowy ping');
+    assert.equal(halloween((await patch({ seasonal: { halloween: { pingRoleId: pingRole.id } } })).json).pingRoleId, pingRole.id);
+    assert.equal((await patch({ seasonal: { halloween: { pingRoleId: room.id } } })).status, 400, 'not @everyone');
     const moved = await patch({ seasonal: { halloween: { year: 2027 } } });
     assert.equal(moved.status, 200, moved.text);
     const view = halloween(moved.json);
@@ -214,6 +217,22 @@ test('years: each event has days for any year (Easter by the computus), the pane
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test('the announcement pings the picked role, only that role; without one it pings nobody', async () => {
+  const room = mockGuild(client, 'Ping');
+  const news = mockChannel(room, 'eventy');
+  const role = mockRole(room, 'dodatkowy ping');
+  await updateSeason(HALLOWEEN, room.id, (settings) => { settings.channelId = news.id; settings.pingRoleId = role.id; });
+  await runWithLocale('en', () => tickSeason(HALLOWEEN, client, room, DURING));
+  assert.equal(news.sent[0].content, `<@&${role.id}>`);
+  assert.deepEqual(news.sent[0].allowedMentions, { parse: [], roles: [role.id] });
+  assert.match(news.sent[0].embeds[0].toJSON().title, /Halloween 2026/);
+
+  await updateSeason(HALLOWEEN, room.id, (settings) => { settings.pingRoleId = null; });
+  await runWithLocale('en', () => repostAnnouncement(HALLOWEEN, room, { now: DURING }));
+  assert.equal(news.sent[1].content, undefined);
+  assert.deepEqual(news.sent[1].allowedMentions, { parse: [], roles: [] });
 });
 
 test('settings from before /event: drops 30 become 50, the old Christmas end moves; the posted announcement is edited once', async () => {

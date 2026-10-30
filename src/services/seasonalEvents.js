@@ -14,7 +14,7 @@
 // end and the top three are posted. Each event is on by default and runs by itself in its days. Checked every minute.
 //
 // Store guild:{id}:<event.store> = { enabled, startsAt, endsAt, perMessage, cooldownSeconds, dropCandies, dailyAmount, jobMin, jobMax,
-//   gameCandies, roleId, channelId, title, text, totals: { userId: earned }, announcement: { channelId, messageId, rev } | null,
+//   gameCandies, roleId, channelId, pingRoleId, title, text, totals: { userId: earned }, announcement: { channelId, messageId, rev } | null,
 //   finished, rev } (`rev` = SEASON_REV of the last save, see migrate).
 // Member data: <event.dataKey> = { year, candies, earned } (the field is called candies for every event).
 
@@ -247,6 +247,8 @@ export const seasonDefaults = (event) => ({
   gameCandies: 50,
   roleId: null,
   channelId: null,
+  // A role pinged with the announcement (picked in the panel; none = no ping).
+  pingRoleId: null,
 });
 
 const stores = new Map(SEASONAL_EVENTS.map((event) => [event.id,
@@ -644,6 +646,19 @@ export function announcementEmbed(base, settings) {
 }
 
 /**
+ * A new announcement message: the embed and, when the server picked one, a ping of `pingRoleId` (owner 2026-10-30: "niech
+ * eventy maja ping @dodatkowy ping (ja ustale na stronie)"). Only that role is pinged; edits never ping again.
+ */
+export function announcementMessage(event, settings, guild) {
+  const role = settings.pingRoleId ? guild.roles?.cache?.get(settings.pingRoleId) : null;
+  return {
+    ...(role ? { content: `<@&${role.id}>` } : {}),
+    embeds: [announcementEmbed(event, settings)],
+    allowedMentions: { parse: [], roles: role ? [role.id] : [] },
+  };
+}
+
+/**
  * Panel: post the announcement again now (the old one is deleted), or only edit the posted one with `editOnly`.
  * Returns the message or null. Throws `userError(text)` when the event does not run.
  */
@@ -665,7 +680,7 @@ export async function repostAnnouncement(event, guild, { editOnly = false, userE
     if (userError) throw userError(t('Pick a channel for the announcement (or set the events or chat channel).'));
     return null;
   }
-  const message = await channel.send({ embeds: [announcementEmbed(event, settings)] }).catch(() => null);
+  const message = await channel.send(announcementMessage(event, settings, guild)).catch(() => null);
   if (!message) {
     if (userError) throw userError(t('The bot could not post on that channel (check its permissions).'));
     return null;
@@ -682,7 +697,7 @@ export async function tickSeason(base, client, guild, now = Date.now()) {
   if (seasonActive(settings, now) && !settings.announcement) {
     const channel = await announcementChannel(guild, settings);
     if (!channel?.send) return;
-    const message = await channel.send({ embeds: [announcementEmbed(event, settings)] })
+    const message = await channel.send(announcementMessage(event, settings, guild))
       .catch((error) => { logger.warn(`${event.id} announcement not posted in guild ${guild.id}: ${error.message}`); return null; });
     await updateSeason(event, guild.id, (data) => { data.announcement = { channelId: channel.id, messageId: message?.id ?? null, rev: SEASON_REV }; });
     return;

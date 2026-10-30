@@ -716,3 +716,9 @@ change you make, so the next session knows what was done and why.
     field "Rok" (days of a new year are set by the bot; fix them after the save). With 7 events the tabs show only the emoji
     (name in the tooltip). The year does not change by itself (my decision: the owner asked to set it). Badges stay for the
     default years. Owner confirmed afterwards: tabs are fine, keep the single /event (no separate slash commands).
+- **2026-10-30** (owner: "niech eventy maja ping @dodatkowy ping (ja ustale na stronie)"). Live after the owner restarts the bot; panel
+  field deployed. Holiday events got `pingRoleId` (default none): a new announcement (start of the event, "Wyślij teraz" in the panel)
+  pings only that role (`announcementMessage`, `allowedMentions.roles`); editing a posted announcement never pings again. Panel: view
+  and PATCH `pingRoleId` (`requireRole`, not @everyone), field "Ping przy ogłoszeniu" per event tab with the mention in the preview.
+  The owner picks the role (their "dodatkowy ping") in each event tab. Discord pings a role only when it is mentionable or the bot may
+  mention every role. The timed economy events already had their own ping (`events.roleId`).
