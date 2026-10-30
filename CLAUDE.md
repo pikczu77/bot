@@ -204,7 +204,9 @@ change you make, so the next session knows what was done and why.
   address, the poll fails). "Since" in memory (a chat-bridge join line gives the exact minute), "last seen" in the store
   `guild:<id>:minecraft-live` (`seen`). A sample of names (names < count) never marks anyone as gone. Panel API
   `GET /api/v1/minecraft/live` -> `{ servers: [{ guildId, checkedAt, state, startedAt, count, players }] }`, players =
-  online first (longest playing first), then the whitelist nicks with `lastSeen`. The owner's rule: the Club SMP is a private
+  online first (longest playing first), then the whitelist nicks with `lastSeen`. Since 2026-10-30 the whitelist nicks are the
+  server's `whitelist.json` (panel file API, `readWhitelist`, read at most every `liveTiming.whitelistMs` = 5 min, names only,
+  kept in the store field `whitelist`; a failed read keeps the old list) plus the nicks signed up through the bot, each nick once. The owner's rule: the Club SMP is a private
   SMP of YouTubers - this view must never carry the address, version, player limit, Discord names or chat
   (`test/minecraft-live.test.js` checks the response text).
 
@@ -736,3 +738,10 @@ change you make, so the next session knows what was done and why.
     can be picked again). Ranks bought before today are found from the member's roles. Picking needs the bot's role above the ranks.
   - My decisions: tab names, potions = shop items of type consumable, the event currency list shows running events and non-zero ones,
     shop roles bought in `/sklep` (premium) are not part of the rank picker (the owner talked about the coloured event ranks).
+- **2026-10-30, evening** (owner: "na stronie sa tylko tworcy, ktorzy wpisali sie przez bota, niech beda wszyscy z whitelisty").
+  Live after the owner restarts the bot. `src/services/minecraftLive.js`: every poll (at most every 5 minutes) also reads the server's
+  `whitelist.json` through the panel file API (`readWhitelist`, now exported from `minecraftWhitelist.js`) and keeps the nicks in the
+  store `guild:<id>:minecraft-live` (`whitelist`), so a restart or a failed read does not empty the list. `liveView` lists those nicks
+  plus the nicks signed up through the bot, each nick once (the server's spelling wins), offline ones sorted by "last seen" as before.
+  Only names leave the bot: no UUIDs, no whitelist count of its own, no address, version, limit, Discord names or chat
+  (`test/minecraft-live.test.js` checks it; 3 new tests). The website (pikczu.pl/smp, `/api/smp`) needed no change.

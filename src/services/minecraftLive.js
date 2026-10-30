@@ -8,24 +8,32 @@
 //   - panel state and uptime: Pterodactyl GET /resources
 //   - player names: the server list ping through mcsrvstat.us (minecraftService.fetchMinecraftStatus), at the address
 //     of a server tracked with /minecraft track on that guild, else the panel's default allocation (GET '', cached)
+//   - every whitelisted nick: the server's whitelist.json through the panel file API (at most every few minutes; kept in
+//     the store, so a restart or a panel hiccup does not empty the list). Owner (2026-10-30): "na stronie sa tylko tworcy,
+//     ktorzy wpisali sie przez bota, niech beda wszyscy z whitelisty". Only the names leave this file, never the UUIDs.
 // It keeps since when each player is online (memory; a join line from the chat bridge gives the exact minute) and when
 // each player was last seen (store, survives restarts).
 // liveView() is what the panel API hands to the website: state, start time, players online with "since" and every
-// whitelisted nick with "last seen". Never the address, version, player limit, Discord names or chat text.
+// whitelisted nick (whitelist.json and the nicks signed up through the bot, once each) with "last seen". Never the
+// address, version, player limit, Discord names or chat text.
 
 import { guildStore } from '../utils/featureKit.js';
 import { logger } from '../utils/logger.js';
 import { fetchMinecraftStatus, getMinecraftServers } from './minecraftService.js';
 import { chatHistory } from './minecraftChat.js';
-import { getWhitelistConfig, panelOf, panelRequest } from './minecraftWhitelist.js';
+import { getWhitelistConfig, panelOf, panelRequest, readWhitelist } from './minecraftWhitelist.js';
 
 /** Timers; tests change them. */
-export const liveTiming = { addressMs: 60 * 60_000 };
+export const liveTiming = { addressMs: 60 * 60_000, whitelistMs: 5 * 60_000 };
 
-const store = guildStore('minecraft-live', { seen: {} }); // seen: { lower nick: { name, at } }
+// seen: { lower nick: { name, at } }; whitelist: the nicks of the server's whitelist.json, as the server spells them.
+const store = guildStore('minecraft-live', { seen: {}, whitelist: [] });
 const live = new Map(); // guildId -> { checkedAt, state, startedAt, count, online: Map(lower -> { name, since }), complete }
 const addresses = new Map(); // guildId -> { address, at, key }
+const whitelistReads = new Map(); // guildId -> { at, key } of the last read of whitelist.json
 const busy = new Set();
+// A whitelist.json name the website may show (the website checks the same shape again).
+const LISTED_NICK_RE = /^[A-Za-z0-9_]{1,16}$/;
 
 export const isConnected = (config) => Boolean(config?.apiKey && config?.serverId && config?.panelUrl);
 
@@ -33,6 +41,7 @@ export const isConnected = (config) => Boolean(config?.apiKey && config?.serverI
 export function resetLive() {
   live.clear();
   addresses.clear();
+  whitelistReads.clear();
   busy.clear();
 }
 
@@ -59,6 +68,27 @@ async function serverAddress(guildId, panel, now) {
   return address;
 }
 
+// Read the server's whitelist.json again when the last read is older than liveTiming.whitelistMs, and keep its nicks
+// in the store when they changed. A failed read keeps the nicks read before.
+async function refreshWhitelist(guildId, panel, now) {
+  const key = `${panel.panelUrl}|${panel.serverId}`;
+  const last = whitelistReads.get(guildId);
+  if (last && last.key === key && now - last.at < liveTiming.whitelistMs) return;
+  whitelistReads.set(guildId, { at: now, key });
+  let names;
+  try {
+    names = (await readWhitelist(panel)).map((entry) => entry.name.trim()).filter((name) => LISTED_NICK_RE.test(name));
+  } catch (error) {
+    logger.debug(`Minecraft whitelist read failed for ${guildId}: ${error.message}`);
+    return;
+  }
+  const { whitelist = [] } = await store.get(guildId);
+  if (whitelist.length === names.length && whitelist.every((name, index) => name === names[index])) return;
+  await store.update(guildId, (data) => {
+    data.whitelist = names;
+  });
+}
+
 // The last join line of the chat bridge for this player, when it is newer than their last leave.
 function joinedAt(guildId, lower) {
   let at = null;
@@ -81,6 +111,7 @@ export async function pollGuildLive(guildId, now = Date.now()) {
   const before = live.get(guildId) ?? { online: new Map(), complete: false };
 
   const resources = await (await panelRequest(panel, 'GET', '/resources')).json();
+  await refreshWhitelist(guildId, panel, now);
   const attributes = resources?.attributes ?? {};
   const state = attributes.current_state ?? 'offline';
   const uptimeMs = Number(attributes.resources?.uptime) || 0;
@@ -138,18 +169,20 @@ export async function pollMinecraftLive(client) {
 /**
  * What the website may show: { guildId, checkedAt, state, startedAt, count, players: [...] }.
  * players: online first (longest playing first) as { name, online: true, since }, then the rest of the
- * whitelist as { name, online: false, lastSeen } (most recently seen first, never seen last).
+ * whitelist (whitelist.json first, then the nicks signed up through the bot; each nick once) as
+ * { name, online: false, lastSeen } (most recently seen first, never seen last).
  */
 export async function liveView(guildId) {
   const config = await getWhitelistConfig(guildId);
   const now = live.get(guildId) ?? null;
-  const { seen = {} } = await store.get(guildId);
+  const { seen = {}, whitelist = [] } = await store.get(guildId);
   const online = [...(now?.online.values() ?? [])].sort((a, b) => a.since - b.since || a.name.localeCompare(b.name));
   const onlineSet = new Set(online.map((player) => player.name.toLowerCase()));
 
   const rest = new Map();
-  for (const entry of Object.values(config.members ?? {})) {
-    const name = String(entry?.name ?? '');
+  const listed = [...(Array.isArray(whitelist) ? whitelist : []), ...Object.values(config.members ?? {}).map((entry) => entry?.name)];
+  for (const item of listed) {
+    const name = String(item ?? '');
     const lower = name.toLowerCase();
     if (!name || onlineSet.has(lower) || rest.has(lower)) continue;
     rest.set(lower, { name, online: false, lastSeen: seen[lower]?.at ?? null });

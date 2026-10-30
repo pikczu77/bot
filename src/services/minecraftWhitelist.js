@@ -187,7 +187,7 @@ export function parseProperties(text) {
 }
 
 const findEntry = (list, nick) => list.find((entry) => entry.name.toLowerCase() === nick.toLowerCase()) ?? null;
-const readWhitelist = async (panel) => parseWhitelist(await readFile(panel, WHITELIST_FILE));
+export const readWhitelist = async (panel) => parseWhitelist(await readFile(panel, WHITELIST_FILE));
 const dashed = (hex) => hex.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
 const pause = (ms) => (ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve());
 

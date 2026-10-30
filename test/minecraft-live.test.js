@@ -9,7 +9,7 @@ import { Collection } from 'discord.js';
 import { mockGuild, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { updateWhitelistConfig } from '../src/services/minecraftWhitelist.js';
-import { liveServers, liveView, pollGuildLive, pollMinecraftLive, resetLive } from '../src/services/minecraftLive.js';
+import { liveServers, liveTiming, liveView, pollGuildLive, pollMinecraftLive, resetLive } from '../src/services/minecraftLive.js';
 
 const KEY = 'test-panel-key-0123456789abcdef';
 const PANEL = 'https://ptero.mathost.eu';
@@ -18,7 +18,10 @@ const MC_KEY = 'ptlc_TestKeyForTheFakePanel0123456789';
 const ADDRESS = '203.0.113.7:25577';
 const client = { guilds: { cache: new Collection() }, users: { fetch: async () => null } };
 const realFetch = globalThis.fetch;
-const fake = { state: 'running', uptime: 7_200_000, names: [], count: null, ip: '203.0.113.7', alias: null, pings: [], pingFails: false };
+const FAKE = { state: 'running', uptime: 7_200_000, names: [], count: null, ip: '203.0.113.7', alias: null, pings: [], pingFails: false, whitelist: null, whitelistFails: false, whitelistReads: 0 };
+const fake = { ...FAKE };
+// whitelist.json entries as the server writes them (the UUIDs must never reach the website).
+const entry = (name) => ({ uuid: `0000aaaa-bbbb-3ccc-8ddd-${name.toLowerCase().padEnd(12, '0').slice(0, 12)}`, name });
 let server;
 let base;
 let guild;
@@ -50,6 +53,12 @@ async function fakeFetch(url, options = {}) {
     ] } } } });
   }
   if (path === '/resources') return json(200, { attributes: { current_state: fake.state, resources: { uptime: fake.state === 'running' ? fake.uptime : 0 } } });
+  if (path === '/files/contents' && address.searchParams.get('file') === '/whitelist.json') {
+    fake.whitelistReads += 1;
+    if (fake.whitelistFails) return json(500, { errors: [] });
+    if (fake.whitelist == null) return json(404, { errors: [] });
+    return new Response(JSON.stringify(fake.whitelist, null, 2), { status: 200 });
+  }
   return json(404, { errors: [] });
 }
 
@@ -81,13 +90,56 @@ after(async () => {
 
 beforeEach(async () => {
   resetLive();
-  Object.assign(fake, { state: 'running', uptime: 7_200_000, names: [], count: null, ip: '203.0.113.7', alias: null, pings: [], pingFails: false });
+  Object.assign(fake, FAKE, { pings: [] });
   const members = {};
   ['Pikczu', 'NocnyMarek', 'Budowniczy7', 'Steve_PL'].forEach((name, index) => {
     members[mockUser(`Discordowy${index}`).id] = { name, at: 1760000000000 + index };
   });
   await updateWhitelistConfig(guild.id, (data) => Object.assign(data, { enabled: true, panelUrl: PANEL, serverId: SERVER_ID, apiKey: MC_KEY, members }));
   await client.db.set(`guild:${guild.id}:minecraft-live`, { seen: {} });
+});
+
+test('every nick of the server whitelist is listed once, also those who never signed up through the bot', async () => {
+  fake.whitelist = [entry('pikczu'), entry('Kowal_YT'), entry('NocnyMarek'), entry('kowal_yt'), entry('.BedrockGracz'), { uuid: 'x' }];
+  fake.names = ['Kowal_YT'];
+  await pollGuildLive(guild.id, 1_500_000);
+  const view = await liveView(guild.id);
+  assert.deepEqual(view.players.map((p) => [p.name, p.online]), [
+    ['Kowal_YT', true],
+    ['Budowniczy7', false],
+    ['NocnyMarek', false],
+    ['pikczu', false],
+    ['Steve_PL', false],
+  ]);
+});
+
+test('whitelist.json is read every few minutes and kept through a failed read and a restart', async () => {
+  fake.whitelist = [entry('Kowal_YT')];
+  await pollGuildLive(guild.id, 1_600_000);
+  fake.whitelist = [entry('Kowal_YT'), entry('Nowy_Tworca')];
+  await pollGuildLive(guild.id, 1_660_000);
+  assert.equal(fake.whitelistReads, 1);
+  assert.equal((await liveView(guild.id)).players.some((p) => p.name === 'Nowy_Tworca'), false);
+  await pollGuildLive(guild.id, 1_600_000 + liveTiming.whitelistMs);
+  assert.equal(fake.whitelistReads, 2);
+  assert.equal((await liveView(guild.id)).players.some((p) => p.name === 'Nowy_Tworca'), true);
+
+  fake.whitelistFails = true;
+  await pollGuildLive(guild.id, 1_600_000 + 2 * liveTiming.whitelistMs);
+  assert.equal(fake.whitelistReads, 3);
+  resetLive();
+  const names = (await liveView(guild.id)).players.map((p) => p.name);
+  assert.deepEqual(names.filter((name) => ['Kowal_YT', 'Nowy_Tworca'].includes(name)), ['Kowal_YT', 'Nowy_Tworca']);
+});
+
+test('a stopped server still lists the whole whitelist', async () => {
+  fake.state = 'offline';
+  fake.whitelist = [entry('Kowal_YT')];
+  await pollGuildLive(guild.id, 1_700_000);
+  const view = await liveView(guild.id);
+  assert.equal(view.state, 'offline');
+  assert.equal(view.players.length, 5);
+  assert.equal(view.players.every((p) => !p.online), true);
 });
 
 test('a guild without a connected panel is skipped', async () => {
@@ -192,15 +244,17 @@ test('a server tracked with /minecraft track wins over the panel allocation', as
   await client.db.set(`guild:${guild.id}:minecraft`, { servers: [] });
 });
 
-test('GET /minecraft/live: key required; no address, version, limit, Discord names or panel data', async () => {
+test('GET /minecraft/live: key required; no address, version, limit, Discord names, UUIDs or panel data', async () => {
   fake.names = ['Pikczu'];
+  fake.whitelist = [entry('Pikczu'), entry('Kowal_YT')];
   await pollGuildLive(guild.id, 9_000_000);
   assert.equal((await call('/minecraft/live', 'wrong-key')).status, 401);
   const { status, text, json: body } = await call('/minecraft/live');
   assert.equal(status, 200);
   assert.equal(body.servers.length, 1);
   assert.deepEqual(Object.keys(body.servers[0]).sort(), ['checkedAt', 'count', 'guildId', 'players', 'startedAt', 'state']);
-  for (const secret of ['203.0.113.7', '25577', 'secret.example.net', 'Paper', '1.21', '"max"', 'Discordowy', 'ptlc_', 'mathost', 'Club SMP']) {
+  assert.equal(body.servers[0].players.some((p) => p.name === 'Kowal_YT'), true);
+  for (const secret of ['203.0.113.7', '25577', 'secret.example.net', 'Paper', '1.21', '"max"', 'Discordowy', 'ptlc_', 'mathost', 'Club SMP', '0000aaaa', 'uuid']) {
     assert.equal(text.includes(secret), false, `leaked: ${secret}`);
   }
 });
