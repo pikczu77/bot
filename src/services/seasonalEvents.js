@@ -7,7 +7,7 @@
 //
 // While an event runs every message on the server gives `perMessage` of its currency (at most once per `cooldownSeconds`,
 // it needs two letters or a file) and a caught chat drop gives `dropCandies` more (services/chatEngagement.js). Every job
-// gives `jobMin`..`jobMax`, a won quiz or Wordle `gameCandies`, the question of the day twice that. The
+// gives `jobMin`..`jobMax` (at most once a minute), a won quiz or Wordle `gameCandies`, the question of the day twice that. The
 // currency buys boosts (services/boosts.js), a pack, money and, as the most expensive thing, the event's rank role (the
 // picked one, else a role of that name, else the bot creates it). Earning stops at `endsAt`; the shop stays open
 // SHOP_GRACE_MS longer. The announcement (picked channel, else the events channel, else the chat channel) is deleted at the
@@ -472,7 +472,10 @@ export async function giveSeasonCurrency(event, client, guildId, userId, base, {
 // "do kazdej pracy dolicz po 5-10"). Jobs: /work, /fish, /nagraj, /beg, /slut and a successful /crime, each use. Games: a won
 // /quiz question and a solved /wordle give `gameCandies`, the question of the day (once a day, the hardest) QUESTION_FACTOR
 // times that; the chat drop has its own `dropCandies`. Event upgrades do not change these amounts (my decision).
+// Owner 2026-10-31: "za latwo zdobywa sie walute z eventow przy ekonomii, niech to dziala raz na minute": a job gives the
+// currency at most once per JOB_REWARD_COOLDOWN_MS per member and event (`lastJob` in the member data, so a restart keeps it).
 export const QUESTION_FACTOR = 2;
+export const JOB_REWARD_COOLDOWN_MS = 60_000;
 
 function rewardAmount(settings, kind, random) {
   if (kind === 'job') {
@@ -495,9 +498,11 @@ export async function addSeasonReward(guildId, userData, kind, { now = Date.now(
     const settings = await getSeason(base, guildId);
     if (!seasonActive(settings, now)) continue;
     const event = eventOf(base, settings);
+    if (kind === 'job' && now - (Number(seasonData(event, userData).lastJob) || 0) < JOB_REWARD_COOLDOWN_MS) continue;
     const amount = rewardAmount(settings, kind, random);
     if (amount <= 0) continue;
-    addAmount(event, userData, amount);
+    const data = addAmount(event, userData, amount);
+    if (kind === 'job') data.lastJob = now;
     gifts.push({ event, amount });
   }
   return gifts;

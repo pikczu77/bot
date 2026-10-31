@@ -785,3 +785,9 @@ change you make, so the next session knows what was done and why.
       `/osiagniecia` > Eventowe while open. Reward 50,000 again (my call: it is no longer free). Moving New Year's Eve to another year turns the window off.
   - Found, not changed: in `/modmail`, `ADMIN_SUBCOMMANDS` lists English names (`block`, `snippet-add` ...) while the commands are Polish, so any modmail
     staff can block and edit snippets; and `/modmail szablony` answers "not recognised" because the code checks for `snippets`.
+- **2026-10-31** (owner: "za latwo zdobywa sie walute z eventow przy ekonomii, niech to dziala raz na minute ze sie dostaje walute").
+  Live after the owner restarts the bot. A job (`/work`, `/fish`, `/nagraj`, `/beg`, `/slut`, `/crime`) gives the holiday currency at most once
+  a minute per member and event (`JOB_REWARD_COOLDOWN_MS` in `addSeasonReward`, time kept as `lastJob` in the member's event data, so a restart
+  does not reset it). A job inside that minute still pays money, only without the currency. `/event sklep` says "(raz na minutę)". My reading of
+  "przy ekonomii": job rewards only. Messages keep their own break (`cooldownSeconds`, 20 s by default, set in the panel), chat games, drops and
+  the daily are unchanged. The posted announcements were not edited.

@@ -50,7 +50,7 @@ function earnLines(event, settings) {
     return [
         t`💬 Message: **${settings.perMessage} ${cur}** (once every ${settings.cooldownSeconds} s)`,
         t`📅 \`/event zbierz\`: **${settings.dailyAmount} ${cur}** a day`,
-        t`💼 Every job (\`/work\`, \`/fish\`, \`/nagraj\`, \`/beg\`, \`/slut\`, \`/crime\`): **${job} ${cur}**`,
+        t`💼 Every job (\`/work\`, \`/fish\`, \`/nagraj\`, \`/beg\`, \`/slut\`, \`/crime\`): **${job} ${cur}** (once a minute)`,
         t`🎁 Chat drop: **${settings.dropCandies} ${cur}** · 🎮 quiz, Wordle: **${settings.gameCandies} ${cur}** · ❓ question of the day: **${settings.gameCandies * QUESTION_FACTOR} ${cur}**`,
         ...(event.dateReward ? [t`💞 Accepted \`/randka\`: **${event.dateReward} ${cur}** each (x2 for a married couple)`] : []),
     ];

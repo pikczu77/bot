@@ -15,7 +15,7 @@ import { midnightOf } from '../src/utils/warsawTime.js';
 import { marry } from '../src/services/marriageService.js';
 import { getDatePlace } from '../src/services/marriageService.js';
 import {
-  QUESTION_FACTOR, SEASONAL_EVENTS, SEASON_REV, addSeasonReward, amountOf, buySeasonItem, claimSeasonDaily, easterSunday, eventOf, fillAnnouncement, getSeason,
+  JOB_REWARD_COOLDOWN_MS, QUESTION_FACTOR, SEASONAL_EVENTS, SEASON_REV, addSeasonReward, amountOf, buySeasonItem, claimSeasonDaily, easterSunday, eventOf, fillAnnouncement, getSeason,
   getSeasonEvent, nextSeason, noteSeasonGifts, openSeason, repostAnnouncement, seasonDefaults, seasonShop, tickSeason, updateSeason,
 } from '../src/services/seasonalEvents.js';
 import { runWork } from '../src/commands/Economy/modules/work_shift.js';
@@ -80,10 +80,11 @@ test('seven events in a row without overlapping days; each has its own rank, the
   }
 });
 
-test('jobs give 5-10, chat games 50, the question of the day twice that; nothing outside an event', async () => {
+test('jobs give 5-10 once a minute, chat games 50, the question of the day twice that; nothing outside an event', async () => {
   const userData = {};
   const low = await addSeasonReward(guild.id, userData, 'job', { now: DURING, random: () => 0 });
-  const high = await addSeasonReward(guild.id, userData, 'job', { now: DURING, random: () => 0.999 });
+  assert.deepEqual(await addSeasonReward(guild.id, userData, 'job', { now: DURING + JOB_REWARD_COOLDOWN_MS - 1 }), [], 'a second job within a minute');
+  const high = await addSeasonReward(guild.id, userData, 'job', { now: DURING + JOB_REWARD_COOLDOWN_MS, random: () => 0.999 });
   assert.deepEqual([low[0].event.id, low[0].amount, high[0].amount], ['halloween', 5, 10]);
   assert.equal((await addSeasonReward(guild.id, userData, 'game', { now: DURING }))[0].amount, 50);
   assert.equal((await addSeasonReward(guild.id, userData, 'question', { now: DURING }))[0].amount, 50 * QUESTION_FACTOR);
