@@ -302,7 +302,7 @@ export function amountOf(event, userData) {
 }
 
 /** This event's part of the member data (empty when it is from another year). */
-const seasonData = (event, userData) => (userData?.[event.dataKey]?.year === event.year ? userData[event.dataKey] : { year: event.year });
+export const seasonData = (event, userData) => (userData?.[event.dataKey]?.year === event.year ? userData[event.dataKey] : { year: event.year });
 
 /** Add (or with a negative amount take) currency. Mutates `userData`; keeps upgrades and the daily day. */
 export function addAmount(event, userData, amount) {

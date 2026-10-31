@@ -2,7 +2,7 @@
 
 import cron from 'node-cron';
 import { runSafeTask } from '../utils/errorHandler.js';
-import { logger } from '../utils/logger.js';
+import { createTraceId, logger, runWithTraceContext } from '../utils/logger.js';
 import { botConfig } from '../config/bot.js';
 import { cacheAllInvites } from './inviteService.js';
 import { checkYoutubeFeeds } from './notifications/youtube.js';
@@ -21,6 +21,9 @@ import { pollMinecraftLive } from './minecraftLive.js';
 import { runStockMarket } from './stockMarket.js';
 import { runClubs } from './clubs.js';
 import { runSeasonalEvents } from './seasonalEvents.js';
+import { runDataBackups } from './dataBackup.js';
+import { runReminders } from './reminders.js';
+import { runEconomyStats } from './economyStats.js';
 
 const JOBS = [
   { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
@@ -38,6 +41,9 @@ const JOBS = [
   { name: 'stock_market', schedule: '* * * * *', run: runStockMarket },
   { name: 'clubs_week', schedule: '* * * * *', run: runClubs },
   { name: 'seasonal_events', schedule: '* * * * *', run: runSeasonalEvents },
+  { name: 'data_backup', schedule: '* * * * *', run: runDataBackups },
+  { name: 'reminders', schedule: '* * * * *', run: runReminders },
+  { name: 'economy_stats', schedule: '* * * * *', run: runEconomyStats },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */
@@ -47,7 +53,8 @@ export function registerJob(name, schedule, run) {
 
 export function startFeatureJobs(client) {
   for (const job of JOBS) {
-    cron.schedule(job.schedule, runSafeTask(job.name, () => job.run(client)));
+    // The trace names the job, so money it pays out shows under that job in the economy statistics.
+    cron.schedule(job.schedule, runSafeTask(job.name, () => runWithTraceContext({ traceId: createTraceId('job'), command: `job:${job.name}` }, () => job.run(client))));
   }
   logger.info(`Feature jobs scheduled: ${JOBS.map((job) => job.name).join(', ')}`);
 }

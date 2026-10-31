@@ -13,7 +13,8 @@ import crypto from 'node:crypto';
 import express from 'express';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { TitanBotError } from '../utils/errorHandler.js';
-import { logger } from '../utils/logger.js';
+import { createTraceId, logger, runWithTraceContext } from '../utils/logger.js';
+import { economyStatsView } from '../services/economyStats.js';
 import { LOCALE_INFO, SUPPORTED_LOCALES, normalizeLocale, runWithLocale, t, tr, trAny } from '../i18n/index.js';
 import { getGuildLocale, setGuildLocale } from '../services/languageService.js';
 import { getGuildConfig, updateGuildConfig } from '../services/config/guildConfig.js';
@@ -22,7 +23,8 @@ import { getGuildTicketStats } from '../utils/database/tickets.js';
 import { TICKET_BUTTON_STYLES, buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_panel.js';
 import { validateChannelNameTemplate } from '../services/joinToCreateService.js';
 import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
-import { getColor } from '../config/bot.js';
+import { getColor, getCommandPrefix } from '../config/bot.js';
+import { backupChannelProblem, getBackupSettings, problemText, sendBackup, updateBackupSettings } from '../services/dataBackup.js';
 import { getAutoRoleSettings, getAutoRoleSyncStatus, startAutoRoleSync } from '../services/autoRoleService.js';
 import {
   MAX_SELF_ROLE_BUTTONS,
@@ -122,6 +124,8 @@ import {
 } from '../services/economyEvents.js';
 
 const MIN_KEY_LENGTH = 24;
+const PREFIX_MAX = 10;
+const PREFIX_RE = /^[^\s/@#`:]+$/u;
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const TEXT_CHANNEL_TYPES = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement]);
@@ -712,6 +716,11 @@ async function applyEconomy(client, guild, body) {
       const missions = plainObject(body.missions, 'missions');
       if ('enabled' in missions) data.missions.enabled = boolean(missions.enabled, 'missions.enabled');
       if ('rewardPercent' in missions) data.missions.rewardPercent = integer(missions.rewardPercent, 'missions.rewardPercent', 0, 1000);
+    }
+
+    if ('reminders' in body) {
+      const reminders = plainObject(body.reminders, 'reminders');
+      if ('enabled' in reminders) data.reminders.enabled = boolean(reminders.enabled, 'reminders.enabled');
     }
 
     if ('channels' in body) applyIdList(data.channels, body.channels, 'channels', guild.channels.cache);
@@ -1763,6 +1772,59 @@ async function applyChat(guild, body) {
   return chatView(guild);
 }
 
+// ---- Daily copy of the server's data on a private channel (services/dataBackup.js). `sendNow` posts one at once.
+async function backupView(guild) {
+  const settings = await getBackupSettings(guild.id);
+  const channel = settings.channelId ? guild.channels.cache.get(settings.channelId) : null;
+  const problem = settings.channelId ? backupChannelProblem(guild, channel) : null;
+  return {
+    channelId: channel ? settings.channelId : null,
+    hour: settings.hour,
+    lastAt: settings.lastAt || null,
+    lastBytes: settings.lastBytes || 0,
+    lastEntries: settings.lastEntries || 0,
+    lastError: settings.lastError ? problemText(settings.lastError) : null,
+    problem: problem ? problemText(problem) : null,
+  };
+}
+
+async function applyBackup(client, guild, body) {
+  const updates = {};
+  if ('channelId' in body) {
+    updates.channelId = requireTextChannel(guild, body.channelId, 'channelId');
+    if (updates.channelId) {
+      const problem = backupChannelProblem(guild, guild.channels.cache.get(updates.channelId));
+      if (problem) throw new ApiError(400, problemText(problem));
+    }
+  }
+  if ('hour' in body) updates.hour = integer(body.hour, 'hour', 0, 23);
+  await updateBackupSettings(guild.id, (data) => {
+    Object.assign(data, updates);
+    if ('channelId' in updates) data.lastError = null;
+  });
+  if (body.sendNow === true) {
+    const saved = await getBackupSettings(guild.id);
+    if (!saved.channelId) throw new ApiError(400, 'channelId: pick a channel first');
+    const sent = await sendBackup(client, guild);
+    if (!sent.ok) throw new ApiError(400, problemText(sent.error));
+  }
+  return backupView(guild);
+}
+
+// ---- Prefix of the text commands (`!daily`). Same rules as the old /configwizard, and characters Discord uses itself are refused.
+function prefixView(config) {
+  return { prefix: config.prefix || getCommandPrefix(), defaultPrefix: getCommandPrefix(), maxLength: PREFIX_MAX };
+}
+
+async function applyPrefix(client, guild, body) {
+  const prefix = typeof body.prefix === 'string' ? body.prefix.trim() : '';
+  if (!prefix || prefix.length > PREFIX_MAX || !PREFIX_RE.test(prefix)) {
+    throw new ApiError(400, t`The prefix is 1-${PREFIX_MAX} characters, with no spaces and no / @ # \` or colon.`);
+  }
+  await updateGuildConfig(client, guild.id, { prefix });
+  return prefixView(await getGuildConfig(client, guild.id));
+}
+
 export function createPanelRouter(client) {
   const apiKey = (process.env.PANEL_API_KEY ?? '').trim();
   if (!apiKey) return null;
@@ -1790,7 +1852,7 @@ export function createPanelRouter(client) {
       if (req.params.guildId && !guild) throw new ApiError(404, 'The bot is not on that server');
       const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
       const locale = guild ? await getGuildLocale(client, guild.id) : 'en';
-      const result = await runWithLocale(locale, () => handler({ req, guild, body }));
+      const result = await runWithTraceContext({ traceId: createTraceId('panel'), command: 'panel' }, () => runWithLocale(locale, () => handler({ req, guild, body })));
       res.json(result ?? { ok: true });
     } catch (error) {
       if (error instanceof ApiError) return res.status(error.status).json({ error: error.message });
@@ -1845,6 +1907,8 @@ export function createPanelRouter(client) {
       warnings: await warningsView(client, guild),
       mediachannels: await mediaChannelsView(guild),
       chat: await chatView(guild),
+      backup: await backupView(guild),
+      prefix: prefixView(await getGuildConfig(client, guild.id)),
     },
   })));
 
@@ -1856,6 +1920,8 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/warnings', route(({ guild, body }) => applyWarnings(client, guild, body)));
   router.patch('/guilds/:guildId/mediachannels', route(({ guild, body }) => applyMediaChannels(guild, body)));
   router.patch('/guilds/:guildId/chat', route(({ guild, body }) => applyChat(guild, body)));
+  router.patch('/guilds/:guildId/backup', route(({ guild, body }) => applyBackup(client, guild, body)));
+  router.patch('/guilds/:guildId/prefix', route(({ guild, body }) => applyPrefix(client, guild, body)));
   // Every warning on the server back to zero (the panel asks twice before it calls this).
   router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
     const reset = await resetGuildWarnings(guild.id);
@@ -1921,6 +1987,9 @@ export function createPanelRouter(client) {
       top: accounts.slice(0, 25).map(({ userId, wallet, bank }) => ({ userId, name: userName(client, guild, userId), wallet, bank })),
     };
   }));
+
+  // Money in circulation, money in and out per day, where it comes from (services/economyStats.js).
+  router.get('/guilds/:guildId/economy/stats', route(({ guild }) => economyStatsView(client, guild.id)));
 
   router.get('/guilds/:guildId/economy/users/:userId', route(async ({ guild, req }) => {
     const userId = requireUserId(req.params.userId);

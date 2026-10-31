@@ -50,6 +50,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     gamble: { cooldownMinutes: 5, winPercent: 40, payoutPercent: 170, maxBet: 0 },
     // /wordle (services/wordle.js): a word solved in one guess pays this, fewer for more guesses.
     wordle: { reward: 3000 },
+    // /wisielec (services/hangman.js): prize with every life left, break before a member can start another game.
+    hangman: { reward: 1000, cooldownMinutes: 60 },
     // /napad (commands/Economy/modules/heist.js): a team heist; payoutPercent scales the loot table.
     heist: { cooldownMinutes: 180, payoutPercent: 100 },
     // /gielda (services/stockMarket.js): fee on every buy and sell, most shares of one company per member.
@@ -63,6 +65,8 @@ export const ECONOMY_DEFAULTS = Object.freeze({
   },
   // Missions (services/progress.js): off = no daily/weekly missions; rewardPercent scales their rewards.
   missions: { enabled: true, rewardPercent: 100 },
+  // /przypomnienia (services/reminders.js): off = no reminder DMs on this server.
+  reminders: { enabled: true },
   // Timed events (services/economyEvents.js): announcement channel, optional role ping, automatic
   // events every `everyHours` lasting `durationMinutes`, and the running one.
   events: { channelId: null, roleId: null, auto: false, everyHours: 24, durationMinutes: 60, active: null, nextAutoAt: 0 },
@@ -93,6 +97,7 @@ export const COMMAND_LIMITS = Object.freeze({
   rob: { cooldownMinutes: [0, MAX_COOLDOWN], successPercent: [0, 100], stealPercent: [1, 100], finePercent: [0, 100], minVictimCash: [0, MAX_MONEY] },
   gamble: { cooldownMinutes: [0, MAX_COOLDOWN], winPercent: [1, 99], payoutPercent: [101, 10_000], maxBet: [0, MAX_MONEY] },
   wordle: { reward: [0, MAX_MONEY] },
+  hangman: { reward: [0, MAX_MONEY], cooldownMinutes: [0, MAX_COOLDOWN] },
   heist: { cooldownMinutes: [0, MAX_COOLDOWN], payoutPercent: [1, 10_000] },
   stocks: { feePercent: [0, 20], maxShares: [1, 1_000_000] },
   clubs: { foundPrice: [0, MAX_MONEY], weeklyPrize: [0, MAX_MONEY] },
@@ -118,7 +123,7 @@ function normalize(stored) {
   for (const key of ['startingWallet', 'startingBank', 'clearOnLeave', 'payTaxPercent', 'earningsPercent']) {
     if (key in stored) settings[key] = stored[key];
   }
-  for (const key of ['currency', 'activity', 'channels', 'roles', 'events', 'missions']) {
+  for (const key of ['currency', 'activity', 'channels', 'roles', 'events', 'missions', 'reminders']) {
     if (isPlainObject(stored[key])) Object.assign(settings[key], stored[key]);
   }
   for (const name of Object.keys(settings.commands)) {

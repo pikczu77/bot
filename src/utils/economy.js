@@ -10,6 +10,7 @@ import { createError, ErrorTypes, wrapServiceBoundary } from './errorHandler.js'
 import { getEconomySettings, scaleEarnings } from '../services/economySettings.js';
 import { extraBankCapacity } from '../services/economyUpgrades.js';
 import { getSpouseId, pairKey } from '../services/marriageService.js';
+import { noteMoneyChange } from '../services/economyStats.js';
 import { Mutex } from './mutex.js';
 import { t } from '../i18n/index.js';
 
@@ -124,6 +125,15 @@ export async function getEconomyData(client, guildId, userId, { joint = true } =
     }
 }
 
+const moneyOf = (record) => (Number(record?.wallet) || 0) + (Number(record?.bank) || 0);
+
+/** Cash + bank of a stored record for the panel's statistics; a new account starts with the server's starting amounts. */
+async function moneyBefore(guildId, stored) {
+    if (stored && typeof stored === 'object') return moneyOf(stored);
+    const settings = await getEconomySettings(guildId);
+    return (Number(settings.startingWallet) || 0) + (Number(settings.startingBank) || 0);
+}
+
 /**
  * Save the data of a married member: the change of the joint `bank` since it was read goes
  * to the accounts. Money in fills the own account first (up to its capacity), then the
@@ -163,7 +173,9 @@ async function saveJointEconomyData(client, guildId, userId, plain, joint, origi
     if (partner !== partnerBefore) {
         await client.db.set(partnerKey, normalizeEconomyData({ ...partnerRecord, bank: partner }, DEFAULT_ECONOMY_DATA));
     }
-    await client.db.set(ownKey, normalizeEconomyData({ ...plain, bank: own }, DEFAULT_ECONOMY_DATA));
+    const savedOwn = normalizeEconomyData({ ...plain, bank: own }, DEFAULT_ECONOMY_DATA);
+    await client.db.set(ownKey, savedOwn);
+    noteMoneyChange(guildId, userId, moneyOf(savedOwn) + partner - ((await moneyBefore(guildId, storedOwn)) + partnerBefore));
 
     // A second save of the same object must not apply the change again.
     joint.ownBank = own;
@@ -202,7 +214,9 @@ export async function setEconomyData(client, guildId, userId, data) {
         }
 
         const normalized = normalizeEconomyData(plain, DEFAULT_ECONOMY_DATA);
+        const before = await moneyBefore(guildId, await client.db.get(key, null));
         await client.db.set(key, normalized);
+        noteMoneyChange(guildId, userId, moneyOf(normalized) - before);
         return true;
     } catch (error) {
         logger.error(`Error saving economy data for user ${userId}`, error);

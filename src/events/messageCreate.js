@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { logger } from '../utils/logger.js';
+import { createTraceId, logger, runWithTraceContext } from '../utils/logger.js';
 import { applyXpMultipliers, canEarnXp, getLevelingConfig, getMessageXpRange, getUserLevelData } from '../services/leveling/leveling.js';
 import { addXp } from '../services/leveling/xpSystem.js';
 import { checkRateLimit } from '../utils/rateLimiter.js';
@@ -173,7 +173,8 @@ async function handlePrefixCommand(message, client) {
 
     logger.info(`Executing prefix command: ${prefix}${commandName} (resolved to ${resolvedCommandName}) by ${message.author.tag}`);
     
-    await executePrefixCommand(command, message, args, client, prefix, guildConfig);
+    // The trace names the command, so money it pays out shows under it in the economy statistics.
+    await runWithTraceContext({ traceId: createTraceId('prefix'), command: resolvedCommandName }, () => executePrefixCommand(command, message, args, client, prefix, guildConfig));
   } catch (error) {
     logger.error('Error handling prefix command:', error);
   }

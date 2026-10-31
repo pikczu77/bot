@@ -16,7 +16,7 @@ import {
 } from '../../services/modmailService.js';
 import { t } from '../../i18n/index.js';
 
-const ADMIN_SUBCOMMANDS = new Set(['block', 'unblock', 'snippet-add', 'snippet-remove']);
+const ADMIN_SUBCOMMANDS = new Set(['zablokuj', 'odblokuj', 'szablon-dodaj', 'szablon-usun']);
 
 async function requireThread(interaction) {
     const thread = await getThreadByChannel(interaction.guildId, interaction.channelId);
@@ -150,7 +150,7 @@ export default {
             return respond(interaction, successEmbed(t`Snippet \`${name}\` deleted.`), { ephemeral: true });
         }
 
-        if (subcommand === 'snippets') {
+        if (subcommand === 'szablony') {
             const entries = Object.entries(config.snippets);
             if (entries.length === 0) {
                 return respond(interaction, infoEmbed(t('No snippets yet. Add one with `/modmail szablon-dodaj`.')), { ephemeral: true });

@@ -26,6 +26,7 @@ import { MAX_LUCK, SLOT_BASE_CHANCE, SLOT_OUTCOMES, formatChance } from '../../.
 import { DATE_COOLDOWN_MS } from '../../../services/marriageService.js';
 import { BONUS_PACKS, MISSIONS_PER_PERIOD, missionsEnabled } from '../../../services/progress.js';
 import { EVENT_TYPES } from '../../../services/economyEvents.js';
+import { MAX_LIVES } from '../../../services/hangman.js';
 import { CREW_BONUS, HEIST_TARGETS, MAX_CHANCE, MAX_CREW } from './heist.js';
 import { getLevelingConfig } from '../../../services/leveling/leveling.js';
 import { ITEM_CHAINS, getItemById, tierEffect } from '../../../config/shop/items.js';
@@ -43,7 +44,7 @@ import { MERGE_COUNT } from '../../../services/cardMerge.js';
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 7;
+export const GUIDE_VERSION = 8;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -238,7 +239,7 @@ function love() {
 }
 
 function games({ guildId, settings }) {
-  const { heist, wordle } = settings.commands;
+  const { heist, wordle, hangman } = settings.commands;
   const bank = HEIST_TARGETS.at(-1);
   return {
     description: t('Games for money, alone or together. They also count for missions.'),
@@ -248,6 +249,7 @@ function games({ guildId, settings }) {
         + t`\n-# ${bank.emoji} up to **${money(guildId, Math.floor(bank.loot[1] * heist.payoutPercent / 100))}** per person`),
       field(t('🚔 Caught in a heist'), t`gear is lost\nthe whole crew goes to jail\n**${waitMinutes(settings.commands.crime.jailMinutes)}**, bail works`),
       field(t('🟩 /wordle'), t`one Polish word a day\n6 guesses, up to **${money(guildId, wordle.reward)}**\nfewer guesses = more money`),
+      field(t('🪢 /wisielec'), t`everyone on the channel plays\nwhoever **finishes the password** wins\nup to **${money(guildId, hangman.reward)}**, ${MAX_LIVES} lives`),
       field(t('🧠 Quiz'), t('a question in the quiz channel\nthe **first right answer** wins\none try per person')),
       field(t('🤝 /wymiana @someone'), t("swap Club'o'mony cards\nand money with another member")),
       field(t('⚔️ /pojedynek @someone'), t('rock, paper, scissors for money\nthe loser pays the stake\na tie = another round')),
@@ -319,7 +321,8 @@ function commands() {
       field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
       field(t('📈 Investing'), '`/gielda` `/klub`\n`/nieruchomosci`'),
       field(t('⭐ Progress'), '`/prestiz` `/boosty`\n`/polacz` `/event`'),
-      field(t('🎮 Games'), '`/napad` `/wordle`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
+      field(t('🎮 Games'), '`/napad` `/wordle` `/wisielec`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
+      field(t('⏰ Reminders'), '`/przypomnienia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
       field(t('💍 Relationships'), '`/randka` `/slub`'),
@@ -338,7 +341,7 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'sklep', emoji: '🛒', name: t('Shop and items'), hint: t('Tools and one-use items'), color: '#64D2FF', build: shop },
   { id: 'wiezienie', emoji: '🚔', name: t('Jail and breaks'), hint: t('Jail, Stamina, skipping a break'), color: '#FF453A', build: jail },
   { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
-  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, duels, lottery, quiz, events'), color: '#30D158', build: games },
+  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, /wisielec, duels, lottery, quiz, events'), color: '#30D158', build: games },
   { id: 'inwestycje', emoji: '📈', name: t('Stocks, clubs, buildings'), hint: t('/gielda, /klub, /nieruchomosci'), color: '#0A84FF', build: investments },
   { id: 'prestiz', emoji: '⭐', name: t('Prestige, boosts, merging'), hint: t('/prestiz, /boosty, /polacz'), color: '#FFD60A', build: prestigeTopic },
   { id: 'misje', emoji: '🎯', name: t('Missions and badges'), hint: t('/misje and /osiagniecia'), color: '#F1C40F', build: missions },
@@ -375,7 +378,7 @@ export function buildGuideMessage(guild = null) {
       field(t('🚀 Start'), '`/daily` · `/work`'),
       field(t('💵 Balance'), '`/hajs`'),
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
-      field(t('🎮 Games'), '`/napad` · `/wordle` · `/pojedynek` · `/loteria`'),
+      field(t('🎮 Games'), '`/napad` · `/wordle` · `/wisielec` · `/pojedynek` · `/loteria`'),
       field(t('📈 Investing'), '`/gielda` · `/klub` · `/nieruchomosci`'),
       field(t('⭐ Progress'), '`/prestiz` · `/boosty` · `/polacz` · `/event`'),
     ],
