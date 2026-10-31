@@ -182,7 +182,7 @@
   "No event is running now. All of them: `/event lista`.": "Teraz nie trwa żaden event. Wszystkie: `/event lista`.",
   "💬 Message: **{0} {1}** (once every {2} s)": "💬 Wiadomość: **{0} {1}** (raz na {2} s)",
   "📅 `/event zbierz`: **{0} {1}** a day": "📅 `/event zbierz`: **{0} {1}** dziennie",
-  "💼 Every job (`/work`, `/fish`, `/nagraj`, `/beg`, `/slut`, `/crime`): **{0} {1}** (once a minute)": "💼 Każda praca (`/work`, `/fish`, `/nagraj`, `/beg`, `/slut`, `/crime`): **{0} {1}** (raz na minutę)",
+  "💼 Every job (`/work`, `/fish`, `/nagraj`, `/beg`, `/slut`, `/crime`): **{0} {1}** (once every {2} s)": "💼 Każda praca (`/work`, `/fish`, `/nagraj`, `/beg`, `/slut`, `/crime`): **{0} {1}** (raz na {2} s)",
   "🎁 Chat drop: **{0} {1}** · 🎮 quiz, Wordle: **{2} {3}** · ❓ question of the day: **{4} {5}**": "🎁 Drop na czacie: **{0} {1}** · 🎮 quiz, Wordle: **{2} {3}** · ❓ pytanie dnia: **{4} {5}**",
   "💞 Accepted `/randka`: **{0} {1}** each (x2 for a married couple)": "💞 Przyjęta `/randka`: **{0} {1}** dla każdego (x2 dla małżeństwa)",
   "{0} The event runs until {1}.": "{0} Event trwa do {1}.",

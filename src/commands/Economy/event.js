@@ -11,7 +11,7 @@ import { userError } from '../../utils/featureKit.js';
 import { getEconomyData } from '../../utils/economy.js';
 import { getEconomySettings, money, scaleEarnings } from '../../services/economySettings.js';
 import {
-    QUESTION_FACTOR, SEASONAL_EVENTS, SHOP_GRACE_MS, amountOf, buySeasonItem, claimSeasonDaily, eventOf, getSeason, getSeasonEvent, nextSeason,
+    JOB_REWARD_COOLDOWN_MS, QUESTION_FACTOR, SEASONAL_EVENTS, SHOP_GRACE_MS, amountOf, buySeasonItem, claimSeasonDaily, eventOf, getSeason, getSeasonEvent, nextSeason,
     openSeason, seasonActive, seasonRanking, seasonShop, shopOpen,
 } from '../../services/seasonalEvents.js';
 import { dayKey, midnightOf } from '../../utils/warsawTime.js';
@@ -50,7 +50,7 @@ function earnLines(event, settings) {
     return [
         t`💬 Message: **${settings.perMessage} ${cur}** (once every ${settings.cooldownSeconds} s)`,
         t`📅 \`/event zbierz\`: **${settings.dailyAmount} ${cur}** a day`,
-        t`💼 Every job (\`/work\`, \`/fish\`, \`/nagraj\`, \`/beg\`, \`/slut\`, \`/crime\`): **${job} ${cur}** (once a minute)`,
+        t`💼 Every job (\`/work\`, \`/fish\`, \`/nagraj\`, \`/beg\`, \`/slut\`, \`/crime\`): **${job} ${cur}** (once every ${JOB_REWARD_COOLDOWN_MS / 1000} s)`,
         t`🎁 Chat drop: **${settings.dropCandies} ${cur}** · 🎮 quiz, Wordle: **${settings.gameCandies} ${cur}** · ❓ question of the day: **${settings.gameCandies * QUESTION_FACTOR} ${cur}**`,
         ...(event.dateReward ? [t`💞 Accepted \`/randka\`: **${event.dateReward} ${cur}** each (x2 for a married couple)`] : []),
     ];

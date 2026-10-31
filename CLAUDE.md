@@ -791,3 +791,5 @@ change you make, so the next session knows what was done and why.
   does not reset it). A job inside that minute still pays money, only without the currency. `/event sklep` says "(raz na minutę)". My reading of
   "przy ekonomii": job rewards only. Messages keep their own break (`cooldownSeconds`, 20 s by default, set in the panel), chat games, drops and
   the daily are unchanged. The posted announcements were not edited.
+  - Same day, later (owner: "to niech na ekonomii tez co 20 s"): the job break is 20 s instead of one minute (`JOB_REWARD_COOLDOWN_MS` = 20,000),
+    the same as the default message break. It is a constant, not a panel field. `/event sklep` shows "(raz na 20 s)".

@@ -80,10 +80,11 @@ test('seven events in a row without overlapping days; each has its own rank, the
   }
 });
 
-test('jobs give 5-10 once a minute, chat games 50, the question of the day twice that; nothing outside an event', async () => {
+test('jobs give 5-10 once every 20 s, chat games 50, the question of the day twice that; nothing outside an event', async () => {
   const userData = {};
   const low = await addSeasonReward(guild.id, userData, 'job', { now: DURING, random: () => 0 });
-  assert.deepEqual(await addSeasonReward(guild.id, userData, 'job', { now: DURING + JOB_REWARD_COOLDOWN_MS - 1 }), [], 'a second job within a minute');
+  assert.deepEqual(await addSeasonReward(guild.id, userData, 'job', { now: DURING + JOB_REWARD_COOLDOWN_MS - 1 }), [], 'a second job within the break');
+  assert.equal(JOB_REWARD_COOLDOWN_MS, 20_000);
   const high = await addSeasonReward(guild.id, userData, 'job', { now: DURING + JOB_REWARD_COOLDOWN_MS, random: () => 0.999 });
   assert.deepEqual([low[0].event.id, low[0].amount, high[0].amount], ['halloween', 5, 10]);
   assert.equal((await addSeasonReward(guild.id, userData, 'game', { now: DURING }))[0].amount, 50);
