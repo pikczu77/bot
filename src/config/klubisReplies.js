@@ -109,6 +109,65 @@ export const KLUBIS_SKILLS = [
   },
 ];
 
+// Answers about the server, written by me on the owner's "napisz sam te rzeczy" (2026-11-01). They go once into the taught list
+// ("Naucz Klubisia", tagService `responders`) of every server, so the owner can change or delete them in the panel. Questions only,
+// never single common words, so Klubiś does not answer every message that mentions money. Links in <> get no Discord preview.
+// Facts: YouTube @Pikczu77 and @PikczuDaily, TikTok and Instagram pikczu77 (pikczu.pl footer); Club SMP is private and its address
+// is never given (owner); pikczu.pl/donate = Tipply codes that run in the game live.
+const YT = '<https://youtube.com/@Pikczu77>';
+const EARN = [
+  'Najprościej: `/daily` raz dziennie, potem `/work`, `/fish` i `/nagraj` 💰',
+  'Zacznij od `/daily`, a potem pracuj: `/work`, `/fish`, `/nagraj`. Cały poradnik jest na #ekonomia-info 📖',
+];
+const LEVEL = [
+  'Pisz na czacie i siedź na kanałach głosowych, XP leci samo ⭐ Swój poziom sprawdzisz w `/poziom`.',
+  'XP dostajesz za wiadomości i rozmowy na głosowym. Ranking: `/top` 🏆',
+];
+const STAFF = [
+  'Ekipę wybiera Pikczu. Bądź aktywny, miły i trzymaj się regulaminu 😉',
+  'Nie ma zgłoszeń na admina. Najlepsza droga: być fajnym na serwerze 💜',
+];
+const VIDEO = [
+  `Nowy film będzie, jak będzie gotowy 🎬 Włącz dzwoneczek: ${YT} 🔔`,
+  `Cierpliwości, dobre filmy wymagają czasu 🎬 Dzwoneczek na ${YT} i nic nie przegapisz!`,
+];
+const CHANNELS = [`Główny kanał: ${YT} 🎬 Drugi: <https://youtube.com/@PikczuDaily>`];
+const SOCIALS = ['TikTok: <https://tiktok.com/@pikczu77> 📱 Instagram: <https://instagram.com/pikczu77> 📸'];
+const SMP = ['Club SMP to prywatny serwer youtuberów, nie da się na niego wejść 🔒 Kto gra i co się dzieje: <https://pikczu.pl/smp>'];
+const DONATE = ['Wpłacasz przez Tipply z kodem akcji w wiadomości (np. `!zombie`), a akcja dzieje się w grze na żywo 💸 Lista kodów: <https://pikczu.pl/donate>'];
+const TICKET = ['Otwórz ticket przyciskiem na kanale z ticketami: dostaniesz prywatny kanał z ekipą 🎫'];
+
+export const KLUBIS_STARTER = [
+  { trigger: 'jak zarobić', mode: 'contains', responses: EARN },
+  { trigger: 'jak zdobyć kasę', mode: 'contains', responses: EARN },
+  { trigger: 'jak wbić poziom', mode: 'contains', responses: LEVEL },
+  { trigger: 'jak zdobyć xp', mode: 'contains', responses: LEVEL },
+  { trigger: 'jak dostać rangę', mode: 'contains', responses: ['Rangi za poziomy przychodzą same, gdy wbijasz kolejne poziomy. Swój poziom: `/poziom` ⭐', 'Rangi eventowe kupisz w `/event sklep`, a założysz w `/eq` 🎃'] },
+  { trigger: 'jak zostać adminem', mode: 'contains', responses: STAFF },
+  { trigger: 'jak zostać moderatorem', mode: 'contains', responses: STAFF },
+  { trigger: 'kiedy film', mode: 'contains', responses: VIDEO },
+  { trigger: 'kiedy nowy film', mode: 'contains', responses: VIDEO },
+  { trigger: 'kanał pikczu', mode: 'contains', responses: CHANNELS },
+  { trigger: 'link do yt', mode: 'contains', responses: CHANNELS },
+  { trigger: 'kim jest pikczu', mode: 'contains', responses: [`Pikczu to youtuber od Minecrafta i szef tego serwera 😎 ${YT}`] },
+  { trigger: 'tiktok pikczu', mode: 'contains', responses: SOCIALS },
+  { trigger: 'insta pikczu', mode: 'contains', responses: SOCIALS },
+  { trigger: 'ip serwera', mode: 'word', responses: SMP },
+  { trigger: 'jak wejść na smp', mode: 'contains', responses: SMP },
+  { trigger: 'jak zrobić donate', mode: 'contains', responses: DONATE },
+  { trigger: 'kody donate', mode: 'contains', responses: DONATE },
+  { trigger: 'jak puścić muzykę', mode: 'contains', responses: ['Wejdź na kanał głosowy i wpisz `/play` z nazwą piosenki albo linkiem 🎵'] },
+  { trigger: 'jak założyć ticket', mode: 'contains', responses: TICKET },
+  { trigger: 'jak napisać do adminów', mode: 'contains', responses: TICKET },
+  { trigger: 'jakie są komendy', mode: 'contains', responses: ['Wszystkie komendy pokaże `/komendy` 📋'] },
+  { trigger: 'lista komend', mode: 'contains', responses: ['Wszystkie komendy pokaże `/komendy` 📋'] },
+  { trigger: 'gdzie regulamin', mode: 'contains', responses: ['Regulamin jest na kanale z zasadami 📜 Przeczytaj go, zanim coś napiszesz!'] },
+  { trigger: 'kiedy event', mode: 'contains', responses: ['Eventy świąteczne startują same w swoje dni. Co jest w tym roku: `/event lista` 🎉'] },
+  { trigger: 'co daje boost', mode: 'contains', responses: ['Wszystko o nagrodach za boost: `/booster info` 💎'] },
+  { trigger: 'jak grać w wordle', mode: 'contains', responses: ['Nowe Wordle jest codziennie o północy: `/wordle` 🟩 Masz 6 prób na słowo z 5 liter.'] },
+  { trigger: 'jak ustawić urodziny', mode: 'contains', responses: ['Wpisz `/urodziny ustaw`, a w swój dzień dostaniesz życzenia 🎂'] },
+];
+
 // Only the name or a mention, no other text.
 export const KLUBIS_CALLED = ['Tak? 👀', 'Wołałeś mnie, {user}?', 'Jestem! Co trzeba?'];
 

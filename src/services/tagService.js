@@ -6,7 +6,8 @@
 import { createEmbed } from '../utils/embeds.js';
 import { guildStore, userError } from '../utils/featureKit.js';
 import { t } from '../i18n/index.js';
-import { getKlubisSettings, klubisChannelAllowed, pickLine } from './klubis.js';
+import { fold, getKlubisSettings, klubisChannelAllowed, pickLine } from './klubis.js';
+import { KLUBIS_STARTER } from '../config/klubisReplies.js';
 
 const MAX_TAGS = 100;
 export const MAX_RESPONDERS = 50;
@@ -27,7 +28,25 @@ async function cached(map, guildId, load, fresh = false) {
   return data;
 }
 
-export const getTagData = (guildId, options = {}) => cached(cache, guildId, (id) => store.get(id), options.fresh);
+// Klubiś's answers about the server (config/klubisReplies.js) are added once per server, next to what is already there; a version
+// bump adds new ones. Deleted in the panel = gone for good (the version stays).
+export const STARTER_VERSION = 1;
+
+async function loadTags(guildId) {
+  const data = await store.get(guildId);
+  if ((Number(data.starterVersion) || 0) >= STARTER_VERSION) return data;
+  return store.update(guildId, (current) => {
+    const taken = new Set(current.responders.map((entry) => fold(entry.trigger)));
+    for (const entry of KLUBIS_STARTER) {
+      if (current.responders.length >= MAX_RESPONDERS) break;
+      if (taken.has(fold(entry.trigger))) continue;
+      current.responders.push({ trigger: entry.trigger, mode: entry.mode, responses: [...entry.responses] });
+    }
+    current.starterVersion = STARTER_VERSION;
+  });
+}
+
+export const getTagData = (guildId, options = {}) => cached(cache, guildId, loadTags, options.fresh);
 
 export function normalizeTagName(name) {
   const value = String(name ?? '').trim().toLowerCase();
@@ -112,12 +131,13 @@ export function renderTagText(text, message) {
     .slice(0, 2000);
 }
 
-/** Which responder (if any) matches this text. Pure. */
+/** Which responder (if any) matches this text. Pure. Both sides folded (2026-11-01): "jak zarobic" matches "Jak zarobić?". */
 export function matchResponder(responders, content) {
-  const text = String(content ?? '').toLowerCase().trim();
+  const text = fold(content);
   if (!text) return null;
   for (const responder of responders) {
-    const trigger = responder.trigger;
+    const trigger = fold(responder.trigger);
+    if (!trigger) continue;
     if (responder.mode === 'exact' && text === trigger) return responder;
     if (responder.mode === 'starts' && text.startsWith(trigger)) return responder;
     if (responder.mode === 'contains' && text.includes(trigger)) return responder;

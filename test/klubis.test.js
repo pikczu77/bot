@@ -6,7 +6,7 @@ import express from 'express';
 import { Collection } from 'discord.js';
 import { mockChannel, mockGuild, mockMember, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
-import { KLUBIS_SKILLS, KLUBIS_UNKNOWN } from '../src/config/klubisReplies.js';
+import { KLUBIS_SKILLS, KLUBIS_STARTER, KLUBIS_UNKNOWN } from '../src/config/klubisReplies.js';
 import { MEMBER_GAP_MS, callsKlubis, findSkill, fold, getKlubisSettings, handleKlubisMessage, saveKlubisSettings } from '../src/services/klubis.js';
 import { handleTagMessage, setResponders } from '../src/services/tagService.js';
 
@@ -186,7 +186,8 @@ test('panel: settings, taught answers, skills; bad values are refused', async ()
   assert.equal(view.enabled, true);
   assert.equal(view.mentions, true);
   assert.equal(view.chance, 30);
-  assert.deepEqual(view.responders, []);
+  assert.equal(view.responders.length, KLUBIS_STARTER.length, 'the answers about the server are there from the start');
+  assert.deepEqual(view.responders[0], { trigger: 'jak zarobić', mode: 'contains', responses: KLUBIS_STARTER[0].responses });
   assert.ok(view.skills.some((skill) => skill.id === 'night' && skill.alone && skill.example === 'dobranoc'));
   assert.equal(view.limits.responders, 50);
 
@@ -214,4 +215,34 @@ test('panel: settings, taught answers, skills; bad values are refused', async ()
   }
   // A refused save changes nothing.
   assert.equal((await getKlubisSettings(guild.id)).chance, 50);
+});
+
+test('answers about the server are added once, next to the server\'s own, and match without Polish letters', async () => {
+  const { KLUBIS_STARTER } = await import('../src/config/klubisReplies.js');
+  const { STARTER_VERSION, getTagData } = await import('../src/services/tagService.js');
+  const { guild, chat, member } = setup('Start');
+  const fresh = await getTagData(guild.id, { fresh: true });
+  assert.equal(fresh.responders.length, KLUBIS_STARTER.length);
+  assert.equal(fresh.starterVersion, STARTER_VERSION);
+  assert.ok(KLUBIS_STARTER.length <= 50);
+  for (const entry of KLUBIS_STARTER) {
+    assert.ok(entry.responses.length >= 1 && entry.responses.every((line) => line.length <= 500), entry.trigger);
+    assert.ok(entry.trigger.split(' ').length >= 2, `a question, not one common word: ${entry.trigger}`);
+    assert.ok(!/\d+\.\d+\.\d+\.\d+|:\d{4,5}\b/.test(entry.responses.join(' ')), 'no server address');
+  }
+  const asked = message(guild, chat, member, 'Ej, JAK ZAROBIC kase?');
+  assert.equal(await handleTagMessage(asked, '!'), true);
+  assert.match(chat.sent.at(-1).content, /\/daily/);
+
+  // Deleted in the panel: not added again.
+  await setResponders(guild.id, []);
+  assert.equal((await getTagData(guild.id, { fresh: true })).responders.length, 0);
+
+  // A server that already taught "kiedy film" keeps its own answer.
+  const other = setup('Swoje');
+  await setResponders(other.guild.id, [{ trigger: 'Kiedy film', mode: 'word', responses: ['Jutro!'] }]);
+  const merged = (await getTagData(other.guild.id, { fresh: true })).responders;
+  assert.equal(merged.filter((entry) => /kiedy film/i.test(entry.trigger)).length, 1);
+  assert.deepEqual(merged[0].responses, ['Jutro!']);
+  assert.equal(merged.length, KLUBIS_STARTER.length);
 });

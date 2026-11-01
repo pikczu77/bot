@@ -143,7 +143,7 @@ change you make, so the next session knows what was done and why.
   in `PATCH /klubis`): `responses` = several answers, one at random (older entries with one `response` still work). They run first
   (`handleTagMessage`), behind Klubiś's switch and channel list; Klubiś answers only when they did not. Order in `featureMessages.js`: after
   automod, Minecraft, picture channels, events and the chat channel (question of the day replies and drops are never answered by Klubiś).
-- Tests: `test/klubis.test.js`.
+- Answers about the server: `KLUBIS_STARTER`, added once by `loadTags` (`starterVersion`, see the change log 2026-11-01). Tests: `test/klubis.test.js`.
 
 ## Data copy
 - `src/services/dataBackup.js`: once a day (`hour`, Warsaw time, default 4:00) one gzipped JSON with this server's keys only (`guild:<id>:*`, `user:<id>:*`) goes to the channel picked in the panel (module "Kopia danych", API `backup`, `sendNow`). Channel open to @everyone = refused when saving and again before every send. Secrets are removed by field name (`SECRET_FIELD`); **a new secret field in a store must match that pattern**. Over 8 MiB the file goes as parts, one part per message. Old copies stay on the channel. TTL of a key is not kept.
@@ -858,3 +858,11 @@ change you make, so the next session knows what was done and why.
     good night, bye, gg, yes/no questions); one answer per member per 5 s; "klubik" does not count as its name (it is the server's name).
   - The auto-responders of TitanBot had no command left to set them; they are now the panel list "Naucz Klubisia" and follow Klubiś's switch.
   - Not done: an AI chat (it would need a paid API key and a filter for a young audience). If the owner wants it, ask about the key and the budget.
+- **2026-11-01, late night, later** (owner on my note that they can teach Klubiś in the panel: "dobra, napisz sam te rzeczy"). Live after the owner
+  restarts the bot; no panel change. `KLUBIS_STARTER` in `src/config/klubisReplies.js`: 28 answers about the server (earning, levels, ranks, staff,
+  new videos, Pikczu's YouTube / TikTok / Instagram, Club SMP is private (no address, owner's rule), donate codes on pikczu.pl/donate, music,
+  tickets, commands, rules, events, boost, Wordle, birthdays). `loadTags` in `tagService.js` adds them once per server (`starterVersion` in the
+  tags store; bump `STARTER_VERSION` to add new ones; a trigger the server already has is skipped; deleted in the panel = never back).
+  Triggers are questions ("jak zarobić", "kiedy film"), never one common word, so Klubiś does not answer every message about money.
+  - `matchResponder` now compares folded text (no Polish letters, no punctuation) on both sides: "jak zarobic?" matches "jak zarobić".
+  - My texts; facts I could not check on the live server: the rules channel name (the answer says "kanał z zasadami"), a ticket channel.

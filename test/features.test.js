@@ -254,6 +254,7 @@ test('tags and auto-responders', () => {
   assert.equal(matchResponder(responders, 'ej, JAK DOŁĄCZYĆ do gry')?.response, 'B');
   assert.equal(matchResponder(responders, '!regulamin')?.response, 'C');
   assert.equal(matchResponder(responders, '!regulamin please'), null);
+  assert.equal(matchResponder(responders, 'jak dolaczyc?')?.response, 'B', 'without Polish letters too');
   assert.equal(normalizeTagName(' Zasady_1 '), 'zasady_1');
   assert.throws(() => normalizeTagName('dwa słowa'));
   assert.equal(
