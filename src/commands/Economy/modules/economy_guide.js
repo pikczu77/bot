@@ -44,7 +44,7 @@ import { MERGE_COUNT } from '../../../services/cardMerge.js';
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 8;
+export const GUIDE_VERSION = 9;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -291,6 +291,7 @@ function prestigeTopic({ guildId, settings }) {
       field(t('🔄 Prestige resets'), t('cash and bank, upgrades\nshares, buildings\nitems, cards and badges stay')),
       field(t('⚡ /boosty'), t`💰 x${BOOST_FACTOR} money: **${money(guildId, boosts.moneyHourPrice)}** an hour\n⭐ x${BOOST_FACTOR} XP: **${money(guildId, boosts.xpHourPrice)}** an hour\nup to ${MAX_BOOST_HOURS} h ahead`),
       field(t('🔨 /polacz'), t`**${MERGE_COUNT}** copies of one card\n= 1 card of the next rarity\nthe version (golden, diamond) stays`),
+      field(t('💎 /booster'), t('boost the server: money and a pack every 30 days\nbonus to payouts and XP, your own role')),
       field(t('🎉 /event'), t('holidays with their own currency\nfor messages, jobs and chat games\nshop: boosts, packs, the event rank')),
     ],
   };
@@ -320,7 +321,7 @@ function commands() {
       field(t('💼 Earning'), '`/work` `/daily`\n`/nagraj` `/fish` `/beg`\n`/crime` `/slut` `/rob`\n`/pozwij`'),
       field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
       field(t('📈 Investing'), '`/gielda` `/klub`\n`/nieruchomosci`'),
-      field(t('⭐ Progress'), '`/prestiz` `/boosty`\n`/polacz` `/event`'),
+      field(t('⭐ Progress'), '`/prestiz` `/boosty`\n`/polacz` `/event`\n`/booster`'),
       field(t('🎮 Games'), '`/napad` `/wordle` `/wisielec`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
       field(t('⏰ Reminders'), '`/przypomnienia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
@@ -380,7 +381,7 @@ export function buildGuideMessage(guild = null) {
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
       field(t('🎮 Games'), '`/napad` · `/wordle` · `/wisielec` · `/pojedynek` · `/loteria`'),
       field(t('📈 Investing'), '`/gielda` · `/klub` · `/nieruchomosci`'),
-      field(t('⭐ Progress'), '`/prestiz` · `/boosty` · `/polacz` · `/event`'),
+      field(t('⭐ Progress'), '`/prestiz` · `/boosty` · `/polacz` · `/event` · `/booster`'),
     ],
     thumbnail: guild?.iconURL?.({ size: 128 }) ?? null,
     footer: { text: t('The tutorials always show the current server settings.') },

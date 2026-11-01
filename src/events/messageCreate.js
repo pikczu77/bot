@@ -252,9 +252,9 @@ async function handleLeveling(message, client) {
 
     const { min, max } = getMessageXpRange(levelingConfig);
     const xpToGive = Math.floor(Math.random() * (max - min + 1)) + min;
-    // An XP boost from /boosty or the Halloween shop (services/boosts.js) doubles message XP.
-    const finalXP = applyXpMultipliers(levelingConfig, xpToGive, { member, channel: message.channel, message })
-      * await xpBoostFactor(client, message.guild.id, message.author.id).catch(() => 1);
+    // An XP boost from /boosty or the Halloween shop (services/boosts.js) doubles message XP; boosting the server adds its bonus.
+    const finalXP = Math.round(applyXpMultipliers(levelingConfig, xpToGive, { member, channel: message.channel, message })
+      * await xpBoostFactor(client, message.guild.id, message.author.id).catch(() => 1));
 
     const result = await addXp(client, message.guild, member, finalXP, { channel: message.channel });
 

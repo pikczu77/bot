@@ -25,6 +25,8 @@ import { validateChannelNameTemplate } from '../services/joinToCreateService.js'
 import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
 import { getColor, getCommandPrefix } from '../config/bot.js';
 import { backupChannelProblem, getBackupSettings, problemText, sendBackup, updateBackupSettings } from '../services/dataBackup.js';
+import { MESSAGE_MAX as BOOST_MESSAGE_MAX, defaultThanks, getBoostData, removeBoosterRole, roleProblem } from '../services/serverBoost.js';
+import { PACKS } from '../services/collections.js';
 import { getAutoRoleSettings, getAutoRoleSyncStatus, startAutoRoleSync } from '../services/autoRoleService.js';
 import {
   MAX_SELF_ROLE_BUTTONS,
@@ -1811,6 +1813,69 @@ async function applyBackup(client, guild, body) {
   return backupView(guild);
 }
 
+// ---- Rewards for members who boost the server (services/serverBoost.js). `removeRole` takes a booster's own role away.
+async function serverBoostView(guild) {
+  const { serverBoost: boost } = await getEconomySettings(guild.id);
+  const { members } = await getBoostData(guild.id);
+  const boosters = Object.entries(members ?? {})
+    .filter(([, entry]) => entry.active)
+    .sort(([, a], [, b]) => (a.since || 0) - (b.since || 0))
+    .map(([userId, entry]) => {
+      const role = entry.roleId ? guild.roles.cache.get(entry.roleId) : null;
+      return {
+        userId,
+        user: guild.members.cache.get(userId)?.displayName ?? null,
+        since: entry.since || null,
+        nextRewardAt: entry.nextRewardAt || null,
+        rewards: entry.rewards || 0,
+        roleName: role?.name ?? null,
+        roleColor: role?.hexColor ?? null,
+      };
+    });
+  return {
+    enabled: boost.enabled !== false,
+    channelId: boost.channelId && guild.channels.cache.has(boost.channelId) ? boost.channelId : null,
+    message: boost.message || '',
+    defaultMessage: defaultThanks(),
+    cashReward: boost.cashReward,
+    pack: boost.pack,
+    packs: PACKS.map((pack) => ({ id: pack.id, emoji: pack.emoji, name: tr(pack.name), cards: pack.cards })),
+    moneyPercent: boost.moneyPercent,
+    xpPercent: boost.xpPercent,
+    eventMinutes: boost.eventMinutes,
+    customRole: boost.customRole !== false,
+    roleProblem: roleProblem(guild),
+    count: guild.premiumSubscriptionCount ?? 0,
+    tier: guild.premiumTier ?? 0,
+    boosters,
+  };
+}
+
+async function applyServerBoost(guild, body) {
+  const updates = {};
+  if ('enabled' in body) updates.enabled = boolean(body.enabled, 'enabled');
+  if ('channelId' in body) updates.channelId = requireTextChannel(guild, body.channelId, 'channelId');
+  if ('message' in body) updates.message = optionalString(body.message, 'message', BOOST_MESSAGE_MAX) ?? '';
+  if ('cashReward' in body) updates.cashReward = integer(body.cashReward, 'cashReward', 0, MAX_MONEY);
+  if ('pack' in body) {
+    if (body.pack !== null && !PACKS.some((pack) => pack.id === body.pack)) throw new ApiError(400, 'pack: unknown pack');
+    updates.pack = body.pack;
+  }
+  if ('moneyPercent' in body) updates.moneyPercent = integer(body.moneyPercent, 'moneyPercent', 0, 200);
+  if ('xpPercent' in body) updates.xpPercent = integer(body.xpPercent, 'xpPercent', 0, 200);
+  if ('eventMinutes' in body) {
+    updates.eventMinutes = integer(body.eventMinutes, 'eventMinutes', 0, 1440);
+    if (updates.eventMinutes > 0 && updates.eventMinutes < MIN_EVENT_MINUTES) throw new ApiError(400, `eventMinutes: 0 or at least ${MIN_EVENT_MINUTES}`);
+  }
+  if ('customRole' in body) updates.customRole = boolean(body.customRole, 'customRole');
+  await updateEconomySettings(guild.id, (data) => { Object.assign(data.serverBoost, updates); });
+  if ('removeRole' in body) {
+    if (!SNOWFLAKE_RE.test(String(body.removeRole))) throw new ApiError(400, 'removeRole: member id expected');
+    await removeBoosterRole(guild, String(body.removeRole));
+  }
+  return serverBoostView(guild);
+}
+
 // ---- Prefix of the text commands (`!daily`). Same rules as the old /configwizard, and characters Discord uses itself are refused.
 function prefixView(config) {
   return { prefix: config.prefix || getCommandPrefix(), defaultPrefix: getCommandPrefix(), maxLength: PREFIX_MAX };
@@ -1909,6 +1974,7 @@ export function createPanelRouter(client) {
       chat: await chatView(guild),
       backup: await backupView(guild),
       prefix: prefixView(await getGuildConfig(client, guild.id)),
+      serverboost: await serverBoostView(guild),
     },
   })));
 
@@ -1922,6 +1988,7 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/chat', route(({ guild, body }) => applyChat(guild, body)));
   router.patch('/guilds/:guildId/backup', route(({ guild, body }) => applyBackup(client, guild, body)));
   router.patch('/guilds/:guildId/prefix', route(({ guild, body }) => applyPrefix(client, guild, body)));
+  router.patch('/guilds/:guildId/serverboost', route(({ guild, body }) => applyServerBoost(guild, body)));
   // Every warning on the server back to zero (the panel asks twice before it calls this).
   router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
     const reset = await resetGuildWarnings(guild.id);

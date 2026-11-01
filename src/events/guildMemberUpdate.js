@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
+import { noteBoostChange } from '../services/serverBoost.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n/index.js';
 
@@ -10,6 +11,10 @@ export default {
   async execute(oldMember, newMember) {
     try {
       if (!newMember.guild) return;
+
+      if (Boolean(oldMember.premiumSinceTimestamp) !== Boolean(newMember.premiumSinceTimestamp)) {
+        await noteBoostChange(newMember).catch((error) => logger.warn(`Boost change failed: ${error.message}`));
+      }
 
       if (oldMember.nickname !== newMember.nickname) {
         await logEvent({

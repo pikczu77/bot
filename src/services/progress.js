@@ -258,6 +258,9 @@ export const ACHIEVEMENTS = [
   { id: 'event_podium', emoji: '🎪', name: t('Event podium'), description: t('Finish in the top 3 of a holiday event.'), reward: 10000, section: 'event', progress: counter('eventPodium', 1) },
   // `manual`: hidden until the server opens it in the panel (the list adds it then) or the member has it.
   { id: 'year_2026', emoji: '🎉', name: t('Year 2026'), description: t('Have all event ranks of 2026 and press the 2026 button under this list.'), reward: 50000, section: 'event', manual: true, progress: counter('year_2026', 1) },
+  // Rewards for boosting the server (services/serverBoost.js): one at the start of a boost, then one every 30 days.
+  { id: 'server_booster', emoji: '💎', name: t('Server booster'), description: t('Boost the server.'), reward: 5000, progress: counter('boostRewards', 1) },
+  { id: 'loyal_booster', emoji: '👑', name: t('Loyal booster'), description: t('Get 6 rewards for boosting the server.'), reward: 25000, progress: counter('boostRewards', 6) },
   // Last on purpose: it counts the badges unlocked by the same action.
   { id: 'badge_hunter', emoji: '🏅', name: t('Badge hunter'), description: t('Get 25 badges.'), reward: 25000, progress: (u) => [Math.min(25, unlockedCount(u)), 25] },
 ];

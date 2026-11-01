@@ -7,7 +7,7 @@
 
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { t } from '../i18n/index.js';
-import { BOOST_FACTOR, boostFactor, getEconomySettings, money } from './economySettings.js';
+import { BOOST_FACTOR, boostFactor, getEconomySettings, money, serverBoostPercent } from './economySettings.js';
 import { spendMoney, withEconomyLock } from './economyUpgrades.js';
 
 export const BOOST_TYPES = Object.freeze([
@@ -54,9 +54,11 @@ export function buyBoost({ client, guildId, userId, typeId, hours, userError, no
   });
 }
 
-/** x2 when the member's XP boost runs (read for message XP). */
+/** x2 when the member's XP boost runs, and the bonus of a member who boosts the server (read for message XP). */
 export async function xpBoostFactor(client, guildId, userId, now = Date.now()) {
-  return boostFactor(await getEconomyData(client, guildId, userId, { joint: false }), 'xp', now);
+  const userData = await getEconomyData(client, guildId, userId, { joint: false });
+  const settings = await getEconomySettings(guildId);
+  return boostFactor(userData, 'xp', now) * (100 + serverBoostPercent(settings, userData, 'xpPercent')) / 100;
 }
 
 export { BOOST_FACTOR };

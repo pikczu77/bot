@@ -39,7 +39,7 @@ export async function profileData({ client, guild, user, member }) {
 
     return {
         name: member?.displayName ?? user.globalName ?? user.username,
-        subtitle: [t`Level ${level}`, spouse ? t`married to ${spouse}` : null].filter(Boolean).join(' · '),
+        subtitle: [t`Level ${level}`, spouse ? t`married to ${spouse}` : null, account.serverBooster ? t('server booster') : null].filter(Boolean).join(' · '),
         avatarUrl: (member ?? user).displayAvatarURL?.({ extension: 'png', size: 256, forceStatic: true }),
         accent: color.toUpperCase(),
         level,

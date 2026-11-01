@@ -24,6 +24,7 @@ import { runSeasonalEvents } from './seasonalEvents.js';
 import { runDataBackups } from './dataBackup.js';
 import { runReminders } from './reminders.js';
 import { runEconomyStats } from './economyStats.js';
+import { runServerBoost } from './serverBoost.js';
 
 const JOBS = [
   { name: 'night_channel', schedule: '* * * * *', run: applyNightChannels },
@@ -44,6 +45,7 @@ const JOBS = [
   { name: 'data_backup', schedule: '* * * * *', run: runDataBackups },
   { name: 'reminders', schedule: '* * * * *', run: runReminders },
   { name: 'economy_stats', schedule: '* * * * *', run: runEconomyStats },
+  { name: 'server_boost', schedule: '*/10 * * * *', run: runServerBoost },
 ];
 
 /** Register an extra scheduled job (used by feature modules that load later). */

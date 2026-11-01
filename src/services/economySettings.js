@@ -67,6 +67,9 @@ export const ECONOMY_DEFAULTS = Object.freeze({
   missions: { enabled: true, rewardPercent: 100 },
   // /przypomnienia (services/reminders.js): off = no reminder DMs on this server.
   reminders: { enabled: true },
+  // Members who boost the server (services/serverBoost.js). channelId null = no thanks message, the rest still works.
+  // cashReward and pack: when a boost starts and every 30 days of boosting; eventMinutes 0 = no x2 money event.
+  serverBoost: { enabled: true, channelId: null, message: '', cashReward: 50_000, pack: 'legend', moneyPercent: 25, xpPercent: 25, eventMinutes: 30, customRole: true },
   // Timed events (services/economyEvents.js): announcement channel, optional role ping, automatic
   // events every `everyHours` lasting `durationMinutes`, and the running one.
   events: { channelId: null, roleId: null, auto: false, everyHours: 24, durationMinutes: 60, active: null, nextAutoAt: 0 },
@@ -123,7 +126,7 @@ function normalize(stored) {
   for (const key of ['startingWallet', 'startingBank', 'clearOnLeave', 'payTaxPercent', 'earningsPercent']) {
     if (key in stored) settings[key] = stored[key];
   }
-  for (const key of ['currency', 'activity', 'channels', 'roles', 'events', 'missions', 'reminders']) {
+  for (const key of ['currency', 'activity', 'channels', 'roles', 'events', 'missions', 'reminders', 'serverBoost']) {
     if (isPlainObject(stored[key])) Object.assign(settings[key], stored[key]);
   }
   for (const name of Object.keys(settings.commands)) {
@@ -169,7 +172,13 @@ export const scaleEarnings = (settings, amount, userData = null) =>
     * (100 + fortuneLevel(userData) * FORTUNE_PERCENT_PER_LEVEL) / 100
     * (userData && activeEventType(settings) === 'kasa' ? 2 : 1)
     * boostFactor(userData, 'money')
-    * (100 + prestigeLevel(userData) * PRESTIGE_PERCENT_PER_LEVEL) / 100);
+    * (100 + prestigeLevel(userData) * PRESTIGE_PERCENT_PER_LEVEL) / 100
+    * (100 + serverBoostPercent(settings, userData, 'moneyPercent')) / 100);
+
+// A member who boosts the server (services/serverBoost.js sets userData.serverBooster): `key` = moneyPercent or xpPercent.
+export const serverBoostPercent = (settings, userData, key) => (userData?.serverBooster && settings?.serverBoost?.enabled !== false
+  ? Math.max(0, Number(settings.serverBoost[key]) || 0)
+  : 0);
 
 // Prestige (services/prestige.js, /prestiz): every level +10% of every payout, for good (max 10 levels).
 export const MAX_PRESTIGE = 10;
@@ -205,6 +214,7 @@ export function earningsLine(settings, userData = null) {
   if (userData && activeEventType(settings) === 'kasa') text += t('\n🎉 **Event: double money** x2');
   if (boostFactor(userData, 'money') > 1) text += t`\n⚡ **Boost x${BOOST_FACTOR} money** until <t:${Math.floor(userData.boosts.money / 1000)}:t>`;
   if (prestigeLevel(userData) > 0) text += t`\n⭐ **Prestige ${prestigeLevel(userData)}:** +${prestigeLevel(userData) * PRESTIGE_PERCENT_PER_LEVEL}% all earnings`;
+  if (serverBoostPercent(settings, userData, 'moneyPercent') > 0) text += t`\n💎 **Server booster:** +${serverBoostPercent(settings, userData, 'moneyPercent')}% all earnings`;
   return text;
 }
 

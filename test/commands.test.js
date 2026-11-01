@@ -58,7 +58,7 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
   // 64 on 2026-10-14 morning; then /hajs /ruletka /blackjack /slots /ekwipunek and /randka /slub.
   // 2026-10-26: /misje /osiagniecia /wymiana /wordle /quiz, then /napad, then /profil, then /loteria /pojedynek.
   // 2026-10-30: nine panel-only commands went.
-  assert.equal(client.commands.size, 84);
+  assert.equal(client.commands.size, 85);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);

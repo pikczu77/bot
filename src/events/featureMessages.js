@@ -8,6 +8,7 @@ import { handleChatBridgeMessage } from '../services/minecraftChat.js';
 import { handleMediaMessage } from '../services/mediaChannels.js';
 import { handleChatMessage } from '../services/chatEngagement.js';
 import { handleSeasonMessage } from '../services/seasonalEvents.js';
+import { BOOST_MESSAGE_TYPES, handleBoostMessage } from '../services/serverBoost.js';
 import { bumpSticky, handleTagMessage } from '../services/tagService.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
 import { logger } from '../utils/logger.js';
@@ -17,6 +18,11 @@ import { logger } from '../utils/logger.js';
 export default {
   name: Events.MessageCreate,
   async execute(message, client) {
+    // The system message "X boosted the server": nothing else here is meant for it.
+    if (message.guild && BOOST_MESSAGE_TYPES.has(message.type)) {
+      await handleBoostMessage(message).catch((error) => logger.warn(`Boost message failed: ${error.message}`));
+      return;
+    }
     if (!message.guild || message.author?.bot) {
       // Keep stickies at the bottom even after bot messages (but never after our own sticky).
       if (message.guild && message.author?.id !== client.user.id) {
