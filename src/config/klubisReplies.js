@@ -144,6 +144,15 @@ export const KLUBIS_SKILLS = [
     replies: ['GG! 🏆', 'gg wp 😎'],
   },
   {
+    id: 'update', label: 'Kiedy update', example: 'Klubiś, kiedy update?',
+    match: /\bkiedy( (bedzie|wyjdzie|wchodzi|nowy|nowa|jakis|jakas))* (update|updejt|apdejt|aktualizacj[aei])\b|\b(update|updejt|apdejt|aktualizacja) kiedy\b/,
+    replies: [
+      'Update będzie, jak będzie gotowy 😅 Daty nie znam, Pikczu mi jej nie mówi.',
+      'Cierpliwości, dobre aktualizacje wymagają czasu 🛠️',
+      'Też czekam 👀 Jestem tylko botem, mnie nikt nic nie mówi.',
+    ],
+  },
+  {
     id: 'question', label: 'Pytania tak/nie', example: 'Klubiś, czy jutro będzie padać?',
     match: /^czy\b/,
     question: true,

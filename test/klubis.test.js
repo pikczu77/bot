@@ -87,6 +87,12 @@ test('fold, the name and the skills', () => {
   assert.equal(findSkill('siema').id, 'hello');
   assert.equal(findSkill('kim jestes', '', { aloneOnly: true }), null);
   assert.equal(findSkill('dobranoc wszystkim', '', { aloneOnly: true }).id, 'night');
+  for (const text of ['kiedy update', 'kiedy bedzie update', 'kiedy nowy update', 'kiedy wyjdzie aktualizacja', 'update kiedy']) {
+    assert.equal(findSkill(text).id, 'update', text);
+  }
+  assert.equal(findSkill('kiedy update', 'kiedy update?').id, 'update', 'the question mark does not make it a yes/no question');
+  assert.equal(findSkill('kiedy update', '', { aloneOnly: true }), null, 'only when Klubiś is called');
+  assert.equal(findSkill('zrobilem update'), null);
   // Every line is clean text that fits in a message.
   for (const skill of KLUBIS_SKILLS) for (const line of skill.replies) assert.ok(line.length > 0 && line.length < 300, line);
 });
@@ -102,6 +108,9 @@ test('called by a mention, a reply or the name: a skill answers, unknown text ge
 
   const yesNo = await say(message(guild, chat, member, 'a ty myślisz, że wygram?', { replyToBot: true }));
   assert.ok(lines('question').includes(yesNo.content), yesNo.content);
+
+  const update = await say(message(guild, chat, member, `<@${client.user.id}> kiedy update`, { mentionBot: true }));
+  assert.ok(lines('update').includes(update.content), update.content);
 
   const unknown = await say(message(guild, chat, member, 'klubiś banan traktor'));
   assert.ok(KLUBIS_UNKNOWN.includes(unknown.content), unknown.content);

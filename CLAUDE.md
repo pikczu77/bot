@@ -872,3 +872,6 @@ change you make, so the next session knows what was done and why.
   robimy"): works without a call and with `always: true`, so the server's chance does not apply (my reading of "odpisuj"); 20 lines (`DOING`,
   mine), shared with "co robisz" to Klubiś. The break without a call is now per channel AND skill (a "siema" does not hold back "co robicie").
   "Sam z siebie" off still silences it. Panel: "zawsze" tag in "Co już umie sam" (`always` in the skills view).
+- **2026-11-01, evening** (owner sent a screenshot without words: "@Klubiś kiedy update", answer "Ciekawe... opowiedz więcej!"). My reading: the "still learning" line is a poor answer to that question. Live after the owner restarts the bot; no panel change, the skill shows up in "Co już umie sam" by itself. New skill `update` in `KLUBIS_SKILLS`, only when Klubiś is called: "kiedy update", "kiedy będzie update", "kiedy wyjdzie aktualizacja", "update kiedy". It stands before `question`, so "kiedy update?" no longer risks a yes/no answer.
+  - A skill, not a `KLUBIS_STARTER` entry: a `STARTER_VERSION` bump walks the whole starter list and adds every trigger the server lacks, so it would bring back answers the owner deleted in the panel (the comment in `tagService.js` promises the opposite only while the version stays).
+  - The three lines are mine and give no date, because I have none.
