@@ -1,5 +1,8 @@
-// What Klubiś (the bot) says by itself (2026-11-01, services/klubis.js). Polish only: the main server is Polish and the
-// server has young members, so every line stays clean.
+// What Klubiś (the bot) says by itself (2026-11-01, services/klubis.js). Polish only: the main server is Polish. The server is 16+ (owner),
+// so members can be 16 or 17: no sexual content in any line, also in the pick-up lines.
+//
+// `broad` = the match is one word anywhere, so a whole sentence goes to services/klubisBrain.js first. 'topic': the lines answer questions, so
+// they are used only for a question. 'talk': the lines also fit after a sentence about the topic. 'catch': a catch-all, last.
 //
 // A skill matches the message text folded by `fold` (lower case, no Polish letters, punctuation as spaces), after the bot's
 // name and mention are taken out. `alone: true` = it may also answer a message that does not call Klubiś (with the
@@ -32,6 +35,8 @@ const DOING = [
 
 // The start of a question: "a kiedy", "no co", "brat gdzie". For the catch-all skills near the end of the list.
 const ask = (words) => new RegExp(`^(?:a |ale |no |i |to |ej |brat |bro |ziom |sluchaj |powiedz )?(?:${words})\\b`);
+
+import { ANSWER_MAYBE, ANSWER_NO, ANSWER_YES } from './klubisGrammar.js';
 
 // "Na co odpowiadasz?", "co napisales?": with a talk Klubiś quotes it, without one the `recall` skill says it does not remember.
 const RECALL = /\bna co (ty )?(odpowiadasz|odpisujesz|odpisales|odpowiedziales)\b|\bco (ja )?(napisalem|napisalam|mowilem|mowilam|powiedzialem|powiedzialam)\b|\bo co (ja )?(pytalem|pytalam)\b|\bco (ty )?(powiedziales|mowiles|pisales|odpisales|napisales)\b|\bconapisales\b/;
@@ -66,7 +71,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'sad', label: 'Smutek', example: 'Klubiś, smutno mi', serious: true,
-    match: /\b(smutno|smutny|smutna)\b|\b(jest mi|czuje sie) zle\b|\bmam (dosc|dola)\b|\bplacze\b|\bnikt mnie nie lubi\b|\b(zly|slaby|beznadziejny) dzien\b/,
+    match: /\b(smutno|smutny|smutna)\b|\b(jest mi|czuje sie) zle\b|\bmam (dosc|dola)\b|\bplacze\b|\bnikt mnie nie lubi\b|\b(zly|slaby|beznadziejny) dzien\b|\b(umarl|umarla|zmarl|zmarla)\b(?! ze smiechu)|\bnie zyje\b|\bpogrzeb\w*\b/,
     replies: [
       'Przykro mi, {user} 💜 Chcesz o tym pogadać z kimś z serwera?',
       'Każdy ma gorsze dni. Ten też minie 💜',
@@ -75,6 +80,7 @@ export const KLUBIS_SKILLS = [
       'Może krótka przerwa, coś do picia i ulubiona muzyka? 🎵',
       'Masz tu ludzi, którzy cię lubią. I jednego bota 🤖💜',
       'Głowa do góry, {user}. Jutro będzie lepiej ☀️',
+      'Bardzo mi przykro 💜 Jestem tu, gdyby trzeba było pogadać.',
       'Może partyjka `/wisielec` z kimś z czatu? Czasem pomaga oderwać myśli 🎯',
     ],
   },
@@ -211,7 +217,7 @@ export const KLUBIS_SKILLS = [
       'Przepraszam, moje bity się pomieszały 🌀',
       'Masz rację, odpłynąłem. Możesz powtórzyć, {user}?',
       'Spokojnie, Pikczu dopisuje mi nowe odpowiedzi prawie codziennie 🛠️',
-      'Bez sensu? To mój styl. Nazywam go „botyzm” 🎨',
+      'To mój styl. Nazywam go „botyzm” 🎨',
       'Wiem, wiem. Wstyd mi. Tak w 12% 😳',
       'Jak to mówią: bot też człowiek. Ale nie do końca 🤖',
       'Sprawdzę to w notesie. Moment... nic tam nie ma 📓',
@@ -335,8 +341,57 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
+    // Owner: "teksty na podryw, poderwij x to jakis glupi podryw". services/klubis.js adds who it is for. Silly on purpose, never sexual.
+    id: 'flirt', label: 'Podryw', example: 'Klubiś, poderwij @ktoś',
+    match: /^(a |no |to )?(poderwij|podrywaj|zarwij|zbajeruj|zagadaj do|rizzuj)\b|\b(teksty? na podryw|tekst podrywu|podrywu|jak poderwac|na podryw)\b/,
+    replies: [
+      'Czy jesteś creeperem? Bo przy tobie serce mi wybucha 💥',
+      'Masz może kilof? Bo właśnie wkopałem się w uczucia ⛏️',
+      'Jesteś jak diament na poziomie 11: rzadka sprawa i nie wyjdę z kopalni bez ciebie 💎',
+      'Czy to Nether, czy tu się zrobiło tak gorąco? 🔥',
+      'Nie jestem endermanem, ale dla ciebie mogę się teleportować 🟪',
+      'Czy jesteś `/daily`? Bo codziennie na ciebie czekam 💰',
+      'Masz na imię Wi-Fi? Bo czuję połączenie 📶',
+      'Jesteś jak legendarna karta z `/paczka`: szanse marne, ale warto próbować 👑',
+      'Gdybym miał `/ulepszenia`, wszystkie poszłyby w ciebie 📈',
+      'Czy wierzysz w miłość od pierwszego pinga? 🔔',
+      'Przy tobie moje serce robi `/rob`: zabiera 80% rozsądku 💸',
+      'Ty i ja to jak łóżko i spawn: zawsze do ciebie wrócę 🛏️',
+      'Mam przy sobie mapę, bo zgubiłem się w twoich wiadomościach 🗺️',
+      'Czy masz plaster? Bo zdarłem kolano, jak upadłem na twój widok 🩹',
+      'Czy bolało, jak spadało się z nieba? Bo ja właśnie spadłem z Netheru 😇',
+      'Mama mówiła, żebym nie rozmawiał z obcymi, ale dla ciebie robię wyjątek 🤫',
+      'Daj mi swój numer. W `/top`, żebym mógł śledzić twój progres 📈',
+      'Jesteś jak `/wordle`: myślę o tobie cały dzień i i tak nie zgaduję 🟩',
+      'Czy jesteś lawą? Bo nie mogę się od ciebie oderwać, choć powinienem 🌋',
+      'Jesteś jak ostatni blok: bez ciebie moja budowla nie ma sensu 🧱',
+      'Czy to boost serwera? Bo przy tobie mam +25% do wszystkiego 💎',
+      'Mam 99 problemów, a ty jesteś ten jeden z rzadkim dropem 🎁',
+      'Jestem botem, ale dla ciebie wyszedłbym z chmury ☁️',
+      'Czy ktoś ci mówił, że masz ładny nick? No to ja mówię 😌',
+      'Twój nick to mój ulubiony ping 🔔',
+      'Gdyby urok to było XP, `/top` miałby nowego lidera 🏆',
+      'Jeden twój emoji i moje bity się przestawiają 💾',
+      'Ty + ja = legendarny drop. Matematyka się nie myli 🧮',
+      'Wejdziemy na głosowy? Posłuchasz mojego serca. Znaczy wentylatora 🌀',
+      'Szukałem cię w `/index`, bo jesteś jedyną kartą, której mi brakuje 🃏',
+      'Zostaniesz moim spawnem? 🛏️',
+      'Mam dla ciebie `/randka`. I to nie jest przypadek 🌹',
+      'Czy nazywasz się Google? Bo masz wszystko, czego szukam 🔍',
+      'Czy jesteś kawą? Bo bez ciebie nie wstaję ☕',
+      'Czy to ty tak świecisz, czy ktoś tu postawił glowstone? ✨',
+      'Gdybym był pająkiem, oplątałbym cię siecią. Znaczy internetem 🕸️',
+      'Czy masz zegarek? Bo chcę wiedzieć, o której straciłem dla ciebie głowę ⏰',
+      'Jesteś jak `/ship`, tylko że wynik zawsze 100% 💘',
+      'Nie jestem wieśniakiem, ale za ciebie oddałbym 64 szmaragdy 🧑‍🌾',
+      'Czy mogę cię skopiować? Bo jedna taka osoba to za mało 📋',
+      'Czy twoje konto jest pełne? Bo ja właśnie zbankrutowałem z wrażenia 🏦',
+      'Pozwól, że się przedstawię: Klubiś. Zapamiętaj, będziesz to krzyczeć w `/quiz` 🧠',
+    ],
+  },
+  {
     id: 'mean', label: 'Zaczepki', example: 'Klubiś, jesteś głupi',
-    match: /\b(glupi|glupek|glupku|debil|idiota|beznadziejny|slaby|smierdzisz|frajer|noob|nub|nudny|nudzisz)\b|\b(zly|glupi|slaby) bot\b|\bbad bot\b|\bnie lubie cie\b|\bsam (jestes|taki)\b/,
+    match: /^(ty |ale |no |ale z ciebie |jaki |ty to |ej )?(glupi|glupek|glupku|debil|idiota|beznadziejny|slaby|frajer|noob|nub|nudny)( jestes| bot| bocie)?$|\bjestes (glupi|glupek|debil|idiota|beznadziejny|slaby|frajer|noob|nub|nudny)\b|\b(smierdzisz|nudzisz)\b|\b(zly|glupi|slaby|beznadziejny) bot\b|\bbad bot\b|\bnie lubie cie\b|\bsam (jestes|taki)\b|\bbot\w* (jest )?(glupi|beznadziejny|slaby|nudny)\b|^ty bocie$/,
     replies: [
       'Auć. Zapamiętam to przy następnym /rob 👀',
       'Jestem botem, nie mam uczuć. Chyba 🥲',
@@ -401,7 +456,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'who', label: 'Kim jest', example: 'Klubiś, kim jesteś?',
-    match: /\b(kim|czym) (ty )?jestes\b|\bco (ty )?za (jeden|bot)\b|\bjestes (botem|bot|czlowiekiem|ai|robotem|prawdziwy|zywy|chatgpt)\b|\bsztuczn\w* inteligencj\w*\b|\bchat ?gpt\b/,
+    match: /\b(kim|czym) (ty )?jestes\b|\bo sobie\b|\bco (ty )?za (jeden|bot)\b|\bjestes (botem|bot|czlowiekiem|ai|robotem|prawdziwy|zywy|chatgpt)\b|\bsztuczn\w* inteligencj\w*\b|\bchat ?gpt\b|^bot$/,
     replies: [
       'Jestem Klubiś, bot tego serwera. Dopiero uczę się pisać, więc wyrozumiałości 😅',
       'Klubiś, do usług! Pilnuję porządku, liczę kasę i czasem pogadam.',
@@ -472,7 +527,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'pets', label: 'Zwierzaki', example: 'lubisz koty?',
+    id: 'pets', label: 'Zwierzaki', example: 'lubisz koty?', broad: 'talk',
     match: /\b(masz|lubisz|kochasz) (psa|kota|psy|koty|zwierzaki|zwierzaka|chomika)\b|\b(pies|piesek|kot|kotek|kotki|pieski)\b/,
     replies: [
       'Koty lubię, bo odstraszają creepery 🐈',
@@ -520,7 +575,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'food', label: 'Jedzenie', example: 'co jesz?',
+    id: 'food', label: 'Jedzenie', example: 'co jesz?', broad: 'topic',
     match: /\bco (jesz|lubisz jesc|jadles|zjadles)\b|\b(jestes )?glodny( jestes)?\b|\bulubion\w* (jedzenie|danie|przekaska)\b|\bpizz\w*\b|\bkebab\w*\b|\bobiad\w*\b/,
     replies: [
       'Żywię się wiadomościami. Twoja była pyszna, {user} 😋',
@@ -580,7 +635,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'minecraft', label: 'Minecraft', example: 'lubię grać w Minecraft, a ty?',
+    id: 'minecraft', label: 'Minecraft', example: 'lubię grać w Minecraft, a ty?', broad: 'talk',
     match: /\b(minecraft\w*|majnkraft\w*|majn|mc|creeper\w*|enderman\w*|herobrine\w*|steve\w*|diament\w*|nether\w*|smok\w*|kilof\w*|villager\w*|wiesniak\w*|redstone\w*)\b/,
     replies: [
       'Gram cały czas. W głowie. Mam tam już cztery domy 🏠',
@@ -602,7 +657,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'otherGames', label: 'Inne gry', example: 'grasz w Robloxa?',
+    id: 'otherGames', label: 'Inne gry', example: 'grasz w Robloxa?', broad: 'talk',
     match: /\b(roblox\w*|fortnite\w*|fortnajt\w*|cs|cs2|csgo|valorant\w*|lol|gta|brawl\w*|clash\w*|fifa|fc\d+)\b/,
     replies: [
       'Nie gram w to, Minecraft mi wystarczy ⛏️',
@@ -614,7 +669,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'pikczu', label: 'Pikczu', example: 'co myślisz o Pikczu?',
+    id: 'pikczu', label: 'Pikczu', example: 'co myślisz o Pikczu?', broad: 'talk',
     match: /\bpikcz\w*\b/,
     replies: [
       'Pikczu to szef. Mówię o nim same dobre rzeczy, bo ma dostęp do mojego kodu 😅',
@@ -636,7 +691,7 @@ export const KLUBIS_SKILLS = [
       'Ty, {user}! Tylko nie mów reszcie 🤫',
       'Pikczu, bo mnie słyszy 👀',
       'Najlepszy jest ten, kto dziś odebrał `/daily` 💰',
-      'Wygra ten, kto się najmniej spodziewa 🎲',
+      'Ten, kto ma najwięcej XP. Albo najgłośniej pisze 📣',
       'Najbogatszy to na pewno nie ten, kto gra w `/gamble` 😏',
     ],
   },
@@ -696,7 +751,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'help', label: 'Pomoc', example: 'Klubiś, pomóż',
-    match: /\b(pomocy|pomoz|pomoc|help)\b|\bjakie (masz )?komendy\b|\bco (moge|mozna) (tu )?(robic|zrobic)\b/,
+    match: /^(pomocy|pomoc|help|pomoz|pomoz mi|pomocy prosze)$|\bjakie (masz )?komendy\b|\bco (moge|mozna) (tu )?(robic|zrobic)\b/,
     replies: [
       'Wszystkie komendy pokaże `/komendy` 📋',
       'Spokojnie, jestem! Zacznij od `/komendy` albo zapytaj kogoś na czacie 🙋',
@@ -722,7 +777,7 @@ export const KLUBIS_SKILLS = [
   },
   // About the server: "jest regulamin?" must not hear a random "nie". Taught answers (panel) still come first.
   {
-    id: 'rules', label: 'Regulamin', example: 'jest regulamin?',
+    id: 'rules', label: 'Regulamin', example: 'jest regulamin?', broad: 'topic',
     match: /\bregulamin\w*\b|\bzasad\w*\b/,
     replies: [
       'Regulamin jest na kanale z zasadami 📜 Warto przeczytać, zanim coś napiszesz!',
@@ -734,7 +789,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'video', label: 'Filmy', example: 'będzie nowy film?',
+    id: 'video', label: 'Filmy', example: 'będzie nowy film?', broad: 'topic',
     match: /\b(film\w*|odcin\w*|yt|youtube\w*|jutub\w*|suby?|suba|subskryb\w*)\b/,
     replies: [
       'Nowy film będzie, jak będzie gotowy 🎬 Dzwoneczek: <https://youtube.com/@Pikczu77> 🔔',
@@ -755,12 +810,12 @@ export const KLUBIS_SKILLS = [
       'Club SMP to prywatny serwer youtuberów, nie da się na niego wejść 🔒',
       'IP nie podam. Nawet ja go nie znam, a wiem dużo 🤐',
       'Kto gra i co się dzieje: <https://pikczu.pl/smp> 👀',
-      'Botów nie wpuszczają. Próbowałem 🥲',
+      'Wejścia nie ma dla wszystkich, więc IP nie podam 🔒',
       'Prywatny serwer to prywatny serwer. Popatrzeć można na <https://pikczu.pl/smp> 🔒',
     ],
   },
   {
-    id: 'event', label: 'Eventy', example: 'jest jakiś event?',
+    id: 'event', label: 'Eventy', example: 'jest jakiś event?', broad: 'topic',
     match: /\bevent\w*\b|\bhalloween\w*\b|\bcukier\w*\b|\bswieta\b|\bswiat\b/,
     replies: [
       'Co jest w tym roku: `/event lista` 🎉',
@@ -772,7 +827,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'giveaway', label: 'Konkursy', example: 'będzie konkurs?',
+    id: 'giveaway', label: 'Konkursy', example: 'będzie konkurs?', broad: 'topic',
     match: /\b(konkurs\w*|giveaway\w*|nagrod\w*)\b/,
     replies: [
       'Konkursy ogłasza ekipa. Obserwuj ogłoszenia 🎁',
@@ -782,7 +837,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'daily', label: 'Daily', example: 'mam daily?',
+    id: 'daily', label: 'Daily', example: 'mam daily?', broad: 'topic',
     match: /\b(daily|dejli)\b/,
     replies: [
       'Raz dziennie, bez wymówek: `/daily` 💰',
@@ -793,7 +848,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'economy', label: 'Ekonomia', example: 'jak działa kasyno?',
+    id: 'economy', label: 'Ekonomia', example: 'jak działa kasyno?', broad: 'topic',
     match: /\b(kasyn\w*|gamble|blackjack|ruletk\w*|slots?|rob|work|fish|nagraj|sklep\w*|ulepszen\w*|bank\w*|gield\w*|paczk\w*|kart(a|y|e|ami|ach)?|napad\w*|prestiz\w*)\b/,
     replies: [
       'Kasyno potrafi dać i zabrać. Graj z głową 🎰',
@@ -809,7 +864,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'level', label: 'Poziomy', example: 'jaki mam poziom?',
+    id: 'level', label: 'Poziomy', example: 'jaki mam poziom?', broad: 'topic',
     match: /\b(poziom\w*|lvl|level\w*|xp|exp)\b/,
     replies: [
       'XP leci za wiadomości i rozmowy na głosowym ⭐',
@@ -820,7 +875,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'music', label: 'Muzyka', example: 'puścisz muzykę?',
+    id: 'music', label: 'Muzyka', example: 'puścisz muzykę?', broad: 'topic',
     match: /\b(muzyk\w*|piosenk\w*|nutk\w*)\b/,
     replies: [
       'Wejdź na głosowy i wpisz `/play` z nazwą piosenki 🎵',
@@ -830,7 +885,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'voice', label: 'Głosowy', example: 'wejdziesz na vc?',
+    id: 'voice', label: 'Głosowy', example: 'wejdziesz na vc?', broad: 'topic',
     match: /\b(vc|glosow\w*|wejdz na|chodz na)\b/,
     replies: [
       'Nie mam mikrofonu, ale kibicuję 🎙️',
@@ -840,7 +895,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'server', label: 'Serwer', example: 'fajny ten serwer?',
+    id: 'server', label: 'Serwer', example: 'fajny ten serwer?', broad: 'topic',
     match: /\bserwer\w*\b|\b(klubik\w*|discord\w*)\b/,
     replies: [
       'Najlepszy serwer, na jakim pracowałem. Jedyny, ale najlepszy 😎',
@@ -852,7 +907,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'ticket', label: 'Tickety', example: 'jak zgłosić kogoś?',
+    id: 'ticket', label: 'Tickety', example: 'jak zgłosić kogoś?', broad: 'topic',
     match: /\b(ticket\w*|tiket\w*|zglos\w*|skarg\w*)\b/,
     replies: [
       'Otwórz ticket przyciskiem na kanale z ticketami 🎫',
@@ -861,7 +916,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'donate', label: 'Donate', example: 'jak zrobić donate?',
+    id: 'donate', label: 'Donate', example: 'jak zrobić donate?', broad: 'topic',
     match: /\b(donate\w*|donat\w*|tipply|wplat\w*)\b/,
     replies: [
       'Kody akcji i wpłaty: <https://pikczu.pl/donate> 💸',
@@ -870,7 +925,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'serverBoost', label: 'Boost', example: 'co daje boost?',
+    id: 'serverBoost', label: 'Boost', example: 'co daje boost?', broad: 'topic',
     match: /\b(boost\w*)\b/,
     replies: [
       'Nagrody za boost: `/booster info` 💎',
@@ -879,7 +934,25 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'like', label: 'Co lubi', example: 'co lubisz?',
+    // "Wiesz co?": the member is about to say something.
+    id: 'prompt', label: 'Mam pytanie', example: 'wiesz co?',
+    match: /^(a |no |ej )?(wiesz co|mam pytanie|pytanie|mam sprawe|mam do ciebie sprawe|moge o cos zapytac|moge cie o cos zapytac|moge o cos spytac)$/,
+    replies: ['No co? 👀', 'Słucham 👂', 'Mów, mów!', 'Dawaj, jestem gotowy 🤖', 'Pytaj śmiało, najwyżej nie będę wiedział 😅', 'Co tam? Zamieniam się w słuch 👂'],
+  },
+  {
+    id: 'hobby', label: 'Hobby', example: 'masz jakieś hobby?',
+    match: /\bhobby\b/,
+    replies: [
+      'Liczenie XP. I obserwowanie, jak ktoś przegrywa w `/gamble` 🍿',
+      'Moje hobby to czat. Moja praca to też czat. Mam problem 😅',
+      'Kolekcjonuję wasze „xd” 📚',
+      'Gram w Minecrafta w głowie ⛏️',
+      'Zbieram ciekawostki. Napisz „Klubiś, ciekawostka” 🧠',
+      'A twoje hobby to co, {user}?',
+    ],
+  },
+  {
+    id: 'like', label: 'Co lubi', example: 'co lubisz?', broad: 'catch',
     match: /\bco lubisz\b|\bczego nie lubisz\b|\blubisz\b/,
     replies: [
       'Lubię, jak czat żyje. I emotki. Dużo emotek 🥹',
@@ -895,7 +968,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'opinion', label: 'Opinia', example: 'co myślisz o tym?',
+    id: 'opinion', label: 'Opinia', example: 'co myślisz o tym?', broad: 'catch',
     match: /\bco (myslisz|sadzisz|powiesz)\b|\bjak(a|ie)? (masz )?opini\w*\b/,
     replies: [
       'Moim zdaniem to ma potencjał. Moim zdaniem wszystko ma potencjał 🤖',
@@ -910,7 +983,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'rate', label: 'Ocena', example: 'oceń mnie',
-    match: /\bocen\b|\bna ile\b|\bile (mi )?dajesz\b|\bjak mnie oceniasz\b|\bjestem (fajny|fajna|ladny|ladna|brzydki|brzydka|przystojny|madry|madra)\b/,
+    match: /\bocen\b|\bna ile\b|\bile (mi )?dajesz\b|\bjak mnie oceniasz\b|\bjestem (fajny|fajna|ladny|ladna|brzydki|brzydka|przystojny|madry|madra)\b|\bco (myslisz|sadzisz) o mnie\b/,
     replies: [
       '10 na 10, {user}. Bez dyskusji 🏆',
       '8 na 10. Te 2 punkty stracone za brak `/daily` 💰',
@@ -970,7 +1043,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'advice', label: 'Rada', example: 'co mam zrobić?',
-    match: /\b(poradz|doradz|daj rade|rada)\b|\bco (mam|powinienem|powinnam) (robic|zrobic)?\b|\bco robic\b/,
+    match: /\b(poradz|doradz|daj rade|rada)\b|\bco (mam|powinienem|powinnam) (robic|zrobic)?\b|\bco robic\b|\bdaj (mi )?rade\b/,
     replies: [
       'Najpierw `/daily`. Potem zobaczymy 💰',
       'Moja rada: nie kop pod sobą ⛏️',
@@ -1015,8 +1088,8 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'school', label: 'Szkoła', example: 'mam jutro sprawdzian',
-    match: /\b(szkol\w*|lekcj\w*|sprawdzian\w*|kartkowk\w*|klasowk\w*|zadani\w* domow\w*|nauczyciel\w*|matur\w*|egzamin\w*)\b/,
+    id: 'school', label: 'Szkoła', example: 'mam jutro sprawdzian', broad: 'talk',
+    match: /\b(szkol\w*|matm\w*|lekcj\w*|sprawdzian\w*|kartkowk\w*|klasowk\w*|zadani\w* domow\w*|nauczyciel\w*|matur\w*|egzamin\w*)\b/,
     replies: [
       'Najpierw lekcje, potem `/daily`. Dobra, odwrotnie 📚',
       'Powodzenia! Wierzę, że coś napiszesz 🍀',
@@ -1030,7 +1103,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'math', label: 'Matematyka', example: 'ile to 2+2?',
-    match: /\bile (to|jest)\b.*\d|\b\d+ (razy|plus|minus|x) \d+\b|\bmatm\w*\b|\bpolicz\b/,
+    match: /\bile (to|jest)\b.*\d|\b\d+ (razy|plus|minus|x) \d+\b|\bpolicz\b/,
     replies: [
       '4. Zawsze 4. Chyba że pytasz o coś innego 🤓',
       'Liczę tylko kasę i XP. Kalkulator masz w telefonie 📱',
@@ -1041,7 +1114,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'weather', label: 'Pogoda', example: 'jaka pogoda?',
+    id: 'weather', label: 'Pogoda', example: 'jaka pogoda?', broad: 'topic',
     match: /\bpogod\w*\b|\bna dworze\b|\bna polu\b|\bzimno\b|\bgoraco\b/,
     replies: [
       'U mnie w serwerowni 19 stopni i wiatr z wentylatora 🌀',
@@ -1091,7 +1164,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'facts', label: 'Ciekawostki', example: 'Klubiś, powiedz coś ciekawego',
-    match: /\bciekawostk\w*\b|\bcos ciekawego\b|\b(powiedz|opowiedz|napisz) (mi )?cos\b|\bgadaj\b|\bcokolwiek\b/,
+    match: /\bciekawostk\w*\b|\bcos ciekawego\b|\b(powiedz|opowiedz|napisz) (mi )?cos\b(?! smiesznego| milego)|\bgadaj\b|\bcokolwiek\b/,
     replies: [
       'Creeper powstał przez błąd: Notch pomylił wymiary modelu świni 🐷',
       'Dźwięki Ghasta to głos kota muzyka C418 🐱',
@@ -1136,7 +1209,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'youToo', label: 'A ty?', example: 'a ty?',
+    id: 'youToo', label: 'A ty?', example: 'a ty?', broad: 'catch',
     match: /\ba (ty|tobie|ty co|ty tez|u ciebie)$|^(ty|tobie) tez$|^tak samo$/,
     replies: [
       'Ja? Mnie wystarczy czat i lista komend 😄',
@@ -1207,7 +1280,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'how', label: 'Jak się ma', example: 'Klubiś, co tam?',
-    match: /\bjak (sie )?(masz|tam|leci|zyjesz|mija)\b|\bco (tam|slychac|u ciebie)\b|\bwszystko (ok|dobrze|git)\b/,
+    match: /\bjak (sie )?(masz|tam|leci|zyjesz|mija)\b|\bco (tam|slychac|u ciebie)\b|\bwszystko (ok|dobrze|git)\b|\bjak sie czujesz\b/,
     replies: [
       'Dobrze! Przed chwilą policzyłem całą kasę na serwerze 💰',
       'Spoko, tylko trochę się nudzę między wiadomościami.',
@@ -1392,7 +1465,7 @@ export const KLUBIS_SKILLS = [
   },
   // Sentences to Klubiś that start like these. Only after every topic above.
   {
-    id: 'know', label: 'Znasz?', example: 'znasz Steve\'a?',
+    id: 'know', label: 'Znasz?', example: 'znasz Steve\'a?', broad: 'catch',
     match: /\b(znasz|slyszales|slyszalas)\b|^(a )?wiesz\b/,
     replies: [
       'Znam tylko to, co Pikczu mi wpisał 📓',
@@ -1405,7 +1478,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'have', label: 'Masz?', example: 'masz coś do jedzenia?',
+    id: 'have', label: 'Masz?', example: 'masz coś do jedzenia?', broad: 'catch',
     match: /^(a )?(masz|macie)\b/,
     replies: [
       'Mam tylko bity i zielony domek 🏠',
@@ -1419,7 +1492,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'youAre', label: 'Jesteś?', example: 'jesteś tu?',
+    id: 'youAre', label: 'Jesteś?', example: 'jesteś tu?', broad: 'catch',
     match: /^(a |ty )?jestes\b/,
     replies: [
       'Tak mówią 😎',
@@ -1433,7 +1506,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'doYou', label: 'Zrobisz?', example: 'napiszesz coś?',
+    id: 'doYou', label: 'Zrobisz?', example: 'napiszesz coś?', broad: 'catch',
     match: /^(a )?(chcesz|wolisz|idziesz|bedziesz|pojdziesz|zrobisz|napiszesz|widzisz|slyszysz|czujesz|jedziesz)\b/,
     replies: [
       'Chętnie! Tylko mi przypomnij 😅',
@@ -1449,7 +1522,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'me', label: 'Opowieści członków', example: 'gram dzisiaj w Minecrafta',
+    id: 'me', label: 'Opowieści członków', example: 'gram dzisiaj w Minecrafta', broad: 'catch',
     match: /^(ja|mam|jestem|lubie|kocham|gram|gralem|gralam|bylem|bylam|kupilem|kupilam|zaraz|wlasnie|dzisiaj|dzis|wczoraj|jutro)\b/,
     replies: [
       'No proszę! Opowiadaj 👀',
@@ -1466,7 +1539,7 @@ export const KLUBIS_SKILLS = [
   },
   // Questions no skill above took. Each kind of question gets lines that fit it, so "co chcesz?" never hears "na sto procent".
   {
-    id: 'askWhen', label: 'Pytania: kiedy', example: 'kiedy to będzie?',
+    id: 'askWhen', label: 'Pytania: kiedy', example: 'kiedy to będzie?', broad: 'catch',
     match: ask('kiedy'),
     replies: [
       'Jutro. Albo za rok. Mój kalendarz to zagadka 📅',
@@ -1480,7 +1553,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askWho', label: 'Pytania: kto', example: 'kto to zrobił?',
+    id: 'askWho', label: 'Pytania: kto', example: 'kto to zrobił?', broad: 'catch',
     match: ask('kto|kogo|komu|kim|z kim|czyj\\w*'),
     replies: [
       'Ty, {user}. Na pewno ty 👀',
@@ -1494,7 +1567,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askWhere', label: 'Pytania: gdzie', example: 'gdzie to jest?',
+    id: 'askWhere', label: 'Pytania: gdzie', example: 'gdzie to jest?', broad: 'catch',
     match: ask('gdzie|skad|dokad'),
     replies: [
       'Pod lewym blokiem. Zawsze szukaj pod lewym blokiem 🧱',
@@ -1507,7 +1580,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askWhy', label: 'Pytania: czemu', example: 'czemu tak jest?',
+    id: 'askWhy', label: 'Pytania: czemu', example: 'czemu tak jest?', broad: 'catch',
     match: ask('dlaczego|czemu|po co'),
     replies: [
       'Bo tak ustawił los. Los to Pikczu 🎲',
@@ -1521,7 +1594,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askHowMany', label: 'Pytania: ile', example: 'ile to kosztuje?',
+    id: 'askHowMany', label: 'Pytania: ile', example: 'ile to kosztuje?', broad: 'catch',
     match: ask('ile'),
     replies: [
       'Siedem. Zawsze siedem 🎲',
@@ -1534,7 +1607,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askHow', label: 'Pytania: jak', example: 'jak to zrobić?',
+    id: 'askHow', label: 'Pytania: jak', example: 'jak to zrobić?', broad: 'catch',
     match: ask('jak'),
     replies: [
       'Normalnie, krok po kroku 🪜',
@@ -1548,7 +1621,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askWhich', label: 'Pytania: jaki', example: 'jaki jest najlepszy?',
+    id: 'askWhich', label: 'Pytania: jaki', example: 'jaki jest najlepszy?', broad: 'catch',
     match: ask('jaki|jaka|jakie|jakiego|jakim|jakiej|ktory|ktora|ktore|ktorego'),
     replies: [
       'Ten najlepszy 👍',
@@ -1562,7 +1635,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'askWhat', label: 'Pytania: co', example: 'co to jest?',
+    id: 'askWhat', label: 'Pytania: co', example: 'co to jest?', broad: 'catch',
     match: ask('co|czego|czym|o czym|o co'),
     replies: [
       'Dobre pytanie. Sam bym chciał wiedzieć 🤔',
@@ -1579,32 +1652,10 @@ export const KLUBIS_SKILLS = [
   },
   {
     // Last: anything else that ends with "?" is treated as a yes/no question.
-    id: 'question', label: 'Pytania tak/nie', example: 'Klubiś, czy jutro będzie padać?',
+    id: 'question', label: 'Pytania tak/nie', example: 'Klubiś, czy jutro będzie padać?', broad: 'catch',
     match: /^(a |no |ale )?czy\b/,
     question: true,
-    replies: [
-      'Tak.',
-      'Nie.',
-      'Raczej tak 🤔',
-      'Raczej nie.',
-      'Na sto procent!',
-      'Nie licz na to.',
-      'Zapytaj jutro 😴',
-      'Moje bity mówią, że tak.',
-      'Hmm... może?',
-      'Oczywiście, że tak 😎',
-      'Absolutnie nie 🙅',
-      'Moje źródła mówią: nie wiadomo 🤷',
-      'Tak, ale nikomu nie mów 🤫',
-      'Nie, chyba że bardzo chcesz 😏',
-      'Wygląda na to, że tak 👍',
-      'Wygląda na to, że nie 👎',
-      'Rzut monetą mówi, że tak 🪙',
-      'Rzut monetą mówi, że nie. Rzucam jeszcze raz 🪙',
-      'Teraz nie mogę ci tego powiedzieć 🤐',
-      'Może być. Czemu nie? 🤷',
-      'Dla ciebie, {user}? Tak 💜',
-    ],
+    replies: [...ANSWER_YES, ...ANSWER_NO, ...ANSWER_MAYBE],
   },
 ];
 
@@ -1741,7 +1792,10 @@ export const KLUBIS_FOLLOW = {
     'Była mowa o: „{asked}”. Moja odpowiedź: „{said}”. Genialna, wiem 😎',
     'Mam to w pamięci: „{asked}”. Odpowiedź: „{said}” 💾',
     'Pamiętam! „{asked}” i moje „{said}” 🧠',
-    'Napisałem: „{said}”. Na co? Tego już nie pamiętam 😅',
+  ],
+  recallAlone: [
+    'Napisałem: „{said}”. Na co? Tego nie powtórzę 🙊',
+    'Moja odpowiedź to „{said}”. Pytania wolę nie cytować 🙊',
   ],
   more: [
     'Więcej o czym? Było o „{asked}”, a ja już się gubię 😅',
@@ -1884,6 +1938,13 @@ export const KLUBIS_FOLLOW_SKILLS = {
   mean: {
     why: ['Bo tak mnie uczono. Pretensje do Pikczu 😤'],
   },
+  flirt: {
+    yes: 'more',
+    laugh: ['Działa, co nie? 😏', 'To jeszcze nic. Napisz „jeszcze” 😎', 'Wiem, jestem mistrzem podrywu. Stąd te wszystkie randki z bazą danych 💾'],
+    bad: ['Słaby? Ten działał na moją bazę danych 😭', 'Trudna publika. Napisz „jeszcze”, mam gorsze 😅'],
+    why: ['Bo o to proszono. Ja tylko wykonuję polecenia 🫡', 'Bo każdy zasługuje na trochę żenady 😌'],
+    really: ['Serio. Moje teksty mają 0% skuteczności, ale 100% pewności siebie 😎'],
+  },
   unknown: {
     what: ['Sam nie wiem, co miałem na myśli. Dopiero się uczę 😅', 'Odpisałem cokolwiek, bo nie zrozumiałem „{asked}” 😅'],
     why: ['Bo nie zrozumiałem „{asked}”. Przyznaję się 😅', 'Bo nie miałem na to gotowego zdania 📝'],
@@ -1893,9 +1954,11 @@ export const KLUBIS_FOLLOW_SKILLS = {
 // The member's long memory. {since}, {talks}, {likes}, {like}, {days} are filled in by services/klubis.js.
 export const KLUBIS_ABOUT = {
   known: 'Pewnie, że pamiętam, {user}! Znam cię od {since}, rozmów ze mną: {talks}.',
+  facts: 'Wiem jeszcze: {facts} 📓',
   likes: 'Lubisz: {likes} 📓',
   noLikes: 'Nie wiem jeszcze, co lubisz. Napisz: „Klubiś, lubię ...” 📓',
   learned: 'Zapamiętam, że lubisz {like} 📓',
+  noted: 'Zapisuję 📓',
 };
 
 // A greeting after a long break.

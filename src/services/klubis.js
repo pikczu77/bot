@@ -12,16 +12,23 @@
 // What it remembers (owner: "brakuje mi takiego czegos ze on wie na co odpowiada"):
 //  - a talk: what it said and what that answered. In memory only, a restart forgets. A reply to its message finds the talk by
 //    message id, also when someone else replies; a call by name continues this member's last talk for CONTEXT_MS.
-//  - a member: store guild:{id}:klubis-memory = { members: { [id]: { talks, firstAt, lastAt, likes } } }. Only what the member wrote
-//    to it ("lubię ..."), said back only to that member. "Zapomnij o mnie" and /wipedata delete it; the switch `memory` stops it.
+//  - a member: store guild:{id}:klubis-memory = { members: { [id]: { talks, firstAt, lastAt, name, age, city, likes, dislikes, plays } } }. What the
+//    member wrote to it (services/klubisBrain.js, factsOf). Name, age and city are said only to that member; likes and games also to someone who
+//    asks about them. "Zapomnij o mnie" and /wipedata delete it; the switch `memory` stops it. Owner: "brac wszystkie informacje", server 16+.
+//
+// A sentence is read by services/klubisBrain.js, real questions are answered by services/klubisFacts.js.
 
 import { guildStore } from '../utils/featureKit.js';
 import { logger } from '../utils/logger.js';
 import {
   KLUBIS_ABOUT, KLUBIS_CALLED, KLUBIS_FOLLOW, KLUBIS_FOLLOW_KINDS, KLUBIS_FOLLOW_SKILLS, KLUBIS_SKILLS, KLUBIS_UNKNOWN, KLUBIS_WELCOME_BACK,
 } from '../config/klubisReplies.js';
-import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../config/automodPresets.js';
-import { findBannedWord, findSlur } from './automodService.js';
+import { PRESET_SLURS } from '../config/automodPresets.js';
+import { findSlur } from './automodService.js';
+import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, onlyCalls, parseSentence, recalledLine, understand } from './klubisBrain.js';
+import { klubisFact, noteChannelMessage } from './klubisFacts.js';
+
+export { fold, likeOf };
 
 export const KLUBIS_DEFAULTS = { enabled: true, mentions: true, phrases: true, memory: true, chance: 30, cooldownMinutes: 3, channels: [] };
 export const MAX_CHANNELS = 25;
@@ -38,8 +45,6 @@ const RECENT_LINES = 6;
 const QUOTE_MAX = 60;
 const SAID_MAX = 80;
 const MAX_LIKES = 8;
-const LIKE_MAX = 40;
-const LIKE_WORDS_MAX = 5;
 // A greeting after this many days without a talk mentions the break.
 const WELCOME_BACK_DAYS = 3;
 
@@ -47,7 +52,6 @@ const WELCOME_BACK_DAYS = 3;
 // "Klubik Pikcza") and not "klubie" ("w klubie").
 const NAME_RE = /\bklubi(s|siu|sia|siem|sie|siowi|ku)\b/;
 const NAME_RE_G = new RegExp(NAME_RE.source, 'g');
-const MENTION_RE = /<@[!&]?\d{15,22}>/g;
 
 const store = guildStore('klubis', KLUBIS_DEFAULTS);
 const cache = new Map(); // guildId -> { at, data }
@@ -72,10 +76,6 @@ export async function saveKlubisSettings(guildId, updates) {
   cache.set(guildId, { at: Date.now(), data });
   return data;
 }
-
-/** Lower case, no Polish letters, punctuation as spaces, stretched letters cut ("seriooo" = "serio"): what the skills match. */
-export const fold = (text) => String(text ?? '').toLocaleLowerCase('pl').normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, ' ').replace(/([a-z])\1{2,}/g, '$1').trim();
 
 /** The message calls Klubiś: a mention (also of its own role), a reply to its message or its name. */
 export function callsKlubis(message) {
@@ -113,32 +113,18 @@ function pickFresh(lines, guildId, list, random) {
 export const klubisChannelAllowed = (settings, channel) => !settings.channels?.length
   || settings.channels.includes(channel?.id) || (Boolean(channel?.parentId) && settings.channels.includes(channel.parentId));
 
-function fill(line, message, talk = null) {
-  const name = message.member?.displayName ?? message.author?.globalName ?? message.author?.username ?? '';
+function fill(line, message, talk = null, remembered = null) {
+  const name = remembered?.name ?? message.member?.displayName ?? message.author?.globalName ?? message.author?.username ?? '';
   return line.replaceAll('{user}', () => name).replaceAll('{server}', () => message.guild?.name ?? '')
     .replaceAll('{asked}', () => talk?.asked ?? '').replaceAll('{said}', () => talk?.said ?? '');
 }
 
 const cut = (text, max) => (text.length > max ? `${text.slice(0, max).trimEnd()}...` : text);
 
-/**
- * The member's words, fit to be said back: no mentions, links, Klubiś's name or Discord formatting. Empty when they hold a word from
- * the ready lists, because Klubiś must never repeat one, also on a server or channel where automod lets it through.
- */
+/** The member's words, fit to be said back. Empty when they hold a slur: the server's rule, Klubiś never repeats one. */
 export function quoteOf(raw) {
-  const text = String(raw ?? '').replace(MENTION_RE, ' ').replace(/https?:\S+/gi, ' ').replace(/klubi[sś]\p{L}*/giu, ' ')
-    .replace(/[`*_~|>#@<{}\\]/g, '').replace(/\s+/g, ' ').replace(/^[\s,.:;!?-]+/, '').trim();
-  if (text.length < 2 || findBannedWord(text, PRESET_WORDS, PRESET_ALLOWED_WORDS) || findSlur(text, PRESET_SLURS)) return '';
-  return cut(text, QUOTE_MAX);
-}
-
-/** "Lubię grać w minecraft, a ty?" -> "grać w minecraft". Not people ("lubię cię") and no numbers, so nothing private stays by accident. */
-export function likeOf(raw) {
-  const match = /^(?:a )?(?:ja )?(?:tez |też )?(?:lubie|lubię|uwielbiam)\s+(.+?)(?:[,\s]+a ty)?[\s?!.]*$/iu.exec(quoteOf(raw));
-  if (!match) return null;
-  const like = match[1].trim();
-  if (like.length > LIKE_MAX || like.split(' ').length > LIKE_WORDS_MAX || /\d/.test(like)) return null;
-  return /^(cie|ciebie|cb|to|tego|tak|go|ja|jego|ich|was|nas|mnie|siebie)\b/.test(fold(like)) ? null : like;
+  const text = cleanText(raw);
+  return text.length < 2 || findSlur(text, PRESET_SLURS) ? '' : cut(text, QUOTE_MAX);
 }
 
 function keepTalk(map, key, talk) {
@@ -176,28 +162,48 @@ function followUp(text, talk, guildId, random) {
   if (!kind) return null;
   const own = KLUBIS_FOLLOW_SKILLS[talk.skillId]?.[kind];
   const another = (own === 'more' || (!own && kind === 'more')) && skill?.replies.length > 1;
-  const lines = usable(another ? skill.replies : (Array.isArray(own) ? own : KLUBIS_FOLLOW[kind]), talk);
+  const generic = kind === 'recall' && !talk.asked ? KLUBIS_FOLLOW.recallAlone : KLUBIS_FOLLOW[kind];
+  const lines = usable(another ? skill.replies : (Array.isArray(own) ? own : generic), talk);
   if (!lines?.length) return null;
   return pickFresh(lines, guildId, another ? skill.id : `${talk.skillId}:${kind}`, random);
 }
 
+/** What Klubiś knows about the member, in one line. */
+function aboutLine(member) {
+  const since = new Date(member.firstAt).toLocaleDateString('pl-PL', { timeZone: 'Europe/Warsaw', day: 'numeric', month: 'long' });
+  const known = [
+    member.name && `imię ${member.name}`, member.age && `${member.age} lat`, member.city,
+    member.plays?.length && `grasz ${member.plays.join(', ')}`, member.dislikes?.length && `nie lubisz: ${member.dislikes.join(', ')}`,
+  ].filter(Boolean).join(', ');
+  const likes = member.likes?.length ? KLUBIS_ABOUT.likes.replace('{likes}', () => member.likes.join(', ')) : KLUBIS_ABOUT.noLikes;
+  const about = KLUBIS_ABOUT.known.replace('{since}', since).replace('{talks}', String(member.talks ?? 1));
+  return [about, known && KLUBIS_ABOUT.facts.replace('{facts}', () => known), likes].filter(Boolean).join(' ');
+}
+
+/** "Poderwij @Kuba" -> who it is for, and a silly line. "Teksty na podryw" -> a line to use. */
+function flirtLine(skill, message, text, line) {
+  if (!/^(a |no |to )?(poderwij|podrywaj|zarwij|zbajeruj|zagadaj do|rizzuj)\b/.test(text)) return `Spróbuj tak: „${line}”`;
+  const botId = message.client?.user?.id;
+  const other = [...(message.mentions?.users?.values?.() ?? [])].find((user) => user.id !== botId);
+  if (other) return `Podrywam <@${other.id}>: ${line}`;
+  const target = quoteOf(cleanText(message.content).replace(/^(a |no |to )?(poderwij|podrywaj|zarwij|zbajeruj|zagadaj do|rizzuj)\s*/iu, '').replace(/[?!.,]+$/, ''));
+  return target && fold(target) !== 'mnie' ? `Podrywam ${target}: ${line}` : `{user}, ${line[0].toLocaleLowerCase('pl')}${line.slice(1)}`;
+}
+
 /** The line of a skill. The member's memory changes two of them: "co o mnie wiesz" and a greeting after a long break. */
-function skillLine(skill, guildId, member, now, random) {
-  if (skill.id === 'aboutMe' && member?.firstAt) {
-    const since = new Date(member.firstAt).toLocaleDateString('pl-PL', { timeZone: 'Europe/Warsaw', day: 'numeric', month: 'long' });
-    const likes = member.likes?.length ? KLUBIS_ABOUT.likes.replace('{likes}', () => member.likes.join(', ')) : KLUBIS_ABOUT.noLikes;
-    return `${KLUBIS_ABOUT.known.replace('{since}', since).replace('{talks}', String(member.talks ?? 1))} ${likes}`;
-  }
+function skillLine(skill, guildId, member, now, random, message, text) {
+  if (skill.id === 'aboutMe' && member?.firstAt) return aboutLine(member);
   const days = member?.lastAt ? Math.floor((now - member.lastAt) / 86_400_000) : 0;
   if (skill.id === 'hello' && days >= WELCOME_BACK_DAYS) return pickFresh(KLUBIS_WELCOME_BACK, guildId, 'welcomeBack', random).replaceAll('{days}', String(days));
-  return pickFresh(skill.replies, guildId, skill.id, random);
+  const line = pickFresh(skill.replies, guildId, skill.id, random);
+  return skill.id === 'flirt' ? flirtLine(skill, message, text, line) : line;
 }
 
 /**
- * What Klubiś says to this message, or null: { line, skillId, followUp, learned }. Pure apart from the breaks it reads and sets.
- * `talk` = the talk it continues, `member` = what it remembers about the member, `like` = what this message says they like.
+ * What Klubiś says to this message, or null: { line, skillId, followUp, facts }. Pure apart from the breaks it reads and sets.
+ * `talk` = the talk it continues, `member` = what it remembers about the member, `remembers` = it may learn, `fact` = a real answer found.
  */
-export function klubisAnswer(message, settings, { now = Date.now(), random = Math.random, talk = null, member = null, like = null } = {}) {
+export function klubisAnswer(message, settings, { now = Date.now(), random = Math.random, talk = null, member = null, remembers = false, fact = null } = {}) {
   const raw = String(message.content ?? '');
   const text = fold(raw.replace(MENTION_RE, ' ')).replace(NAME_RE_G, ' ').replace(/\s+/g, ' ').trim();
   const guildId = message.guild.id;
@@ -206,19 +212,40 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
     const key = `${guildId}:${message.author.id}`;
     if (now - (memberLast.get(key) ?? 0) < MEMBER_GAP_MS) return null;
     memberLast.set(key, now);
+    if (fact) return { line: fact, skillId: 'fact' };
+    const pick = (lines, list) => pickFresh(lines, guildId, list, random);
     const follow = talk && text ? followUp(text, talk, guildId, random) : null;
     if (follow) return { line: follow, skillId: talk.skillId, followUp: true };
-    const skill = findSkill(text, raw);
-    if (skill) {
-      const learned = like && skill.id !== 'forget' && !member?.likes?.includes(like) ? like : null;
-      const line = skillLine(skill, guildId, member, now, random);
-      return { line: learned ? `${line} ${KLUBIS_ABOUT.learned.replace('{like}', () => learned)}` : line, skillId: skill.id, learned };
+    if (!text) return { line: pick(KLUBIS_CALLED, 'called'), skillId: 'called' };
+    const recalled = recalledLine(text, member, pick);
+    if (recalled) return { line: recalled, skillId: 'aboutMe' };
+
+    const parsed = parseSentence(raw);
+    const facts = remembers ? factsOf(parsed) : {};
+    const learned = facts.likes && !member?.likes?.includes(facts.likes) ? facts.likes : null;
+    const withLearned = (line) => (!learned ? line : `${line} ${line.includes(learned) ? KLUBIS_ABOUT.noted : KLUBIS_ABOUT.learned.replace('{like}', () => learned)}`);
+    const introduced = learnedLine(facts, pick);
+    if (introduced) return { line: introduced, skillId: 'understood', facts };
+
+    // A greeting in front of a sentence changes nothing: "siema, lubię pizzę".
+    const body = parsed.greeted ? fold(parsed.words.join(' ')) : text;
+    const skill = findSkill(body, raw) ?? null;
+    const asksFact = parsed.person !== 'you' && (parsed.question || parsed.asks || parsed.qSkill);
+    if (skill && (!skill.broad || (skill.broad === 'topic' && asksFact))) {
+      return { line: withLearned(skillLine(skill, guildId, member, now, random, message, text)), skillId: skill.id, facts };
     }
-    if (!text) return { line: pickFresh(KLUBIS_CALLED, guildId, 'called', random), skillId: 'called' };
-    // A reply nothing understood: half of the time say which talk it belongs to, so it is clear Klubiś knows.
-    const stay = talk?.replied && random() < 0.5 ? usable(KLUBIS_FOLLOW.stay, talk) : null;
-    if (stay?.length) return { line: pickFresh(stay, guildId, 'stay', random), skillId: talk.skillId, followUp: true };
-    return { line: pickFresh(KLUBIS_UNKNOWN, guildId, 'unknown', random), skillId: 'unknown' };
+    // A reply nothing understood: part of the time say which talk it belongs to, so it is clear Klubiś knows.
+    if (talk?.replied && parsed.person === 'other' && !parsed.asks && !parsed.qSkill && !skill && random() < 0.4) {
+      const stay = usable(KLUBIS_FOLLOW.stay, talk);
+      if (stay.length) return { line: pick(stay, 'stay'), skillId: talk.skillId, followUp: true };
+    }
+    // A question about a topic takes the topic's lines ("gdzie jest pikczu"), a sentence can have them after what it says back.
+    const catchSkill = skill?.broad === 'catch' || (skill?.broad === 'talk' && parsed.qSkill) ? skill : null;
+    const sense = understand(parsed, { pick, random, topic: skill?.broad === 'talk' ? skill : null, catchSkill });
+    if (sense) return { line: withLearned(`${parsed.greeted ? 'Siema! ' : ''}${sense.line}`), skillId: sense.skillId, facts };
+    if (skill) return { line: skillLine(skill, guildId, member, now, random, message, text), skillId: skill.id, facts };
+    if (onlyCalls(parsed)) return { line: pick(KLUBIS_CALLED, 'called'), skillId: 'called' };
+    return { line: pick(KLUBIS_UNKNOWN, 'unknown'), skillId: 'unknown' };
   }
 
   if (!settings.phrases || !text || text.split(' ').length > ALONE_MAX_WORDS) return null;
@@ -241,12 +268,16 @@ function writeMemory(guildId, mutate) {
   return next;
 }
 
-async function noteMember(guildId, userId, like, now) {
+async function noteMember(guildId, userId, facts, now) {
   await writeMemory(guildId, (data) => {
     const member = data.members[userId] ?? { talks: 0, firstAt: now, likes: [] };
     member.talks += 1;
     member.lastAt = now;
-    if (like && !member.likes.includes(like)) member.likes = [...member.likes, like].slice(-MAX_LIKES);
+    for (const key of ['name', 'age', 'city']) if (facts?.[key]) member[key] = facts[key];
+    for (const key of ['likes', 'dislikes', 'plays']) {
+      const list = member[key] ?? [];
+      if (facts?.[key] && !list.includes(facts[key])) member[key] = [...list, facts[key]].slice(-MAX_LIKES);
+    }
     data.members[userId] = member;
   });
 }
@@ -273,11 +304,18 @@ export async function handleKlubisMessage(message, { prefix = '!', now, random, 
   const called = Boolean(settings.mentions && callsKlubis(message));
   const remembers = called && settings.memory !== false;
   const talk = called ? talkFor(message, at) : null;
-  const member = remembers ? (await memoryStore.get(message.guild.id)).members[message.author.id] ?? null : null;
-  const answer = klubisAnswer(message, settings, { now: at, random, talk, member, like: remembers ? likeOf(message.content) : null });
+  const memory = remembers ? (await memoryStore.get(message.guild.id)).members : null;
+  const member = memory?.[message.author.id] ?? null;
+  noteChannelMessage(message);
+  const text = called ? fold(String(message.content ?? '').replace(MENTION_RE, ' ')).replace(NAME_RE_G, ' ').replace(/\s+/g, ' ').trim() : '';
+  const fact = text ? await klubisFact(message, text, { now: at, memoryOf: async (id) => memory?.[id] ?? null }).catch((error) => {
+    logger.warn(`Klubis fact failed in guild ${message.guild.id}: ${error.message}`);
+    return null;
+  }) : null;
+  const answer = klubisAnswer(message, settings, { now: at, random, talk, member, remembers, fact });
   if (!answer) return false;
 
-  const content = fill(answer.line, message, talk).slice(0, 2000);
+  const content = fill(answer.line, message, talk, member).slice(0, 2000);
   const wait = delayMs ?? (process.env.NODE_ENV === 'test' ? 0 : Math.min(2500, 600 + content.length * 25));
   if (wait > 0) {
     await message.channel?.sendTyping?.().catch(() => {});
@@ -287,7 +325,7 @@ export async function handleKlubisMessage(message, { prefix = '!', now, random, 
     const sent = await message.reply({ content, allowedMentions: { parse: [], repliedUser: false } });
     rememberTalk(message, sent, answer, content, talk, at);
     if (called && answer.skillId === 'forget') await forgetKlubisMember(message.guild.id, message.author.id);
-    else if (remembers) await noteMember(message.guild.id, message.author.id, answer.learned, at);
+    else if (remembers) await noteMember(message.guild.id, message.author.id, answer.facts, at);
     return true;
   } catch (error) {
     logger.warn(`Klubis answer not sent in guild ${message.guild.id}: ${error.message}`);

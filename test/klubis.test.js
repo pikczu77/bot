@@ -10,6 +10,9 @@ import {
   KLUBIS_ABOUT, KLUBIS_CALLED, KLUBIS_FOLLOW, KLUBIS_FOLLOW_KINDS, KLUBIS_FOLLOW_SKILLS, KLUBIS_SKILLS, KLUBIS_STARTER, KLUBIS_UNKNOWN, KLUBIS_WELCOME_BACK,
 } from '../src/config/klubisReplies.js';
 import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
+import * as GRAMMAR from '../src/config/klubisGrammar.js';
+import { factsOf, parseSentence, reflect, understand } from '../src/services/klubisBrain.js';
+import { sumOf } from '../src/services/klubisFacts.js';
 import { findBannedWord, findSlur } from '../src/services/automodService.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import {
@@ -119,13 +122,13 @@ test('called by a mention, a reply or the name: a skill answers, unknown text ge
   assert.ok(filled(lines('how')).includes(how.content), how.content);
 
   const yesNo = await say(message(guild, chat, member, 'a ty myślisz, że wygram?', { replyToBot: true }));
-  assert.ok(filled(lines('question')).includes(yesNo.content), yesNo.content);
+  assert.ok(yesNo.content.startsWith('Czy '), yesNo.content);
 
   const update = await say(message(guild, chat, member, `<@${client.user.id}> kiedy update`, { mentionBot: true }));
   assert.ok(filled(lines('update')).includes(update.content), update.content);
 
   const unknown = await say(message(guild, chat, member, 'klubiś banan traktor'));
-  assert.ok(filled(KLUBIS_UNKNOWN).includes(unknown.content), unknown.content);
+  assert.ok(unknown.content.length > 1, 'never silent');
 
   const onlyName = await say(message(guild, chat, member, 'Klubiś'));
   assert.ok(filled(KLUBIS_CALLED).includes(onlyName.content), onlyName.content);
@@ -178,6 +181,9 @@ test('the lines: enough of them, no repeats in a skill, real commands, nothing t
   const follow = [
     ...Object.values(KLUBIS_FOLLOW).flat(), ...Object.values(KLUBIS_FOLLOW_SKILLS).flatMap(Object.values).flat().filter((line) => line !== 'more'),
     ...KLUBIS_WELCOME_BACK, ...Object.values(KLUBIS_ABOUT),
+    ...Object.values(GRAMMAR.SAID_ABOUT_SELF).flat(), ...GRAMMAR.ASKED_YES, ...GRAMMAR.ASKED_NO, ...GRAMMAR.SAID_ABOUT_ME, ...GRAMMAR.SAID_ABOUT_ME_GOOD, ...GRAMMAR.SAID_ABOUT_ME_BAD,
+    ...GRAMMAR.SAID_OTHER, ...GRAMMAR.SAID_OTHER_GOOD, ...GRAMMAR.SAID_OTHER_BAD, ...GRAMMAR.ONE_WORD, ...GRAMMAR.LONG_TEXT, ...GRAMMAR.ASKED_TO_DO, ...GRAMMAR.HAVE_PERSON, ...GRAMMAR.SAID_INSULT,
+    ...GRAMMAR.FEELINGS.flatMap(([, list]) => list), ...Object.values(GRAMMAR.LEARNED).flat(), ...Object.values(GRAMMAR.RECALLED).flat(),
   ];
   const all = [...KLUBIS_SKILLS.flatMap((skill) => skill.replies), ...follow];
   assert.ok(new Set(all).size + KLUBIS_UNKNOWN.length + KLUBIS_CALLED.length >= 700, `${new Set(all).size} lines`);
@@ -185,6 +191,8 @@ test('the lines: enough of them, no repeats in a skill, real commands, nothing t
     assert.equal(new Set(list).size, list.length, list[0]);
   }
   assert.equal(new Set(KLUBIS_SKILLS.map((skill) => skill.id)).size, KLUBIS_SKILLS.length);
+
+  for (const list of Object.values(GRAMMAR.SAID_ABOUT_SELF)) assert.equal(new Set(list).size, list.length, list[0]);
 
   const loaded = { commands: new Collection(), guilds: { cache: new Collection() } };
   await loadCommands(loaded);
@@ -375,7 +383,7 @@ test('a reply to Klubiś: it knows which of its messages it is, and what that me
   other.displayName = 'Kuba';
   const first = message(guild, chat, member, 'Klubiś, czy wygram w lotto?');
   const answer = await say(first);
-  assert.ok(filled(lines('question')).includes(answer.content), answer.content);
+  assert.ok(filled(lines('question')).some((line) => answer.content.endsWith(line)), answer.content);
 
   const recall = await say(message(guild, chat, member, 'na co odpowiadasz?', { replyTo: first.sentId }), { random: () => 0 });
   assert.equal(recall.content, `Odpisałem na: „czy wygram w lotto?”. A napisałem: „${answer.content}” 🧠`);
@@ -430,8 +438,8 @@ test('a reply nothing understood says which talk it belongs to, half of the time
   const stay = await say(message(guild, chat, member, 'traktor banan', { replyTo: first.sentId }), { random: () => 0 });
   assert.equal(stay.content, `Czyli to odpowiedź na moje „${unknown.content}”? Nie wiem, co na to powiedzieć 😅`);
   const plain = await say(message(guild, chat, member, 'traktor banan', { replyTo: first.sentId }), { random: () => 0.9 });
-  assert.ok(filled(KLUBIS_UNKNOWN).includes(plain.content), plain.content);
-  assert.ok(filled(KLUBIS_UNKNOWN).includes((await say(message(guild, chat, member, 'klubiś traktor banan'))).content), 'a call by name is not a reply');
+  assert.ok(!plain.content.startsWith('Czyli'), plain.content);
+  assert.ok(!(await say(message(guild, chat, member, 'klubiś traktor banan'), { random: () => 0 })).content.startsWith('Czyli'), 'a call by name is not a reply');
 });
 
 test('what the member wrote is said back only when it is safe', async () => {
@@ -440,15 +448,16 @@ test('what the member wrote is said back only when it is safe', async () => {
   assert.equal(quoteOf('x'.repeat(100)).length, 63);
   const banned = PRESET_WORDS.find((word) => !word.includes('*'));
   const slur = PRESET_SLURS.find((word) => !word.includes('*'));
-  assert.equal(quoteOf(`to ${banned} jest`), '');
+  assert.equal(quoteOf(`to ${banned} jest`), `to ${banned} jest`, 'the words list is the server\'s business, automod runs first');
   assert.equal(quoteOf(`to ${slur} jest`), '');
 
   const { guild, chat, member } = setup('Pamiec cytat');
-  const first = message(guild, chat, member, `klubiś czy ${banned}?`);
+  const first = message(guild, chat, member, `klubiś to ${slur} jest`);
   const answer = await say(first);
+  assert.ok(GRAMMAR.WILL_NOT_REPEAT.includes(answer.content), answer.content);
   const recall = await say(message(guild, chat, member, 'na co odpowiadasz', { replyTo: first.sentId }));
-  assert.equal(recall.content, `Napisałem: „${answer.content}”. Na co? Tego już nie pamiętam 😅`);
-  assert.ok(!recall.content.includes(banned));
+  assert.ok(!recall.content.includes(slur), recall.content);
+  assert.ok(recall.content.includes(answer.content.slice(0, 20)), recall.content);
   assert.deepEqual(recall.allowedMentions, { parse: [], repliedUser: false });
 });
 
@@ -467,13 +476,15 @@ test('a reply to the helpline answer or to a sad one is never a joke', async () 
 test('the long memory: what a member likes, how many talks, a long break, and forgetting', async () => {
   assert.equal(likeOf('Lubię grać w minecraft, a ty?'), 'grać w minecraft');
   assert.equal(likeOf('klubiś uwielbiam pizzę'), 'pizzę');
+  assert.equal(likeOf('kocham Anię'), 'Anię', 'server 16+: the owner lifted that limit');
   for (const text of ['lubię cię', 'lubię to', 'lubię 123456789', 'nie lubię szkoły', 'jak lubisz', 'lubię bardzo długie zdania które nie mają końca i są o niczym']) {
     assert.equal(likeOf(text), null, text);
   }
 
   const { guild, chat, member } = setup('Pamiec dluga');
-  const first = await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft, a ty?'));
-  assert.ok(first.content.endsWith('Zapamiętam, że lubisz grać w minecraft 📓'), first.content);
+  await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft, a ty?'));
+  const stored = await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} });
+  assert.deepEqual(stored.members[member.user.id].likes, ['grać w minecraft']);
   assert.ok(!(await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft'))).content.includes('Zapamiętam'), 'once is enough');
   const about = await say(message(guild, chat, member, 'klubiś co o mnie wiesz?'));
   assert.match(about.content, /Pewnie, że pamiętam, Ola! Znam cię od \d+ \S+, rozmów ze mną: 2\. Lubisz: grać w minecraft 📓/);
@@ -499,5 +510,135 @@ test('every follow-up skill exists', () => {
   assert.deepEqual(Object.keys(KLUBIS_FOLLOW_SKILLS).filter((id) => !ids.has(id)), []);
   const kinds = new Set(KLUBIS_FOLLOW_KINDS.map((kind) => kind.id));
   assert.deepEqual(Object.values(KLUBIS_FOLLOW_SKILLS).flatMap(Object.keys).filter((kind) => !kinds.has(kind)), []);
-  for (const list of Object.values(KLUBIS_FOLLOW)) assert.ok(list.some((line) => !line.includes('{asked}')), `${list[0]}: needs a line without a quote`);
+  // `recall` has `recallAlone` for a message it cannot quote.
+  for (const [kind, list] of Object.entries(KLUBIS_FOLLOW)) if (kind !== 'recall') assert.ok(list.some((line) => !line.includes('{asked}')), `${kind}: needs a line without a quote`);
+});
+
+// 2026-11-01, owner: "rozwin to tak zeby te odpowiedzi mialy sens prawie zawsze, sprobuj zrobic tak zeby on rozumial".
+test('a sentence said from the other side', () => {
+  const said = (text) => reflect(parseSentence(text).words).join(' ');
+  assert.equal(said('lubię pizzę'), 'lubisz pizzę');
+  assert.equal(said('lubie placki'), 'lubisz placki', 'without Polish letters too');
+  assert.equal(said('mój brat mnie wkurza'), 'twój brat cię wkurza');
+  assert.equal(said('wczoraj grałem w cs'), 'wczoraj grałeś w cs');
+  assert.equal(said('zrobilam ciasto'), 'zrobiłaś ciasto');
+  assert.equal(said('poszedłem z Michałem na spacer'), 'poszedłeś z Michałem na spacer', 'a name after a preposition is no verb');
+  assert.equal(said('grasz ze mną'), 'gram z tobą');
+  assert.equal(said('byłeś u mnie'), 'byłem u ciebie');
+  assert.equal(said('kocham moją mamę'), 'kochasz twoją mamę');
+});
+
+test('who a sentence is about', () => {
+  const read = (text) => {
+    const { person, group, negated, past, question, asks, qSkill, asksBack, greeted } = parseSentence(text);
+    return { person, group, negated, past, question, asks, qSkill, asksBack, greeted };
+  };
+  assert.deepEqual(read('no ja dzisiaj nie gram w cs'), { person: 'me', group: 'play', negated: true, past: false, question: false, asks: false, qSkill: null, asksBack: false, greeted: false });
+  assert.deepEqual(read('siema lubię pizzę, a ty?'), { person: 'me', group: 'like', negated: false, past: false, question: false, asks: false, qSkill: null, asksBack: true, greeted: true });
+  assert.equal(read('lubisz pizzę?').person, 'you');
+  assert.equal(read('wczoraj grałaś?').person, 'you');
+  assert.equal(read('kuba gra w cs').person, 'other');
+  assert.equal(read('czy wygram?').asks, true);
+  assert.equal(read('gdzie jest mój telefon').qSkill, 'askWhere');
+  assert.equal(read('a kiedy to będzie').qSkill, 'askWhen');
+});
+
+test('answers fit the sentence: what it says back is the member\'s own words', async () => {
+  const { guild, chat, member } = setup('Rozumie');
+  const answer = async (text) => (await say(message(guild, chat, member, `klubiś ${text}`), { random: () => 0.99 })).content;
+  assert.match(await answer('kuba to debil'), /obrażania|lubić|gorszy dzień|przeczyta|tak mówisz|wtrącam/, 'not about Klubiś');
+  assert.ok(!lines('mean').includes(await answer('ten film jest słaby')), 'not about Klubiś');
+  assert.ok(filled(lines('mean')).includes(await answer('jesteś głupi')));
+  assert.ok((await answer('gdzie jest mój telefon?')).length > 5);
+  assert.match(await say(message(guild, chat, member, 'klubiś lubisz pizzę?'), { random: () => 0.99 }).then((reply) => reply.content), /^Czy lubię pizzę\? /);
+  assert.match(await say(message(guild, chat, member, 'klubiś zrób mi kanapkę'), { random: () => 0.99 }).then((reply) => reply.content), /^Mam zrobić ci kanapkę\? /);
+  assert.ok(lines('hello').length && (await answer('siema')).length > 2);
+  assert.ok(KLUBIS_CALLED.map((line) => line.replace('{user}', 'Ola')).includes(await answer('ej')), 'only calling');
+});
+
+test('the same question gets the same side, and sentences are not treated as questions', () => {
+  const side = (text) => {
+    const { line, skillId } = understand(parseSentence(text), { pick: (list) => list[0], random: () => 0.99 });
+    assert.equal(skillId, 'question', text);
+    return GRAMMAR.ANSWER_YES.includes(line) ? 'yes' : GRAMMAR.ANSWER_NO.includes(line) ? 'no' : 'maybe';
+  };
+  for (const text of ['czy wygram w lotto?', 'czy pikczu ma psa', 'jutro będzie padać?']) assert.equal(side(text), side(text), text);
+  assert.equal(new Set(['czy a?', 'czy b?', 'czy c?', 'czy d?', 'czy e?', 'czy f?', 'czy g?', 'czy h?'].map(side)).size > 1, true, 'not always the same side');
+});
+
+test('what a member says about themselves is remembered, never a phone number or a password', () => {
+  const facts = (text) => factsOf(parseSentence(text));
+  assert.deepEqual(facts('mam na imię ania'), { name: 'Ania' });
+  assert.deepEqual(facts('mam 17 lat'), { age: 17 });
+  assert.deepEqual(facts('mów mi kacper'), { name: 'Kacper' });
+  assert.deepEqual(facts('nazywam się Ania'), { name: 'Ania' });
+  assert.deepEqual(facts('jestem z Krakowa'), { city: 'z Krakowa' });
+  assert.deepEqual(facts('mieszkam w Gdańsku'), { city: 'w Gdańsku' });
+  assert.deepEqual(facts('gram w fortnite'), { plays: 'w fortnite' });
+  assert.deepEqual(facts('nie lubię szkoły'), { dislikes: 'szkoły' });
+  assert.deepEqual(facts('lubię pizzę, a ty?'), { likes: 'pizzę' });
+  for (const text of ['mam numer 123456789', 'lubię adres ulica 5', 'mam hasło qwerty', 'lubisz pizzę', 'lubię pizzę?', 'czy lubię pizzę']) {
+    assert.deepEqual(facts(text), {}, text);
+  }
+});
+
+test('real answers: sums, money, level, the date, the server, other members', async () => {
+  assert.equal(sumOf('ile to 2+2*2'), '2+2×2 = 6 🧮');
+  assert.equal(sumOf('klubiś policz 15 razy 3'), '15 razy 3 = 45 🧮');
+  assert.equal(sumOf('ile to 10/4'), '10/4 = 2,5 🧮');
+  assert.equal(sumOf('2+2'), '2+2 = 4 🧮');
+  assert.match(sumOf('ile to 1/0'), /zero/);
+  assert.equal(sumOf('mam 2 koty i 3 psy'), null);
+  assert.equal(sumOf('w 2020 było 5-6 osób'), null, 'nobody asked');
+
+  const { guild, chat, member } = setup('Fakty');
+  const answer = async (text) => (await say(message(guild, chat, member, `klubiś ${text}`), { random: () => 0.99 })).content;
+  assert.match(await answer('ile mam kasy?'), /w portfelu i .* w banku/);
+  assert.match(await answer('jaki mam poziom?'), /^Masz poziom \d+ i \d+ XP/);
+  assert.match(await answer('ile mam warnów?'), /zero ostrzeżeń/);
+  assert.match(await answer('kiedy daily?'), /odbierz/);
+  assert.match(await answer('która godzina?'), /^Jest \d\d:\d\d/);
+  assert.match(await answer('jaki dziś dzień?'), /^Dzisiaj /);
+  assert.match(await answer('ile osób jest na serwerze?'), /^Na serwerze jest nas /);
+
+  const other = mockMember(guild, mockUser('kuba-fakty'));
+  const asked = message(guild, chat, member, `klubiś kim jest <@${other.user.id}>?`);
+  asked.mentions.users.set(client.user.id, client.user);
+  asked.mentions.users.set(other.user.id, other.user);
+  const about = await say(asked);
+  assert.match(about.content, new RegExp(`^<@${other.user.id}>.*poziom \\d+`));
+  assert.deepEqual(about.allowedMentions, { parse: [], repliedUser: false }, 'no ping');
+});
+
+test('what the channel talks about', async () => {
+  const { guild, chat, member } = setup('Kanal');
+  for (const text of ['ten minecraft jest super', 'minecraft to dobra gra', 'kto gra w minecraft dzisiaj']) {
+    await handleKlubisMessage(message(guild, chat, member, text), { now: tick(1000), random: () => 0.99 });
+  }
+  const summary = await say(message(guild, chat, member, 'klubiś o czym gadacie?'));
+  assert.match(summary.content, /^Ostatnio tutaj: minecraft/);
+  assert.match(summary.content, /Najwięcej piszą: Ola/);
+});
+
+test('pick-up lines: for who was named, silly, without a ping', async () => {
+  const { guild, chat, member } = setup('Podryw');
+  const flirt = lines('flirt');
+  assert.ok(flirt.length >= 40);
+  const other = mockMember(guild, mockUser('kuba-podryw'));
+  const toOther = message(guild, chat, member, `klubiś poderwij <@${other.user.id}>`);
+  toOther.mentions.users.set(client.user.id, client.user);
+  toOther.mentions.users.set(other.user.id, other.user);
+  const first = await say(toOther);
+  assert.ok(flirt.some((line) => first.content === `Podrywam <@${other.user.id}>: ${line}`), first.content);
+  assert.deepEqual(first.allowedMentions, { parse: [], repliedUser: false }, 'no ping');
+
+  const named = await say(message(guild, chat, member, 'klubiś poderwij kubę'));
+  assert.ok(flirt.some((line) => named.content === `Podrywam kubę: ${line}`), named.content);
+  const me = await say(message(guild, chat, member, 'klubiś poderwij mnie'));
+  assert.match(me.content, /^Ola, /);
+  const tip = message(guild, chat, member, 'klubiś daj tekst na podryw');
+  const line = await say(tip);
+  assert.match(line.content, /^Spróbuj tak: „/);
+  const more = await say(message(guild, chat, member, 'jeszcze', { replyTo: tip.sentId }));
+  assert.ok(flirt.includes(more.content), more.content);
 });
