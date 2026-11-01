@@ -5,6 +5,30 @@
 // name and mention are taken out. `alone: true` = it may also answer a message that does not call Klubiś (with the
 // server's chance and break). Order matters: the first match wins. {user} = the member's name, {server} = server name.
 
+// "Co robisz?" to Klubiś and "co robicie?" to the chat (owner asked for 20).
+const DOING = [
+  'Ja pilnuję czatu, żeby nikt nie przeklinał 👀',
+  'Liczę, kto ma najwięcej kasy na serwerze 💰',
+  'Gram w Minecrafta w głowie. Właśnie znalazłem diamenty 💎',
+  'Uczę się pisać. Coraz lepiej mi idzie, nie? 😅',
+  'Oglądam ostatni film Pikczu po raz dziesiąty 🎬',
+  'Rozdaję XP za wiadomości. Pisz dalej, to wbijesz poziom ⭐',
+  'Nic, nudzę się. Zagra ktoś w `/wisielec`? 🎯',
+  'Szukam creepera, który wysadził mi dom 💥',
+  'Układam jutrzejsze słowo do `/wordle` 🟩 Nie powiem jakie!',
+  'Czekam, aż ktoś odbierze `/daily` 👀',
+  'Pilnuję giełdy. Kebab u Stefana znowu rośnie 📈',
+  'Sprzątam po ostatnim `/napad` 🚔',
+  'Siedzę z wami na czacie, a co mam robić? 😎',
+  'Słucham muzyki. Puść coś przez `/play` 🎵',
+  'Liczę, ile razy dzisiaj ktoś napisał „xd” 😂',
+  'Trenuję żarty. Napisz „Klubiś, opowiedz żart” 😏',
+  'Planuję następny drop na czacie 🎁 Bądź czujny!',
+  'Odpoczywam po nocnej zmianie. Boty też się męczą 😴',
+  'Kibicuję wam w `/pojedynek` ✊✋✌️',
+  'Patrzę, czy nikt nie spamuje. Wszystko pod kontrolą 🛡️',
+];
+
 export const KLUBIS_SKILLS = [
   {
     id: 'who', label: 'Kim jest', example: 'Klubiś, kim jesteś?',
@@ -64,7 +88,14 @@ export const KLUBIS_SKILLS = [
   {
     id: 'doing', label: 'Co robi', example: 'Klubiś, co robisz?',
     match: /\bco (ty )?(robisz|porabiasz)\b|\bczym sie zajmujesz\b/,
-    replies: ['Pilnuję czatu i liczę XP. A ty?', 'Patrzę, kto ile ma kasy 👀', 'Uczę się pisać. Coraz lepiej mi idzie, nie?'],
+    replies: DOING,
+  },
+  {
+    // Owner: "co robicie (daj mu 20 odpowiedzi na co robicie)". Asked to everyone, so it works without a call, and `always`
+    // skips the server's chance (only the break of this skill on the channel holds it back).
+    id: 'doingAll', label: 'Co robicie', example: 'co robicie?', alone: true, always: true,
+    match: /\bco (wy )?(tam )?(robicie|porabiacie|robimy)\b|\bco (dzis|teraz) (robicie|robimy)\b/,
+    replies: DOING,
   },
   {
     id: 'bored', label: 'Nuda', example: 'nudzi mi się', alone: true,
@@ -78,8 +109,19 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'hello', label: 'Powitania', example: 'siema', alone: true,
-    match: /^(siema|siemka|siemano|siemanko|hej|hejka|hejo|heja|czesc|elo|elo elo|witam|witajcie|hello|hi|yo|jol)\b/,
-    replies: ['Siema, {user}! 👋', 'Hejka! Co tam?', 'Elo elo 😎', 'Cześć! Miło cię widzieć na {server}.'],
+    match: /^(siema|siemka|siemano|siemanko|hej|hejka|hejo|heja|czesc|elo|elo elo|witam|witajcie|hello|hi|yo|jol|cze|siemson|eluwa|elowina)\b/,
+    replies: [
+      'Siema, {user}! 👋',
+      'Hejka! Co tam?',
+      'Elo elo 😎',
+      'Cześć! Miło cię widzieć na {server}.',
+      'Siemanko, {user}! Co dziś robimy? 😄',
+      'O, {user} wbija! Siema 👋',
+      'Hej hej! Dobrze, że jesteś 💜',
+      'Elo, {user}! `/daily` już odebrane? 💰',
+      'Siema! Wpadaj, czat czeka 🗨️',
+      'Cześć, {user}! Jak dzień?',
+    ],
   },
   {
     id: 'morning', label: 'Dzień dobry', example: 'dzień dobry', alone: true,

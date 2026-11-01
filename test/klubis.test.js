@@ -121,12 +121,14 @@ test('one answer per member every few seconds; commands with the prefix are left
   assert.equal(await say(message(guild, chat, member, '!work klubiś')), null);
 });
 
-test('without a call: only short greetings and the like, with the chance and the break per channel', async () => {
+test('without a call: only short greetings and the like, with the chance and the break per channel and skill', async () => {
   const { guild, chat, member } = setup('Bez wolania');
   await saveKlubisSettings(guild.id, { chance: 100, cooldownMinutes: 3 });
   const night = await say(message(guild, chat, member, 'dobranoc'));
   assert.ok(filled(lines('night')).includes(night.content));
-  assert.equal(await say(message(guild, chat, member, 'siema')), null, 'the break of the channel');
+  assert.equal(await say(message(guild, chat, member, 'dobranoc wszystkim')), null, 'the break of this skill on the channel');
+  assert.ok(await say(message(guild, chat, member, 'siema')), 'another skill has its own break');
+  assert.equal(await say(message(guild, chat, member, 'hejka')), null);
   tick(3 * 60_000);
   assert.ok(await say(message(guild, chat, member, 'siema')));
   tick(3 * 60_000);
@@ -245,4 +247,33 @@ test('answers about the server are added once, next to the server\'s own, and ma
   assert.equal(merged.filter((entry) => /kiedy film/i.test(entry.trigger)).length, 1);
   assert.deepEqual(merged[0].responses, ['Jutro!']);
   assert.equal(merged.length, KLUBIS_STARTER.length);
+});
+
+test('"co robicie": 20 answers, always (no chance), its own break; "siema @Klubiś" is a greeting', async () => {
+  const doing = lines('doingAll');
+  assert.equal(doing.length, 20);
+  assert.equal(new Set(doing).size, 20);
+  assert.equal(lines('doing'), doing, '"co robisz" to Klubiś uses the same lines');
+  for (const text of ['co robicie', 'Co robicie?', 'siema, co robicie', 'co tam robicie ludzie', 'co porabiacie', 'co dziś robimy']) {
+    assert.equal(findSkill(fold(text), text, { aloneOnly: true })?.id, 'doingAll', text);
+  }
+  assert.equal(findSkill('co robisz', 'co robisz', { aloneOnly: true }), null, 'one person asking another is not for Klubiś');
+
+  const { guild, chat, member } = setup('Co robicie');
+  await saveKlubisSettings(guild.id, { chance: 0, cooldownMinutes: 3 });
+  const first = await say(message(guild, chat, member, 'co robicie?'));
+  assert.ok(doing.includes(first.content), 'answers although the chance is 0');
+  assert.equal(await say(message(guild, chat, member, 'co robicie')), null, 'its break');
+  tick(3 * 60_000);
+  assert.ok(await say(message(guild, chat, member, 'a wy co robicie')));
+  await saveKlubisSettings(guild.id, { phrases: false });
+  tick(3 * 60_000);
+  assert.equal(await say(message(guild, chat, member, 'co robicie')), null, '"Sam z siebie" off silences it');
+
+  const hi = await say(message(guild, chat, member, `siema <@${client.user.id}>`, { mentionBot: true }));
+  assert.ok(filled(lines('hello'), 'Ola', guild.name).includes(hi.content), hi.content);
+  const hiName = await say(message(guild, chat, member, 'elo klubiś'));
+  assert.ok(filled(lines('hello'), 'Ola', guild.name).includes(hiName.content), hiName.content);
+  const both = await say(message(guild, chat, member, 'siema klubiś, co robisz?'));
+  assert.ok(doing.includes(both.content), 'the question wins over the greeting');
 });

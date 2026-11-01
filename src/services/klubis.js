@@ -30,7 +30,7 @@ const MENTION_RE = /<@[!&]?\d{15,22}>/g;
 const store = guildStore('klubis', KLUBIS_DEFAULTS);
 const cache = new Map(); // guildId -> { at, data }
 const memberLast = new Map(); // `${guildId}:${userId}` -> time
-const channelLast = new Map(); // `${guildId}:${channelId}` -> time
+const channelLast = new Map(); // `${guildId}:${channelId}:${skillId}` -> time
 
 export async function getKlubisSettings(guildId) {
   const entry = cache.get(guildId);
@@ -96,9 +96,10 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
   if (!settings.phrases || !text || text.split(' ').length > ALONE_MAX_WORDS) return null;
   const skill = findSkill(text, raw, { aloneOnly: true });
   if (!skill) return null;
-  const key = `${guildId}:${message.channelId}`;
+  // The break counts per skill: a "siema" a minute ago does not hold back the answer to "co robicie".
+  const key = `${guildId}:${message.channelId}:${skill.id}`;
   if (now - (channelLast.get(key) ?? 0) < (Number(settings.cooldownMinutes) || 0) * 60_000) return null;
-  if (random() * 100 >= (Number(settings.chance) || 0)) return null;
+  if (!skill.always && random() * 100 >= (Number(settings.chance) || 0)) return null;
   channelLast.set(key, now);
   return pickLine(skill.replies, random);
 }
@@ -134,5 +135,5 @@ export async function handleKlubisMessage(message, { prefix = '!', now, random, 
 
 /** For the panel: what Klubiś can do by itself, with an example and one answer. */
 export const klubisSkills = () => KLUBIS_SKILLS.map((skill) => ({
-  id: skill.id, label: skill.label, example: skill.example, answer: skill.replies[0], alone: Boolean(skill.alone),
+  id: skill.id, label: skill.label, example: skill.example, answer: skill.replies[0], alone: Boolean(skill.alone), always: Boolean(skill.always),
 }));

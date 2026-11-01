@@ -138,7 +138,7 @@ change you make, so the next session knows what was done and why.
   (API `klubis`). Store `guild:{id}:klubis` { enabled, mentions, phrases, chance, cooldownMinutes, channels }. Called = a mention (also of the bot's
   own role), a reply to the bot, or its name (`klubiś`, `klubisiu` ... folded; NOT `klubik`, the server's name, and not `klubie`): a skill answers,
   else a "still learning" line; one answer per member per 5 s. Not called: only `alone` skills (hello, morning, good night, bye, bored, gg), only
-  messages of at most 8 words, with `chance` % and `cooldownMinutes` per channel. Breaks live in memory. Typing shown for up to 2.5 s (0 in tests).
+  messages of at most 8 words, with `chance` % (not for `always` skills: "co robicie") and `cooldownMinutes` per channel and skill. Breaks live in memory. Typing shown for up to 2.5 s (0 in tests).
 - Taught answers = the old auto-responders of `tagService.js` (`responders` in store `guild:{id}:tags`), now edited only in the panel (whole list
   in `PATCH /klubis`): `responses` = several answers, one at random (older entries with one `response` still work). They run first
   (`handleTagMessage`), behind Klubiś's switch and channel list; Klubiś answers only when they did not. Order in `featureMessages.js`: after
@@ -866,3 +866,9 @@ change you make, so the next session knows what was done and why.
   Triggers are questions ("jak zarobić", "kiedy film"), never one common word, so Klubiś does not answer every message about money.
   - `matchResponder` now compares folded text (no Polish letters, no punctuation) on both sides: "jak zarobic?" matches "jak zarobić".
   - My texts; facts I could not check on the live server: the rules channel name (the answer says "kanał z zasadami"), a ticket channel.
+- **2026-11-01, late night, last** (owner: "odpisuj na jakies siema @klubis itp albo co robicie (daj mu 20 odpowiedzi na co robicie)"). Live after the
+  owner restarts the bot; panel text deployed. "siema @Klubiś" / "elo klubiś" already went to the greeting skill when called; it now has 10 lines
+  (was 4) and more greetings (cze, siemson, eluwa, elowina). New skill `doingAll` ("co robicie", "co porabiacie", "co tam robicie", "co dziś
+  robimy"): works without a call and with `always: true`, so the server's chance does not apply (my reading of "odpisuj"); 20 lines (`DOING`,
+  mine), shared with "co robisz" to Klubiś. The break without a call is now per channel AND skill (a "siema" does not hold back "co robicie").
+  "Sam z siebie" off still silences it. Panel: "zawsze" tag in "Co już umie sam" (`always` in the skills view).
