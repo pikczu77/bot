@@ -9,10 +9,11 @@
 // sign of a second boost by the same member) and the job every 10 minutes (what happened while the bot was off, the
 // 30-day rewards). All of them may fire for one boost, so every decision is taken and saved inside the store lock.
 //
-// Store guild:{id}:server-boost = { members: { [userId]: { active, since, nextRewardAt, rewards, lastThanksAt, lastEventAt, roleId, roleChangedAt } } }.
+// Store guild:{id}:server-boost = { members: { [userId]: { active, since, nextRewardAt, rewards, lastThanksAt, lastEventAt, roleId, roleChangedAt } },
+// info: { channelId, messageId } } (the "what a boost gives" message posted from the panel).
 // nextRewardAt stays after a boost ends: taking a boost off and on again pays nothing extra.
 
-import { MessageType, PermissionFlagsBits, resolveColor } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageType, PermissionFlagsBits, resolveColor } from 'discord.js';
 import { createEmbed } from '../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { guildStore, userError } from '../utils/featureKit.js';
@@ -55,6 +56,20 @@ const rewardCash = (settings) => Math.max(0, Number(settings.serverBoost.cashRew
 const hasReward = (settings) => rewardCash(settings) > 0 || Boolean(rewardPack(settings));
 
 export const defaultThanks = () => t('💎 {user} boosted {server}! Thank you!');
+
+/** The perks as they are set now, one line each (/booster info and the info message). */
+export function perkLines(guildId, boost) {
+  const pack = PACKS.find((item) => item.id === boost.pack) ?? null;
+  const reward = [boost.cashReward > 0 ? `**${money(guildId, boost.cashReward)}**` : null, pack ? `${pack.emoji} ${tr(pack.name)}` : null].filter(Boolean).join(' + ');
+  return [
+    reward ? t`🎁 ${reward} at once, then every ${REWARD_EVERY_DAYS} days of boosting` : null,
+    boost.moneyPercent > 0 ? t`💰 **+${boost.moneyPercent}%** of every payout while you boost` : null,
+    boost.xpPercent > 0 ? t`⭐ **+${boost.xpPercent}%** XP for messages while you boost` : null,
+    boost.customRole ? t`🎨 your own role, name and colour: \`/booster rola\`` : null,
+    boost.eventMinutes > 0 ? t`💸 **${boost.eventMinutes} min** of double money for the whole server` : null,
+    t('🏅 two badges in `/osiagniecia`'),
+  ].filter(Boolean);
+}
 
 async function setBoosterFlag(client, guildId, userId, on) {
   await withEconomyLock(guildId, userId, async () => {
@@ -235,6 +250,82 @@ export async function runServerBoost(client) {
     } catch (error) {
       logger.warn(`Server boost job failed in guild ${guild.id}: ${error.message}`);
     }
+  }
+}
+
+// ---------------------------------------------------------------- info message
+// "What a boost gives" for the boosts channel (owner, 2026-11-01). Posted from the panel; a later save of the settings
+// edits it, so the numbers on the channel are always the ones that apply. The button opens /booster info privately.
+
+const UNKNOWN_MESSAGE = 10008;
+
+export function boostInfoMessage(guild, settings) {
+  const lines = perksOn(settings)
+    ? [t`Boost **${guild.name}** and you get:`, '', ...perkLines(guild.id, settings.serverBoost)]
+    : [t('⚠️ Booster rewards are turned off on this server.')];
+  lines.push(
+    '',
+    t('💜 Every boost also gives the whole server more emoji slots and better voice quality.'),
+    '',
+    t('**How to boost:** click the server name above the channel list, then **Server Boost**.'),
+    t('-# Rewards come by themselves, at the latest after 10 minutes. Your status: the button below or `/booster info`.'),
+  );
+  const button = new ButtonBuilder().setCustomId('booster:status').setLabel(t('My boost')).setEmoji('💎').setStyle(ButtonStyle.Secondary);
+  return {
+    embeds: [createEmbed({ title: t('💎 What a server boost gives'), description: lines.join('\n'), color: COLOR, footer: false })],
+    components: [new ActionRowBuilder().addComponents(button)],
+    allowedMentions: { parse: [] },
+  };
+}
+
+/** Panel "send the info": the same channel edits the posted message, another channel replaces it. Throws `userError`. */
+export async function postBoostInfo(guild, channelId) {
+  const channel = guild.channels.cache.get(channelId);
+  const payload = boostInfoMessage(guild, await getEconomySettings(guild.id));
+  return withEconomyLock(guild.id, LOCK, async () => {
+    const data = await store.get(guild.id);
+    const old = data.info;
+    let message = null;
+    if (old?.messageId && old.channelId === channelId) {
+      message = await channel.messages.edit(old.messageId, payload).catch(() => null);
+    } else if (old?.messageId) {
+      await guild.channels.cache.get(old.channelId)?.messages?.delete(old.messageId).catch(() => {});
+    }
+    if (!message) {
+      try {
+        message = await channel.send(payload);
+      } catch (error) {
+        logger.warn(`Boost info not posted in guild ${guild.id}: ${error.message}`);
+        throw userError(t`The bot cannot write on #${channel.name}. Check its permissions there.`);
+      }
+    }
+    data.info = { channelId, messageId: message.id };
+    await store.set(guild.id, data);
+    return data.info;
+  });
+}
+
+/** After a settings save: bring the posted message up to date. A message someone deleted is forgotten. */
+export async function refreshBoostInfo(guild) {
+  const { info } = await store.get(guild.id);
+  if (!info?.messageId) return false;
+  const channel = guild.channels.cache.get(info.channelId);
+  const payload = boostInfoMessage(guild, await getEconomySettings(guild.id));
+  try {
+    if (!channel) throw Object.assign(new Error('channel gone'), { code: UNKNOWN_MESSAGE });
+    await channel.messages.edit(info.messageId, payload);
+    return true;
+  } catch (error) {
+    if (error?.code !== UNKNOWN_MESSAGE) {
+      logger.warn(`Boost info not edited in guild ${guild.id}: ${error.message}`);
+      return false;
+    }
+    await withEconomyLock(guild.id, LOCK, async () => {
+      const data = await store.get(guild.id);
+      if (data.info?.messageId === info.messageId) data.info = null;
+      await store.set(guild.id, data);
+    });
+    return false;
   }
 }
 

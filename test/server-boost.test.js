@@ -470,3 +470,100 @@ test('saved money data keeps the flag', async () => {
   await setEconomyData(client, guild.id, member.id, userData);
   assert.equal((await getEconomyData(client, guild.id, member.id)).serverBooster, true);
 });
+
+// ---------- the info message for the boosts channel ----------
+
+/** A channel that records edits and deletions of its messages; `gone` makes every edit fail like a deleted message. */
+function infoChannel(guild, name) {
+  const channel = mockChannel(guild, name);
+  channel.edits = [];
+  channel.deleted = [];
+  channel.messages = {
+    edit: async (id, payload) => {
+      if (channel.gone) throw Object.assign(new Error('Unknown Message'), { code: 10008 });
+      channel.edits.push({ id, payload });
+      return { id };
+    },
+    delete: async (id) => { channel.deleted.push(id); },
+  };
+  return channel;
+}
+
+test('panel: the info message is posted, kept up to date, moved and forgotten when deleted', async () => {
+  // The panel answers in the server's language (Polish by default).
+  const { guild } = await setup('Opis');
+  const first = infoChannel(guild, 'boosty-info');
+  const second = infoChannel(guild, 'inne');
+
+  for (const body of [{ postInfo: null }, { postInfo: '1' }, { postInfo: 'abc' }]) {
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/serverboost`, body)).status, 400, JSON.stringify(body));
+  }
+  assert.equal(first.sent.length, 0);
+
+  const posted = await call('PATCH', `/guilds/${guild.id}/serverboost`, { postInfo: first.id });
+  assert.equal(posted.status, 200);
+  assert.equal(posted.json.infoChannelId, first.id);
+  assert.equal(first.sent.length, 1);
+  const message = first.sent[0];
+  assert.equal(message.embeds[0].data.title, '💎 Co daje boost serwera?');
+  assert.match(description(message), /Zboostuj \*\*Opis\*\*, a dostaniesz/);
+  assert.match(description(message), /\$50,000/);
+  assert.match(description(message), /\+25%/);
+  assert.match(description(message), /Jak zboostować/);
+  assert.equal(message.components[0].components[0].data.custom_id, 'booster:status');
+  assert.deepEqual(message.allowedMentions, { parse: [] });
+
+  // A save edits the posted message with the new numbers, no new message.
+  await call('PATCH', `/guilds/${guild.id}/serverboost`, { cashReward: 1000 });
+  assert.equal(first.sent.length, 1);
+  assert.equal(first.edits.length, 1);
+  assert.equal(first.edits[0].id, message.id);
+  assert.match(description(first.edits[0].payload), /1,000.* od razu/);
+
+  // Sending again to the same channel edits too; to another channel the old message goes.
+  await call('PATCH', `/guilds/${guild.id}/serverboost`, { postInfo: first.id });
+  assert.equal(first.sent.length, 1);
+  assert.equal(first.edits.length, 2);
+  const moved = await call('PATCH', `/guilds/${guild.id}/serverboost`, { postInfo: second.id });
+  assert.equal(moved.json.infoChannelId, second.id);
+  assert.deepEqual(first.deleted, [message.id]);
+  assert.equal(second.sent.length, 1);
+
+  // Rewards off: the message says so.
+  await call('PATCH', `/guilds/${guild.id}/serverboost`, { enabled: false });
+  assert.match(description(second.edits.at(-1).payload), /wyłączone/);
+
+  // Someone deleted the message: the save works and the panel shows it is gone.
+  second.gone = true;
+  const afterDelete = await call('PATCH', `/guilds/${guild.id}/serverboost`, { enabled: true });
+  assert.equal(afterDelete.status, 200);
+  assert.equal(afterDelete.json.infoChannelId, null);
+  assert.equal((await getBoostData(guild.id)).info, null);
+
+  // A channel the bot cannot write on is refused with a reason.
+  const closed = infoChannel(guild, 'zamkniety');
+  closed.send = async () => { throw new Error('Missing Permissions'); };
+  const refused = await call('PATCH', `/guilds/${guild.id}/serverboost`, { postInfo: closed.id });
+  assert.equal(refused.status, 400);
+  assert.match(refused.json.error, /nie może pisać na #zamkniety/);
+});
+
+test('the "My boost" button answers privately with the member\'s status', async () => {
+  const { default: button } = await import('../src/interactions/buttons/economy/booster.js');
+  const { guild, channel } = await setup('Przycisk');
+  const plain = mockMember(guild, mockUser('ciekawski'));
+  const pressed = mockInteraction({ client, guild, channel, member: plain, customId: 'booster:status' });
+  await button.execute(pressed, client, ['status']);
+  assert.match(replyText(pressed), /do not boost/);
+  assert.match(replyText(pressed), /\$50,000/);
+});
+
+test('the info message in Polish', () => runWithLocale('pl', async () => {
+  const { boostInfoMessage } = await import('../src/services/serverBoost.js');
+  const { guild } = await setup('Po polsku');
+  const message = boostInfoMessage(guild, await getEconomySettings(guild.id));
+  assert.equal(message.embeds[0].data.title, '💎 Co daje boost serwera?');
+  assert.match(description(message), /Zboostuj \*\*Po polsku\*\*, a dostaniesz:/);
+  assert.match(description(message), /Jak zboostować/);
+  assert.equal(message.components[0].components[0].data.label, 'Mój boost');
+}));

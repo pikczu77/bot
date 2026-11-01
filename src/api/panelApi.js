@@ -25,7 +25,7 @@ import { validateChannelNameTemplate } from '../services/joinToCreateService.js'
 import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
 import { getColor, getCommandPrefix } from '../config/bot.js';
 import { backupChannelProblem, getBackupSettings, problemText, sendBackup, updateBackupSettings } from '../services/dataBackup.js';
-import { MESSAGE_MAX as BOOST_MESSAGE_MAX, defaultThanks, getBoostData, removeBoosterRole, roleProblem } from '../services/serverBoost.js';
+import { MESSAGE_MAX as BOOST_MESSAGE_MAX, defaultThanks, getBoostData, postBoostInfo, refreshBoostInfo, removeBoosterRole, roleProblem } from '../services/serverBoost.js';
 import { PACKS } from '../services/collections.js';
 import { getAutoRoleSettings, getAutoRoleSyncStatus, startAutoRoleSync } from '../services/autoRoleService.js';
 import {
@@ -1813,10 +1813,11 @@ async function applyBackup(client, guild, body) {
   return backupView(guild);
 }
 
-// ---- Rewards for members who boost the server (services/serverBoost.js). `removeRole` takes a booster's own role away.
+// ---- Rewards for members who boost the server (services/serverBoost.js). `removeRole` takes a booster's own role away,
+// `postInfo: channelId` posts the "what a boost gives" message; every other save edits that message.
 async function serverBoostView(guild) {
   const { serverBoost: boost } = await getEconomySettings(guild.id);
-  const { members } = await getBoostData(guild.id);
+  const { members, info } = await getBoostData(guild.id);
   const boosters = Object.entries(members ?? {})
     .filter(([, entry]) => entry.active)
     .sort(([, a], [, b]) => (a.since || 0) - (b.since || 0))
@@ -1848,6 +1849,7 @@ async function serverBoostView(guild) {
     count: guild.premiumSubscriptionCount ?? 0,
     tier: guild.premiumTier ?? 0,
     boosters,
+    infoChannelId: info?.messageId && guild.channels.cache.has(info.channelId) ? info.channelId : null,
   };
 }
 
@@ -1868,11 +1870,12 @@ async function applyServerBoost(guild, body) {
     if (updates.eventMinutes > 0 && updates.eventMinutes < MIN_EVENT_MINUTES) throw new ApiError(400, `eventMinutes: 0 or at least ${MIN_EVENT_MINUTES}`);
   }
   if ('customRole' in body) updates.customRole = boolean(body.customRole, 'customRole');
+  const infoChannel = 'postInfo' in body ? requireTextChannel(guild, body.postInfo ?? '', 'postInfo') : null;
+  if ('removeRole' in body && !SNOWFLAKE_RE.test(String(body.removeRole))) throw new ApiError(400, 'removeRole: member id expected');
   await updateEconomySettings(guild.id, (data) => { Object.assign(data.serverBoost, updates); });
-  if ('removeRole' in body) {
-    if (!SNOWFLAKE_RE.test(String(body.removeRole))) throw new ApiError(400, 'removeRole: member id expected');
-    await removeBoosterRole(guild, String(body.removeRole));
-  }
+  if ('removeRole' in body) await removeBoosterRole(guild, String(body.removeRole));
+  if (infoChannel) await postBoostInfo(guild, infoChannel);
+  else if (Object.keys(updates).length) await refreshBoostInfo(guild);
   return serverBoostView(guild);
 }
 

@@ -45,5 +45,12 @@
   "Get 6 rewards for boosting the server.": "Zdobądź 6 nagród za boost serwera.",
   "server booster": "booster serwera",
   "💎 /booster": "💎 /booster",
-  "boost the server: money and a pack every 30 days\nbonus to payouts and XP, your own role": "boost serwera: kasa i paczka co 30 dni\nbonus do wypłat i XP, własna rola"
+  "boost the server: money and a pack every 30 days\nbonus to payouts and XP, your own role": "boost serwera: kasa i paczka co 30 dni\nbonus do wypłat i XP, własna rola",
+  "Boost **{0}** and you get:": "Zboostuj **{0}**, a dostaniesz:",
+  "💜 Every boost also gives the whole server more emoji slots and better voice quality.": "💜 Każdy boost daje też całemu serwerowi więcej miejsc na emotki i lepszą jakość głosu.",
+  "**How to boost:** click the server name above the channel list, then **Server Boost**.": "**Jak zboostować:** kliknij nazwę serwera nad listą kanałów, potem **Boost serwera**.",
+  "-# Rewards come by themselves, at the latest after 10 minutes. Your status: the button below or `/booster info`.": "-# Nagrody przychodzą same, najpóźniej po 10 minutach. Twój status: przycisk niżej albo `/booster info`.",
+  "My boost": "Mój boost",
+  "💎 What a server boost gives": "💎 Co daje boost serwera?",
+  "The bot cannot write on #{0}. Check its permissions there.": "Bot nie może pisać na #{0}. Sprawdź jego uprawnienia na tym kanale."
 }

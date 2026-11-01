@@ -3,26 +3,12 @@ import { createEmbed } from '../../utils/embeds.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { userError } from '../../utils/featureKit.js';
-import { getEconomySettings, money } from '../../services/economySettings.js';
-import { PACKS } from '../../services/collections.js';
-import { REWARD_EVERY_DAYS, ROLE_NAME_MAX, getBoostData, perksOn, removeBoosterRole, setBoosterRole } from '../../services/serverBoost.js';
-import { t, tr } from '../../i18n/index.js';
+import { getEconomySettings } from '../../services/economySettings.js';
+import { ROLE_NAME_MAX, getBoostData, perkLines, perksOn, removeBoosterRole, setBoosterRole } from '../../services/serverBoost.js';
+import { t } from '../../i18n/index.js';
 
 // /booster info | rola | usun-role — what a boost of the server gives (2026-11-01). Rules: services/serverBoost.js.
 // Not /boosty: those are x2 potions bought with money.
-
-function perkLines(guildId, boost) {
-    const pack = PACKS.find((item) => item.id === boost.pack) ?? null;
-    const reward = [boost.cashReward > 0 ? `**${money(guildId, boost.cashReward)}**` : null, pack ? `${pack.emoji} ${tr(pack.name)}` : null].filter(Boolean).join(' + ');
-    return [
-        reward ? t`🎁 ${reward} at once, then every ${REWARD_EVERY_DAYS} days of boosting` : null,
-        boost.moneyPercent > 0 ? t`💰 **+${boost.moneyPercent}%** of every payout while you boost` : null,
-        boost.xpPercent > 0 ? t`⭐ **+${boost.xpPercent}%** XP for messages while you boost` : null,
-        boost.customRole ? t`🎨 your own role, name and colour: \`/booster rola\`` : null,
-        boost.eventMinutes > 0 ? t`💸 **${boost.eventMinutes} min** of double money for the whole server` : null,
-        t('🏅 two badges in `/osiagniecia`'),
-    ].filter(Boolean);
-}
 
 export function buildBoosterView({ guild, member, settings, entry, now = Date.now() }) {
     const boost = settings.serverBoost;
