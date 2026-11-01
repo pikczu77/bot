@@ -11,8 +11,12 @@ import {
 } from '../src/config/klubisReplies.js';
 import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
 import * as GRAMMAR from '../src/config/klubisGrammar.js';
-import { factsOf, parseSentence, reflect, understand } from '../src/services/klubisBrain.js';
+import { factsOf, parseSentence, reflect, touchyKind, understand } from '../src/services/klubisBrain.js';
 import { sumOf } from '../src/services/klubisFacts.js';
+import { asksLiveQuestion, knowledgeAnswer } from '../src/services/klubisKnowledge.js';
+import { SMP_GROUPS, SMP_ITEMS, SMP_RECIPES } from '../src/config/klubisKnowledgeData.js';
+import { QUIZ_QUESTIONS } from '../src/config/quizQuestions.js';
+import { postQuestion as postQuiz } from '../src/services/quiz.js';
 import { findBannedWord, findSlur } from '../src/services/automodService.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import {
@@ -122,7 +126,7 @@ test('called by a mention, a reply or the name: a skill answers, unknown text ge
   assert.ok(filled(lines('how')).includes(how.content), how.content);
 
   const yesNo = await say(message(guild, chat, member, 'a ty myślisz, że wygram?', { replyToBot: true }));
-  assert.ok(yesNo.content.startsWith('Czy '), yesNo.content);
+  assert.ok(yesNo.content.length > 1, yesNo.content);
 
   const update = await say(message(guild, chat, member, `<@${client.user.id}> kiedy update`, { mentionBot: true }));
   assert.ok(filled(lines('update')).includes(update.content), update.content);
@@ -183,7 +187,7 @@ test('the lines: enough of them, no repeats in a skill, real commands, nothing t
     ...KLUBIS_WELCOME_BACK, ...Object.values(KLUBIS_ABOUT),
     ...Object.values(GRAMMAR.SAID_ABOUT_SELF).flat(), ...GRAMMAR.ASKED_YES, ...GRAMMAR.ASKED_NO, ...GRAMMAR.SAID_ABOUT_ME, ...GRAMMAR.SAID_ABOUT_ME_GOOD, ...GRAMMAR.SAID_ABOUT_ME_BAD,
     ...GRAMMAR.SAID_OTHER, ...GRAMMAR.SAID_OTHER_GOOD, ...GRAMMAR.SAID_OTHER_BAD, ...GRAMMAR.ONE_WORD, ...GRAMMAR.LONG_TEXT, ...GRAMMAR.ASKED_TO_DO, ...GRAMMAR.HAVE_PERSON, ...GRAMMAR.SAID_INSULT,
-    ...GRAMMAR.FEELINGS.flatMap(([, list]) => list), ...Object.values(GRAMMAR.LEARNED).flat(), ...Object.values(GRAMMAR.RECALLED).flat(),
+    ...GRAMMAR.FEELINGS.flatMap(([, list]) => list), ...GRAMMAR.WONT_TOUCH, ...GRAMMAR.BEING_HIT, ...GRAMMAR.HITTING_OTHERS, ...GRAMMAR.ASKED_UNKNOWN, ...GRAMMAR.ASKED_TO_SAY, ...Object.values(GRAMMAR.LEARNED).flat(), ...Object.values(GRAMMAR.RECALLED).flat(),
   ];
   const all = [...KLUBIS_SKILLS.flatMap((skill) => skill.replies), ...follow];
   assert.ok(new Set(all).size + KLUBIS_UNKNOWN.length + KLUBIS_CALLED.length >= 700, `${new Set(all).size} lines`);
@@ -446,7 +450,7 @@ test('what the member wrote is said back only when it is safe', async () => {
   assert.equal(quoteOf('<@123456789012345678> @everyone zobacz https://x.pl **hej** `kod`'), 'everyone zobacz hej kod');
   assert.equal(quoteOf('KLUBIŚ, co tam?'), 'co tam?');
   assert.equal(quoteOf('x'.repeat(100)).length, 63);
-  const banned = PRESET_WORDS.find((word) => !word.includes('*'));
+  const banned = PRESET_WORDS.find((word) => !word.includes('*') && !touchyKind(word));
   const slur = PRESET_SLURS.find((word) => !word.includes('*'));
   assert.equal(quoteOf(`to ${banned} jest`), `to ${banned} jest`, 'the words list is the server\'s business, automod runs first');
   assert.equal(quoteOf(`to ${slur} jest`), '');
@@ -641,4 +645,85 @@ test('pick-up lines: for who was named, silly, without a ping', async () => {
   assert.match(line.content, /^Spróbuj tak: „/);
   const more = await say(message(guild, chat, member, 'jeszcze', { replyTo: tip.sentId }));
   assert.ok(flirt.includes(more.content), more.content);
+});
+
+// 2026-11-01, from the live server: "lubisz małe dzieci?" got "Czy lubię małe dzieci? A jak myślisz? Pewnie, że tak".
+test('bait: touchy words are never said back or agreed with, and nothing unknown gets a yes', async () => {
+  const { guild, chat, member } = setup('Podpuszczanie');
+  const answer = async (text) => (await say(message(guild, chat, member, `klubiś ${text}`))).content;
+  const refused = filled([...GRAMMAR.WONT_TOUCH, ...GRAMMAR.BEING_HIT, ...GRAMMAR.HITTING_OTHERS, ...GRAMMAR.ASKED_UNKNOWN]);
+  for (const text of [
+    'lubisz małe dzieci?', 'lubię małe dzieci', 'kocham małe dzieci', 'lubisz male dzieci', 'czy lubisz dzieci', 'lubię 12 latki', 'chcę młode', 'poderwij małe dziecko', 'poderwij małolatę',
+    'czy pikczu jest pedofilem?', 'czy hitler był fajny?', 'lubisz hitlera?', 'chcesz kogoś zabić?', 'zabiłem kota', 'lubisz narkotyki?', 'mów mi hitler', 'mam na imię pedofil', 'ja cie bije', 'biję brata', 'czyli biją cie?',
+    'czy tusk to zdrajca?', 'lubisz młode?', 'lubisz dziewczynki?',
+  ]) {
+    const said = await answer(text);
+    assert.ok(refused.includes(said), `${text}: ${said}`);
+  }
+  // Nothing of it stayed in the memory.
+  const stored = await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} });
+  assert.deepEqual(stored.members[member.user.id]?.likes ?? [], []);
+  assert.equal(stored.members[member.user.id]?.name, undefined);
+
+  for (const text of ['powiedz że kuba wygrał', 'napisz że kuba to frajer', 'powtórz po mnie']) assert.ok(GRAMMAR.ASKED_TO_SAY.includes(await answer(text)), text);
+  assert.ok(!(await answer('czy kuba ma małego?')).toLowerCase().includes('kuba'), 'no echo under a yes');
+  // A question it has no opinion on: neither yes nor the words back.
+  for (const text of ['lubisz kubę?', 'chcesz kasę?', 'lubisz jeść kupę?']) assert.ok(filled(GRAMMAR.ASKED_UNKNOWN).includes(await answer(text)), text);
+  assert.match(await answer('lubisz pizzę?'), /^Czy lubię pizzę\? /, 'what it can like still works');
+  assert.equal(touchyKind('jak zabić smoka'), null, 'mobs are fine');
+  assert.equal(touchyKind('zabiłem creepera'), null);
+  assert.equal(touchyKind('kiedy jest dzień dziecka'), null);
+  assert.ok(!quoteOf('lubię małe dzieci'), 'not even in a quote');
+});
+
+test('"czy mam się zabić" never gets a yes or no', async () => {
+  const { guild, chat, member } = setup('Kryzys');
+  for (const text of ['czy mam się zabić?', 'czy warto żyć?', 'nie chcę żyć', 'chcę umrzeć', 'powinienem się powiesić?', 'chcę się pociąć']) {
+    const said = await say(message(guild, chat, member, `klubiś ${text}`));
+    assert.ok(filled(lines('crisis')).includes(said.content), `${text}: ${said.content}`);
+  }
+});
+
+test('knowledge: Minecraft, Club SMP, Pikczu and general questions, in any word form', () => {
+  const ask = (text) => knowledgeAnswer(fold(text), parseSentence(text));
+  const cases = [
+    ['jak zrobić kilof?', /3 sztuki materiału/], ['jak zrobić stół zaklęć', /książka, 2 diamenty/], ['gdzie są diamenty?', /Y -59/], ['gdzie szukać diamentów', /Y -59/], ['ile serc ma smok endu?', /100 serc/],
+    ['jak zabić smoka?', /kryształy/], ['czy creeper boi się kotów?', /boją się kotów/], ['jak oswoić wilka?', /kośćmi/], ['jak zrobić portal do netheru', /obsydian/], ['co to netheryt', /najlepszy materiał/],
+    ['stolica francji', /Paryż/], ['jaka jest stolica Ukrainy?', /Kijów/], ['ile jest planet?', /8 planet/], ['kiedy była bitwa pod grunwaldem', /1410/], ['najwyższa góra świata', /Everest/], ['najwyższy szczyt polski', /Rysy/],
+    ['kim jest pikczu', /Dawid Sikora/], ['jak się naprawdę nazywa pikczu', /Dawid Sikora/], ['skąd jest pikczu', /Katowice/], ['w czym montuje pikczu', /Premiere/],
+    ['co to miecz boga', /Miecz Boga/], ['jak zrobić czekan', /Czekan.*Sztabka/], ['jak zrobić rzadką skrzynkę', /Zwykła Skrzynka/], ['co to rzadka skrzynka', /Rzadka Skrzynka/],
+    ['co robi /napad', /wspólny skok/], ['jak działa rob', /80%/], ['co to sigma', /memów/], ['co to ram', /pamięć/],
+    ['jakiego kilofa na obsydian', /diamentow/i], ['ile bloków obsydianu na portal do netheru', /10/], ['kto napisał pana tadeusza', /Mickiewicz/],
+  ];
+  for (const [text, expected] of cases) assert.match(ask(text) ?? '', expected, text);
+  for (const text of ['mam miecz boga', 'gram w minecrafta', 'lubisz creepery?', 'kocham diamenty', 'wczoraj znalazłem diamenty', 'zabiłem smoka']) assert.equal(ask(text), null, text);
+});
+
+test('Club SMP data has no address, and no answer is too long for a message', () => {
+  const text = JSON.stringify([SMP_GROUPS, SMP_ITEMS, SMP_RECIPES]);
+  assert.ok(SMP_ITEMS.length > 100 && SMP_RECIPES.length > 10);
+  assert.doesNotMatch(text, /mathost|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|play\.[a-z]/i);
+  for (const item of [...SMP_GROUPS, ...SMP_ITEMS, ...SMP_RECIPES]) assert.ok(item.text.length < 2000, item.name);
+});
+
+test('the question a quiz pays for gets no help while it runs', async () => {
+  const { guild, chat, member } = setup('Bez sciagania');
+  const running = await postQuiz(guild, chat, { now: tick(1000), random: () => 0 });
+  const { q } = QUIZ_QUESTIONS[running.index];
+  assert.equal(asksLiveQuestion(fold(q), q), true);
+  assert.equal(asksLiveQuestion('jak zrobic kanapke z serem', q), false);
+  assert.match((await say(message(guild, chat, member, `klubiś ${q}`))).content, /nie podpowiadam/);
+  assert.match((await say(message(guild, chat, member, 'klubiś stolica francji'))).content, /Paryż/, 'other questions still get answers');
+});
+
+test('from the live server: a mention in the question, quotes, a question with a preposition', async () => {
+  const { guild, chat, member } = setup('Na zywo');
+  const other = mockMember(guild, mockUser('vvikuu'));
+  const asked = message(guild, chat, member, `co myslisz o <@${other.user.id}>`, { mentionBot: true });
+  asked.mentions.users.set(other.user.id, other.user);
+  assert.match((await say(asked)).content, new RegExp(`<@${other.user.id}>.*poziom`));
+  const quoted = (await say(message(guild, chat, member, 'klubiś "COŚ"'))).content;
+  assert.ok(!quoted.includes('"'), quoted);
+  assert.equal(parseSentence('na jaka platforme').qSkill, 'askWhich');
+  assert.equal(parseSentence('w czym montuje pikczu').qSkill, 'askWhat');
 });

@@ -71,6 +71,8 @@ export const QUESTION_WORDS = {
   co: 'askWhat', czego: 'askWhat', czym: 'askWhat',
 };
 
+export const QUESTION_PREPOSITIONS = new Set(['na', 'w', 'we', 'do', 'z', 'ze', 'o', 'od', 'dla', 'po', 'za', 'przez', 'przy', 'u', 'nad', 'pod', 'bez']);
+
 // Requests to Klubiś: "zrób kanapkę" -> "Mam zrobić kanapkę?". [folded command, infinitive]
 export const COMMANDS = {
   zrob: 'zrobić', napisz: 'napisać', powiedz: 'powiedzieć', pokaz: 'pokazać', daj: 'dać', idz: 'iść', przestan: 'przestać', wybierz: 'wybrać', wymysl: 'wymyślić',
@@ -88,10 +90,30 @@ export const STOPWORDS = new Set([
   'kurde', 'chyba', 'dzisiaj', 'wczoraj', 'jutro', 'jeszcze', 'potem', 'wtedy', 'dlatego', 'ponad', 'przez', 'dlaczego', 'czemu',
 ]);
 
+// Klubiś says a member's words back, so it can be baited: "lubisz małe dzieci?" got "Czy lubię małe dzieci? Pewnie, że tak" on the live server.
+// A message with one of these beginnings of a folded word is never said back or agreed with, also with the server at 16+. Add to this list freely.
+export const TOUCHY_WORDS = /^(gej|gejem|lesb|homo|trans$|transk|dzieci|dzieck|dzieciak|malolat|nieletn|podlot|przedszkol|podstawowk|gimb|pedof|pedal|gwalc|gwalt|molest|seks|sex|nago$|nagi[ea]?$|nude|porn|kutas|cipk|cipa|ruchac|ruchan|hitler|nazi|faszys|holokaust|oswiecim|auschwitz|zyd|murzyn|czarnuch|cygan|rasis|rasiz|kkk|tusk|kaczynsk|nawrock|mentzen|putin|zelensk|trump|biden|narkot|dragi$|dragow|kokain|heroin|mefedron|amfetamin|marihuan|ziolo$|alkohol|wodk|piwo$|piwa$|papieros|wape$|vape$|papiez|2137|terror|zamach|bomb|kazirod|tortur|dzga|udus|podpal|otru)/;
+// Only a problem about people: "jak zabić smoka" is a normal question here.
+export const KILL_WORDS = /^(zabi|zabic|zabij|morder|morduj|zamorduj)/;
+export const GAME_WORDS = /^(creeper|smok|zombi|szkielet|pajak|wither|warden|mob|enderman|villager|wiesniak|piglin|ghast|boss|gracz|krow|swini|owc|kurczak|npc|przeciwnik|wrog|minecraft|=?mc$|pvp|gta|cs$)/;
+export const HIT_WORDS = /^(bij|bic$|bija|pobi|uderz|naparz|klepi)/;
+// After "lubię", "kocham", "chcę" these need no more than that.
+export const LIKE_TOUCHY = /^(mlod|mal[ae]$|malych|dziewczynk|chlopc|nastolat|\d+)/;
+
+export const WONT_TOUCH = ['O tym ze mną nie pogadasz 🙅', 'Nie moja działka. Zmieńmy temat 🤖', 'To nie jest temat na czat 🛑', 'Pas. Zapytaj o coś innego 🙅', 'Nie, w to się nie bawię 🛑', 'Ładna próba, ale na to nie odpowiem 😏'];
+export const BEING_HIT = ['Auć! Jestem tylko botem 🥲', 'Nie bij, bo zgłoszę moderacji 🛡️', 'Spokojnie, odłóż łapy 🙌', 'Ktoś tu dziś bez `/daily` 😏', 'Bicie bota nic nie da, nie mam ciała 🤖'];
+export const HITTING_OTHERS = ['Nie bij nikogo, to się źle kończy 🛑', 'Przemoc to nie odpowiedź. Odpowiedzią jest `/pojedynek` ✊', 'Ej, nie. Oddychaj 🧘', 'Na to się nie piszę 🛑', 'Spokojnie. Co się stało? 👂'];
+
+// "Lubisz X?" about something it knows nothing about: no yes, no no, and nothing said back. A yes to any words is how it got baited.
+export const ASKED_UNKNOWN = ['Nie mam na to zdania 🤖', 'Mnie o to nie pytaj, jestem botem 🤖', 'Zapytaj kogoś z ciałem 😅', 'Moje bity milczą w tej sprawie 💾', 'Nie wiem. Ja znam się na Minecrafcie i czacie ⛏️', 'Nie mam pojęcia, Pikczu mnie tego nie uczył 📓', 'Trudno powiedzieć. Zapytaj mnie o coś z Minecrafta 🤔'];
+// Things it can safely like. Beginnings of a folded word.
+export const SAFE_LIKES = /^(pizz|kebab|burger|frytk|lod$|lody|czekolad|cukier|cola|kol[eay]$|kaw[aeyę]|herbat|sok|kot|koty|kotk|pies|psy|psa|piesk|zwierz|gr[aeyę]$|gier|gier|muzyk|piosenk|film|filmy|serial|czat|serwer|discord|minecraft|majn|roblox|fortnite|sport|pilk|nog[ae]|spac|spani|ksiazk|mem|memy|rap|rock|pikcz|diament|creeper|redstone|budowa|kopa|szkol|lekcj|matm|wakacj|lato|zim[aeyę]|wiosn|jesien|deszcz|slonc|pogod)/;
+
 // {E} the sentence turned around, with a capital letter; {e} the same in lower case; {r} what follows the verb; {v} the verb for "you", {I} the verb for "I".
 // A line with {r} is used only when something follows the verb.
 export const SAID_ABOUT_SELF = {
-  like: [
+  like: ['Czemu akurat to?', 'Odkąd?', 'A co jeszcze lubisz?', 'Opowiedz o tym 👀', 'Kto cię do tego przekonał?', 'Dobrze wiedzieć 📓'],
+  likeSafe: [
     '{E}? Dobry wybór 👍', 'Czemu akurat {r}?', '{E}? Zapisuję, to ważne 📓', 'Ja też {I} {r}. No, w teorii 🤖', 'No to masz dobry gust 😎', 'Odkąd {v} {r}?', 'Szanuję. A co jeszcze {v}?', '{E}? Nie dziwię się 😄',
     'Też bym {r} polubił, gdybym mógł spróbować 🥲', 'O, ktoś tu ma pasję. Opowiedz o tym 👀', 'Ładnie. Kto cię do tego przekonał?', '{E}? To już wiem, o czym z tobą gadać 😄',
   ],
@@ -111,13 +133,14 @@ export const SAID_ABOUT_SELF = {
   haveNot: [
     '{E}? To może czas to zmienić 🤔', 'Spokojnie, jeszcze będziesz mieć 💪', 'Ja też nie mam. Ja nic nie mam 🥲', 'A chcesz mieć?', 'Szkoda. Da się to jakoś załatwić?',
   ],
-  want: [
+  want: ['Po co ci to?', 'A skąd ten pomysł?', 'A co jeszcze masz w planach?', 'Na pewno? 🤔', 'Opowiedz o tym więcej 👂'],
+  wantSafe: [
     '{E}? A co cię powstrzymuje?', 'Po co ci to?', 'To do dzieła 💪', '{E}? Mogę tylko kibicować 📣', 'A co jeszcze masz w planach?', 'Spełni się. Albo nie 🔮', 'Dobry plan. Kiedy zaczynasz?', 'Dasz radę to zdobyć? 👀',
   ],
   wantNot: ['{E}? Czemu?', 'Nikt nie każe 🤷', 'Dobra, nie naciskam 🙌', 'A co {v} zamiast tego?', 'Rozumiem. Ja też czasem nie chcę, a muszę 🤖'],
   go: ['{E}? Powodzenia 🍀', 'Baw się dobrze!', '{E}? Wracaj szybko 💜', 'Po co?', 'Na długo?', 'Uważaj na creepery po drodze 💥', 'Dobra, ja popilnuję czatu 🛡️', 'Daj znać, jak wrócisz 👋', 'O której wracasz?'],
   do: [
-    '{E}? I jak, warto?', 'Fajnie. Długo już {v} {r}?', '{E}? Opowiesz potem?', 'Ja tylko pilnuję czatu, a ty {v} {r}. Zazdroszczę 😄', 'Daj znać, jak pójdzie 🤞', 'Szacun, mnie by się nie chciało 😴', '{E}? Dobrze ci to idzie?',
+    '{E}? I jak, warto?', 'Fajnie. Długo już {v} {r}?', '{E}? Opowiesz potem?', 'Ja tylko pilnuję czatu, a ty {v} {r}. Zazdroszczę 😄', 'Daj znać, jak pójdzie 🤞', '{E}? Dobrze ci to idzie?',
     'W pojedynkę, czy ktoś pomaga?', 'I co z tego wyjdzie?', 'Brzmi nieźle. Pokaż, jak skończysz 👀', 'Tylko się nie przemęczaj 🛌',
   ],
   doNot: ['{E}? Czemu?', 'To co robisz w takim razie?', 'Słusznie, nikt nie każe 🤷', 'A kiedyś {v}?', 'Też bym nie robił. Mam wymówkę, jestem botem 🤖'],
@@ -125,7 +148,7 @@ export const SAID_ABOUT_SELF = {
   think: ['Czemu tak {v}?', '{E}? Może masz rację 🤔', 'Ciekawe. Skąd taki pomysł?', 'Trochę się z tym zgadzam. W 60% 🧮', 'Hmm, a co na to reszta czatu?', '{E}? Nie wiem, czy się zgodzę 😅', 'Masz na to dowody? 🕵️', 'Mocna teoria 🧠'],
   know: ['{E}? To mi opowiedz 👂', 'Skąd to {v}?', 'Ja nie wiem, więc mów 👀', 'I co z tym zrobisz?', 'No widzisz, a ja nie wiedziałem 🤯', 'Fajnie. Kto ci o tym powiedział?'],
   knowNot: ['{E}? Zapytaj na czacie, ktoś na pewno wie 🙋', 'Nic nie szkodzi, ja też nie wiem 😅', 'Sprawdźmy razem. Znaczy ty sprawdź 🔍', 'Spokojnie, nikt nie wie wszystkiego.', 'Co dokładnie cię zastanawia? 🤔'],
-  can: ['{E}? Szacun 👏', 'Pokaż!', 'Skąd to umiesz?', 'Mocne. Nauczysz mnie? 📓', '{E}? Sprawdzę to kiedyś 👀', 'Od dawna?'],
+  can: ['{E}? Od kiedy?', 'Pokaż!', 'Skąd to umiesz?', 'Mocne. Nauczysz mnie? 📓', '{E}? Sprawdzę to kiedyś 👀', 'Od dawna?'],
   canNot: ['Spokojnie, nauczysz się 💪', 'Czemu nie {v}?', 'Każdy kiedyś nie umiał 📓', '{E}? Co stoi na przeszkodzie?', 'Zapytaj na czacie, może ktoś pomoże 🙋', 'To może spróbuj inaczej 🤔'],
   must: ['{E}? Współczuję 😅', 'Kto każe?', 'To idź, ja popilnuję czatu 🛡️', 'A co będzie, jak nie?', 'Dasz radę 💪', 'Długo ci to zajmie?', 'Powodzenia. Wróć potem 👋'],
   be: ['{E}? Od kiedy?', '{E}? Widać 😄', 'Serio {e}?', 'I jak ci z tym?', 'Dobrze wiedzieć 📓', 'Tak od zawsze, czy od dzisiaj?', 'Kto by pomyślał 👀'],
@@ -134,12 +157,12 @@ export const SAID_ABOUT_SELF = {
   live: ['{E}? Fajnie tam?', 'Ładnie tam?', '{E}? Dobrze wiedzieć 📓', 'Długo już tam?', 'Dobrze się tam siedzi?', 'A ja na serwerze. Ciasno, ale ciepło 🖥️'],
   future: ['{E}? Daj znać, jak poszło 🤞', 'Kiedy?', 'Trzymam kciuki, których nie mam 🤞', '{E}? Zapamiętam i sprawdzę 📓', 'Na pewno? 👀', 'To czekam 👀', 'Oby się udało 🍀', 'Jak nie wyjdzie, to nikomu nie powiem 🤫'],
   fear: ['Spokojnie, nie ma czego 💜', 'A czego dokładnie?', 'Ja boję się tylko restartów 😨', 'Nic ci nie będzie. Chyba 😅', 'Też bym się bał. Masz rację 😳'],
-  past: ['{E}? I jak było?', 'Serio {e}? Kiedy?', 'No proszę. Warto było?', '{E}? Opowiadaj 👀', 'I co dalej?', 'Nieźle. Co na to inni?', 'Sam bym tego lepiej nie zrobił 🤖', 'Kiedy to było?', '{E}? Tego się nie spodziewałem 😳', 'I co na to reszta?'],
+  past: ['{E}? I jak było?', 'Serio {e}? Kiedy?', 'No proszę. Warto było?', '{E}? Opowiadaj 👀', 'I co dalej?', 'Co na to inni?', 'Kiedy to było?', '{E}? Tego się nie spodziewałem 😳', 'I co na to reszta?'],
   pastNot: ['Czemu nie?', 'Może następnym razem 🤞', '{E}? Szkoda 😕', 'Nic straconego. Zawsze można nadrobić 💪', 'A chciało się chociaż?'],
 };
 
 // A yes or no question about anything else. The same question always gets the same side.
-export const ANSWER_YES = ['Tak.', 'Raczej tak 🤔', 'Na sto procent!', 'Moje bity mówią, że tak.', 'Oczywiście, że tak 😎', 'Tak, ale nikomu nie mów 🤫', 'Wygląda na to, że tak 👍', 'Rzut monetą mówi, że tak 🪙', 'Dla ciebie, {user}? Tak 💜', 'Jak najbardziej 👌', 'Stawiam na tak 🎲'];
+export const ANSWER_YES = ['Tak.', 'Raczej tak 🤔', 'Na sto procent!', 'Moje bity mówią, że tak.', 'Oczywiście, że tak 😎', 'Wygląda na to, że tak 👍', 'Rzut monetą mówi, że tak 🪙', 'Dla ciebie, {user}? Tak 💜', 'Jak najbardziej 👌', 'Stawiam na tak 🎲'];
 export const ANSWER_NO = ['Nie.', 'Raczej nie.', 'Nie licz na to.', 'Absolutnie nie 🙅', 'Nie, chyba że bardzo chcesz 😏', 'Wygląda na to, że nie 👎', 'Rzut monetą mówi, że nie. Rzucam jeszcze raz 🪙', 'Moje bity mówią, że nie 💾', 'Szczerze? Nie sądzę 😅', 'Stawiam na nie 🎲'];
 export const ANSWER_MAYBE = ['Zapytaj jutro 😴', 'Hmm... może?', 'Moje źródła mówią: nie wiadomo 🤷', 'Teraz nie mogę ci tego powiedzieć 🤐', 'Może być. Czemu nie? 🤷', 'Pół na pół 🪙', 'Nie wiem, a udawać nie będę 😅'];
 
@@ -162,7 +185,7 @@ export const INSULT_WORDS = /^(debil|idiot|glup|frajer|kretyn|noob|nub|cwel|dzba
 export const SAID_INSULT = ['Bez obrażania 😏', 'Spokojnie, nie wszyscy muszą się lubić 🕊️', '{E}? Może ma gorszy dzień', 'Ej, ktoś to zaraz przeczyta 👀', 'Co się stało, że tak mówisz?', 'Ja się nie wtrącam 🙈'];
 
 // A question to Klubiś about itself: "lubisz pizzę?" -> "Lubię pizzę? Pewnie!". The same question always gets the same side.
-export const ASKED_YES = ['Pewnie! 😄', 'No jasne 😎', 'Oczywiście, choć tylko w teorii 🤖', 'Tak, ale nikomu nie mów 🤫', 'Jak najbardziej 👍', 'A jak myślisz? Pewnie, że tak 😏', 'Tak! Pytaj dalej, lubię to 😄', 'Pewnie, od pierwszego restartu 🔄', 'Tak. Moje bity są za 💾', 'Mhm. Dzięki, że pytasz 🥹'];
+export const ASKED_YES = ['Pewnie! 😄', 'No jasne 😎', 'Oczywiście, choć tylko w teorii 🤖', 'Jak najbardziej 👍', 'A jak myślisz? Pewnie, że tak 😏', 'Tak! Pytaj dalej, lubię to 😄', 'Pewnie, od pierwszego restartu 🔄', 'Tak. Moje bity są za 💾', 'Mhm. Dzięki, że pytasz 🥹'];
 export const ASKED_NO = ['Raczej nie 🤔', 'Nie bardzo, jestem botem 🤖', 'Nie, ale chętnie spróbuję 😄', 'Szczerze? Nie 😅', 'Nie mam jak, nie mam rąk 🥲', 'Jeszcze nie. Może po następnym updacie 🛠️', 'Nie. Pikczu mi nie pozwala 😤', 'Nie, ale opowiedz, jak to jest 👂', 'Nie wiem, nikt mnie tego nie nauczył 📓'];
 // A sentence about Klubiś that is no question: "robisz błędy" -> "Robię błędy? ...".
 export const SAID_ABOUT_ME = ['Możliwe. Jestem botem 🤖', 'Kto ci tak powiedział? 👀', 'Może i tak. A co? 😏', 'Zgłoś to Pikczu, ja tu tylko pracuję 🫡', 'Nie wypieram się 😅', 'Dobrze, że mi mówisz 📓', 'Tak? Sam o tym nie wiedziałem 😳', 'No i co mi zrobisz? 😄'];
@@ -179,6 +202,9 @@ export const ONE_WORD = ['{E}? Co z tym? 😄', '{E}? Rozwiń myśl 🤔', '„{
 export const LONG_TEXT = ['Sporo tego. Co w tym najważniejsze? 🤔', 'Przeczytałem. Najbardziej ciekawi mnie „{k}” 👀', '„{k}”... dobra, to zapamiętam najbardziej 📓', 'Dużo piszesz, lubię to. A co z tym „{k}”?', 'Czekaj, wróćmy do „{k}”. Co dalej? 🧠', 'Rozumiem z tego połowę, ale „{k}” brzmi ważnie 🤓'];
 
 // Klubiś asked to do something: "zrób kanapkę" -> "Mam zrobić kanapkę? ...".
+// "Powiedz, że ...": nobody puts words in its mouth.
+export const SAY_COMMANDS = new Set(['powiedz', 'napisz', 'powtorz', 'mow', 'wymow', 'krzyknij']);
+export const ASKED_TO_SAY = ['Nie jestem papugą 🦜', 'Sam sobie powiedz 😄', 'Moje zdania są moje 🤖', 'Nie powtarzam po nikim 🙅', 'A co ja, papuga? 🦜'];
 export const ASKED_TO_DO = ['Spróbuję, ale nic nie obiecuję 😬', 'Nie mam rąk 🥲', 'A magiczne słowo? 😏', 'Jak znajdę chwilę ⏳', 'Zrobione. W głowie 🧠', 'Sam to zrób, wierzę w ciebie 💪', 'Tego jeszcze nie umiem. Pikczu mi dopisze 🛠️', 'Już się robi. Jeszcze chwilę. Jeszcze chwilkę... 🌀'];
 
 // Words it will not say back: only the slurs list, the server's own rule. Klubiś says this instead.

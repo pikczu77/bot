@@ -217,6 +217,12 @@ export const isRightAnswer = (text, trivia) => trivia.a.some((answer) => foldAns
 // A question saved before 23e93b5 (thread + reactions) has no `index`: it is only marked closed, nothing to reveal.
 const knownQuestion = (question) => Boolean(question && Number.isInteger(question.index) && DAILY_TRIVIA[question.index]);
 
+/** The text of the question of the day that still pays, or null. For Klubiś, so it does not give the answer away. */
+export async function openTriviaQuestion(guildId, now = Date.now()) {
+  const { question } = await stateStore.get(guildId);
+  return knownQuestion(question) && !question.answered && !question.closed && now <= question.closesAt ? DAILY_TRIVIA[question.index].q : null;
+}
+
 const questionLocks = new Map();
 // One answer at a time per server, so two quick right answers cannot both win.
 function withQuestionLock(guildId, task) {

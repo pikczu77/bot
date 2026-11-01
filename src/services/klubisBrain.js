@@ -6,7 +6,7 @@
 // fact it does not have; real facts come from services/klubisFacts.js.
 
 import {
-  ANSWER_MAYBE, ANSWER_NO, ANSWER_YES, ASKED_NO, ASKED_TO_DO, ASKED_YES, BAD_WORDS, COMMANDS, FEELINGS, FILLERS, GOOD_WORDS, GREETINGS, HAVE_PERSON, INSULT_WORDS, JUST_CALLING, LEARNED,
+  ANSWER_MAYBE, ANSWER_NO, ANSWER_YES, ASKED_NO, ASKED_TO_DO, ASKED_TO_SAY, ASKED_UNKNOWN, SAY_COMMANDS, ASKED_YES, BAD_WORDS, BEING_HIT, GAME_WORDS, HITTING_OTHERS, HIT_WORDS, QUESTION_PREPOSITIONS, KILL_WORDS, LIKE_TOUCHY, SAFE_LIKES, TOUCHY_WORDS, WONT_TOUCH, COMMANDS, FEELINGS, FILLERS, GOOD_WORDS, GREETINGS, HAVE_PERSON, INSULT_WORDS, JUST_CALLING, LEARNED,
   LONG_TEXT, NOT_PAST, ONE_WORD, PERSON_WORDS, SAID_INSULT,
   PAST_STEMS, PREPOSITIONS, PRONOUN_PAIRS, PRONOUNS, QUESTION_WORDS, RECALLED, SAID_ABOUT_ME, SAID_ABOUT_ME_BAD, SAID_ABOUT_ME_GOOD, SAID_ABOUT_SELF, SAID_OTHER,
   SAID_OTHER_BAD, SAID_OTHER_GOOD, STOPWORDS, VERB_GROUPS, WILL_NOT_REPEAT,
@@ -47,6 +47,29 @@ const isPast = (word, previous, endings) => {
 const isPastMe = (word, previous = '') => isPast(word, previous, ['em', 'am']);
 const isPastYou = (word, previous = '') => isPast(word, previous, ['es', 'as']);
 
+/**
+ * A message Klubiś must not say back or agree with: 'touchy', 'hit' (someone hitting it or someone else), or null. Klubiś repeats words, so anybody
+ * could make it say anything otherwise. It only reads folded words, so it also misses things: the answers that agree are limited too (`SAFE_LIKES`).
+ */
+export function touchyKind(text) {
+  const tokens = fold(text).split(' ').filter(Boolean);
+  if (tokens.some((word) => TOUCHY_WORDS.test(word))) return /\bdzien dziecka\b/.test(tokens.join(' ')) ? null : 'touchy';
+  if (tokens.some((word) => KILL_WORDS.test(word)) && !tokens.some((word) => GAME_WORDS.test(word))) return 'touchy';
+  return tokens.some((word) => HIT_WORDS.test(word)) ? 'hit' : null;
+}
+
+/** The answer to such a message. Hitting is about Klubiś when it says "cię" or the message replies to Klubiś without naming anyone else. */
+export function touchyLine(kind, pick, text = '') {
+  if (kind !== 'hit') return pick(WONT_TOUCH, 'wontTouch');
+  return /\b(cie|ciebie|bota|bot)\b/.test(fold(text)) ? pick(BEING_HIT, 'beingHit') : pick(HITTING_OTHERS, 'hittingOthers');
+}
+
+/** "Lubię 12 latki", "chcę młode": no echo and no record, it is the same bait with other words. */
+export const likesTouchy = (parsed) => (parsed.group === 'like' || parsed.group === 'want') && parsed.words.slice(parsed.index + 1).some((word) => LIKE_TOUCHY.test(fold(word)));
+
+/** Fit to say out loud: "Zapamiętam, że lubisz pizzę", or a like told to someone else. */
+export const safeLike = (like) => fold(like).split(' ').some((word) => SAFE_LIKES.test(word));
+
 /** A verb or a past form: not a topic of a talk. */
 export const isVerbWord = (word) => VERBS_ME.has(word) || VERBS_YOU.has(word) || isPastMe(word) || isPastYou(word);
 
@@ -57,7 +80,7 @@ const capital = (text) => (text ? text[0].toLocaleUpperCase('pl') + text.slice(1
 
 /** The member's words without mentions, links, Klubiś's name or Discord formatting. */
 export const cleanText = (raw) => String(raw ?? '').replace(MENTION_RE, ' ').replace(/https?:\S+/gi, ' ').replace(/klubi[sś]\p{L}*/giu, ' ')
-  .replace(/[`*_~|>#@<{}\\]/g, '').replace(/\s+/g, ' ').replace(/^[\s,.:;!?-]+/, '').trim();
+  .replace(/[`*_~|>#@<{}\\"„”“«»]/g, '').replace(/\s+/g, ' ').replace(/^[\s,.:;!?-]+/, '').trim();
 
 /** The words said from the other side: I becomes you and you becomes I, verbs and pronouns too. Klubiś's own past forms are masculine. */
 export function reflect(words) {
@@ -92,9 +115,11 @@ export function parseSentence(raw) {
 
   const parsed = { words, person: 'other', group: null, verb: null, index: -1, negated: false, past: false, question: question && !asksBack, asks: false, qSkill: null, greeted, asksBack };
   const folded = words.map((word) => fold(word));
-  const first = folded.find((word) => word !== 'a' && word !== 'no' && word !== 'ale');
+  const start = folded.findIndex((word) => word !== 'a' && word !== 'no' && word !== 'ale');
+  const first = folded[start];
   if (first === 'czy') parsed.asks = true;
   else if (first && QUESTION_WORDS[first]) parsed.qSkill = QUESTION_WORDS[first];
+  else if (QUESTION_PREPOSITIONS.has(first) && QUESTION_WORDS[folded[start + 1]]) parsed.qSkill = QUESTION_WORDS[folded[start + 1]];
 
   for (let i = parsed.asks ? folded.indexOf('czy') + 1 : 0; i < Math.min(folded.length, 7); i += 1) {
     const word = folded[i];
@@ -149,7 +174,7 @@ function fillVars(line, vars) {
 /** A line from the list that its words fit: no {r} without a rest of the sentence, no echo of a sentence too long to repeat. */
 function fit(lines, vars) {
   const fits = lines.filter((line) => (!vars.when || !/\bKiedy\b/.test(line)) && (vars.r || !line.includes('{r}')) && (vars.v || !line.includes('{v}')) && (vars.I || !line.includes('{I}'))
-    && (vars.k || !line.includes('{k}')) && (vars.e.length <= ECHO_MAX || !/\{[Eer]\}/.test(line)));
+    && (vars.k || !line.includes('{k}')) && (vars.e && vars.e.length <= ECHO_MAX ? true : !/\{[Ee]\}/.test(line)));
   return fits.length ? fits : lines.filter((line) => !/\{[EerviIk]\}/.test(line));
 }
 
@@ -176,12 +201,15 @@ export function understand(parsed, { pick, random = Math.random, topic = null, c
   if (!words.length || onlyCalls(parsed)) return null;
   if (findSlur(words.join(' '), PRESET_SLURS)) return { line: pick(WILL_NOT_REPEAT, 'wontRepeat'), skillId: 'unknown' };
 
-  const e = reflect(words).join(' ');
   const rest = index >= 0 ? words.slice(index + 1) : [];
+  const safe = Boolean(topic) || words.some((word) => SAFE_LIKES.test(fold(word)));
+  // "Ja cię biję" with a verb it does not know would come back as "ty mnie biję": no echo then.
+  const canEcho = index >= 0 || !words.some((word) => ['ja', 'ty', 'mnie', 'cie', 'ciebie'].includes(fold(word)));
+  const e = canEcho ? reflect(words).join(' ') : '';
   // "Wczoraj grałem": no asking when.
   const when = words.some((word) => /^(dzis|dzisiaj|wczoraj|jutro|teraz|rano|wieczorem|przedwczoraj|zaraz)$/.test(fold(word)));
   const vars = { e, E: capital(e), r: reflect(rest).join(' '), v: verb?.you ?? '', I: verb?.me ?? '', k: keyword(words), when };
-  const echo = e.length <= ECHO_MAX ? `${vars.E}? ` : '';
+  const echo = e && e.length <= ECHO_MAX ? `${vars.E}? ` : '';
   const from = (lines, list) => fillVars(pick(fit(lines, vars), list), vars);
   const topicLine = () => (topic ? pick(topic.replies, topic.id) : null);
 
@@ -195,9 +223,11 @@ export function understand(parsed, { pick, random = Math.random, topic = null, c
   // To Klubiś: "lubisz pizzę?" -> "Lubię pizzę? Pewnie!". The side stays the same for the same words.
   if (person === 'you') {
     if (question || asks) {
+      // A yes to any words is how it got baited: only for what it can safely like.
+      if (!safe) return { line: pick(ASKED_UNKNOWN, 'askedUnknown'), skillId: 'understood' };
       const side = sideOf(words.join(' '));
       const answer = random() < 0.3 ? topicLine() : null;
-      const asked = fold(words[0]) === 'czy' ? echo : e.length <= ECHO_MAX ? `Czy ${e}? ` : '';
+      const asked = fold(words[0]) === 'czy' ? echo : e && e.length <= ECHO_MAX ? `Czy ${e}? ` : '';
       return { line: `${asked}${answer ?? pick(side === 'no' ? ASKED_NO : ASKED_YES, `asked:${side === 'no' ? 'no' : 'yes'}`)}`, skillId: 'understood' };
     }
     const mood = moodOf(rest);
@@ -210,7 +240,8 @@ export function understand(parsed, { pick, random = Math.random, topic = null, c
     const side = sideOf(words.join(' '));
     const lines = side === 'yes' ? ANSWER_YES : side === 'no' ? ANSWER_NO : ANSWER_MAYBE;
     const line = pick(lines, `question:${side}`);
-    return { line: random() < 0.4 ? `${echo}${line}` : line, skillId: 'question' };
+    // Said back only about what is safe: "czy kuba ma ...?" must not come back with a yes under it.
+    return { line: safe && random() < 0.4 ? `${echo}${line}` : line, skillId: 'question' };
   }
 
   if (words.length >= LONG_WORDS && vars.k) return { line: from(LONG_TEXT, 'longText'), skillId: 'understood' };
@@ -223,14 +254,17 @@ export function understand(parsed, { pick, random = Math.random, topic = null, c
     if (group === 'have' && !parsed.negated && foldedRest.some((word) => PERSON_WORDS.test(word))) return { line: from(HAVE_PERSON, 'havePerson'), skillId: 'understood' };
     const list = group === 'have' && !parsed.negated && moodOf(rest) === 'bad' ? 'beBad' : selfList(parsed, rest);
     if (topic && list !== 'beBad' && random() < 0.4) return { line: `${echo}${topicLine()}`, skillId: topic.id };
-    const line = from(SAID_ABOUT_SELF[list] ?? SAID_OTHER, `self:${list}`);
+    const safeList = safe && SAID_ABOUT_SELF[`${list}Safe`] ? `${list}Safe` : list;
+    const line = from(SAID_ABOUT_SELF[safeList] ?? SAID_OTHER, `self:${safeList}`);
     if (!asksBack) return { line, skillId: 'understood' };
     return { line: `${line} A ja? ${pick(sideOf(words.join(' ')) === 'no' ? ASKED_NO : ASKED_YES, 'askedBack')}`, skillId: 'understood' };
   }
 
   // "Zrób kanapkę" -> "Mam zrobić kanapkę? ...".
   const command = words.findIndex((word) => !FILLERS.has(fold(word)));
-  const infinitive = command >= 0 ? COMMANDS[fold(words[command])] : null;
+  const first = command >= 0 ? fold(words[command]) : '';
+  const infinitive = COMMANDS[first] ?? (SAY_COMMANDS.has(first) ? first : null);
+  if (infinitive && SAY_COMMANDS.has(fold(words[command]))) return { line: pick(ASKED_TO_SAY, 'askedToSay'), skillId: 'understood' };
   if (infinitive) {
     const asked = reflect(words.slice(command + 1)).join(' ');
     const said = `Mam ${infinitive}${asked ? ` ${asked}` : ''}?`;
@@ -258,7 +292,7 @@ export function factsOf(parsed) {
   const { words, person, group, negated, index, question, asks, qSkill } = parsed;
   // "Mów mi Kacper", "nazywam się Ania".
   const called = /^(?:mow|nazywaj|wolaj) (?:mi|mnie)$|^nazywam sie$/.test(fold(words.slice(0, 2).join(' ')));
-  if (called && words.length >= 3 && words.length <= 4 && !question && !findSlur(words.join(' '), PRESET_SLURS)) {
+  if (called && words.length >= 3 && words.length <= 4 && !question && !findSlur(words.join(' '), PRESET_SLURS) && !touchyKind(words.join(' '))) {
     facts.name = words.slice(2).map(capital).join(' ');
     return facts;
   }
@@ -266,7 +300,8 @@ export function factsOf(parsed) {
   const rest = words.slice(index + 1);
   const said = rest.join(' ');
   const folded = fold(said);
-  if (!said || SECRET.test(folded) || findSlur(said, PRESET_SLURS)) return facts;
+  if (!said || SECRET.test(folded) || findSlur(said, PRESET_SLURS) || touchyKind(said)) return facts;
+  if ((group === 'like' || group === 'want') && rest.some((word) => LIKE_TOUCHY.test(fold(word)))) return facts;
   const short = said.length <= LIKE_MAX && rest.length <= FACT_WORDS_MAX;
 
   if (group === 'have') {

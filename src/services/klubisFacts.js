@@ -4,7 +4,17 @@
 
 import { STOPWORDS } from '../config/klubisGrammar.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
-import { MENTION_RE, cleanText, fold, isVerbWord } from './klubisBrain.js';
+import { MENTION_RE, cleanText, fold, isVerbWord, parseSentence, safeLike, touchyKind } from './klubisBrain.js';
+import { asksLiveQuestion, knowledgeAnswer } from './klubisKnowledge.js';
+import { PIKCZU_BORN } from '../config/klubisKnowledge.js';
+import { VIDEOS } from '../config/klubisKnowledgeData.js';
+import { QUIZ_QUESTIONS } from '../config/quizQuestions.js';
+import { runningQuestion } from './quiz.js';
+import { openTriviaQuestion } from './chatEngagement.js';
+import { lotteryState } from './lottery.js';
+import { COMPANIES, getMarket } from './stockMarket.js';
+import { getEconomyPrefix } from '../utils/database.js';
+import { getLeaderboard } from './leveling/leveling.js';
 import { findSlur } from './automodService.js';
 import { getEconomyData } from '../utils/economy.js';
 import { getUserLevelData } from './leveling/leveling.js';
@@ -16,6 +26,7 @@ const TIME_ZONE = 'Europe/Warsaw';
 const CHANNEL_MESSAGES = 40;
 const CHANNELS_KEPT = 200;
 const MAX_NUMBER = 1e15;
+const TOP_SHOWN = 3;
 
 const dateOf = (at, options) => new Date(at).toLocaleDateString('pl-PL', { timeZone: TIME_ZONE, ...options });
 const count = (object) => Object.values(object ?? {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
@@ -74,7 +85,7 @@ export function sumOf(raw) {
 const channelWords = new Map(); // channel id -> [{ name, words }]
 
 export function noteChannelMessage(message) {
-  const words = cleanText(message.content).replace(/[?!.,;:…]+/g, ' ').split(/\s+/).filter((word) => fold(word).length >= 4 && !STOPWORDS.has(fold(word)) && !isVerbWord(fold(word)) && !findSlur(word, PRESET_SLURS));
+  const words = cleanText(message.content).replace(/[?!.,;:…]+/g, ' ').split(/\s+/).filter((word) => fold(word).length >= 4 && !STOPWORDS.has(fold(word)) && !isVerbWord(fold(word)) && !findSlur(word, PRESET_SLURS) && !touchyKind(word));
   const list = channelWords.get(message.channelId) ?? [];
   list.push({ name: message.member?.displayName ?? message.author?.username ?? '', words });
   while (list.length > CHANNEL_MESSAGES) list.shift();
@@ -106,6 +117,11 @@ function channelSummary(message) {
 /** The answer to a question about real data, or null. `memoryOf(userId)` reads what Klubiś remembers about a member. */
 export async function klubisFact(message, text, { now = Date.now(), memoryOf = async () => null } = {}) {
   const { guild, author, client } = message;
+  // The question a quiz or the question of the day pays for: no help with that one.
+  const running = runningQuestion(guild.id);
+  const live = [running && QUIZ_QUESTIONS[running.index]?.q, await openTriviaQuestion(guild.id, now)].filter(Boolean);
+  if (live.some((question) => asksLiveQuestion(text, question))) return 'Teraz trwa to pytanie, nie podpowiadam 🤐';
+
   const sum = sumOf(message.content);
   if (sum) return sum;
 
@@ -119,16 +135,19 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
   // About another member, by a mention.
   const botId = client?.user?.id;
   const other = [...(message.mentions?.users?.values?.() ?? [])].find((user) => user.id !== botId);
-  if (other && /\b(kim|kto|kogo|co)\b.*\b(jest|to|wiesz|znasz|lubi|gra)\b|\bznasz\b/.test(text)) {
+  // The mention is gone from `text`, so "co myslisz o @Kuba" reads "co myslisz o". Only what is safe to tell about someone else.
+  if (other && /\b(kim|kto|kogo|co)\b.*\b(jest|to|wiesz|znasz|lubi|gra|myslisz|sadzisz|powiesz)\b|\bznasz\b/.test(text)) {
     const member = guild.members?.cache?.get(other.id);
     const level = await getUserLevelData(client, guild.id, other.id).catch(() => null);
     const memory = await memoryOf(other.id);
     const parts = [`<@${other.id}>`];
     if (member?.joinedAt) parts.push(`jest tu od ${dateOf(member.joinedAt, { day: 'numeric', month: 'long', year: 'numeric' })}`);
     if (level) parts.push(`poziom ${level.level ?? 0}`);
-    const line = `${parts.join(', ')} ⭐`;
+    const opinion = /\b(myslisz|sadzisz|powiesz)\b/.test(text) ? 'Mam dobre zdanie, ale to bot tak mówi 😄 ' : '';
+    const line = `${opinion}${parts.join(', ')} ⭐`;
     const known = [];
-    if (memory?.likes?.length) known.push(`Lubi: ${memory.likes.join(', ')}.`);
+    const likes = (memory?.likes ?? []).filter(safeLike);
+    if (likes.length) known.push(`Lubi: ${likes.join(', ')}.`);
     if (memory?.plays?.length) known.push(`Gra ${memory.plays.join(', ')}.`);
     return known.length ? `${line} ${known.join(' ')}` : line;
   }
@@ -174,5 +193,56 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
   if (/\bo czym (tu |wy )?(gadacie|rozmawiacie|piszecie)\b|\bco (mnie )?(ominelo|przegapilem|przegapilam)\b|\bco tu sie dzieje\b/.test(text)) {
     return channelSummary(message);
   }
-  return null;
+
+  // Rankings and the market.
+  if (/\bkto (ma|jest) (tu |na serwerze )?(najwiecej (kasy|hajsu|pieniedzy|kaski)|najbogatsz\w*)\b/.test(text)) {
+    const prefix = getEconomyPrefix(guild.id);
+    const keys = await client.db.list(prefix);
+    const rows = [];
+    for (const key of Array.isArray(keys) ? keys : []) {
+      const data = await client.db.get(key);
+      if (data) rows.push({ id: key.replace(prefix, ''), total: (data.wallet || 0) + (data.bank || 0) });
+    }
+    const top = rows.sort((a, b) => b.total - a.total).slice(0, TOP_SHOWN);
+    return top.length ? `Najwięcej kasy: ${top.map((row) => `<@${row.id}> (${money(guild.id, row.total)})`).join(', ')} 💰` : 'Cały ranking pokaże `/topkasa` 💰';
+  }
+  if (/\bkto ma (najwyzszy|najwiekszy) (poziom|level|lvl)\b|\bkto ma najwiecej (xp|expa)\b/.test(text)) {
+    const top = await getLeaderboard(client, guild.id, TOP_SHOWN);
+    return top?.length ? `Najwyższe poziomy: ${top.map((row) => `<@${row.userId}> (${row.level})`).join(', ')} ⭐` : 'Cały ranking pokaże `/top` ⭐';
+  }
+  if (/\bloteri\w*\b/.test(text) && /\b(ile|kiedy|jaka|pula|wygrana|losowanie|moge|mam)\b/.test(text)) {
+    const state = await lotteryState(guild.id, author.id, now);
+    const when = dateOf(state.round.drawAt, { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    return `Pula: ${money(guild.id, state.pot)}, losowanie: ${when}. Twoje losy: ${state.mine} 🎟️ Kup: \`/loteria kup\``;
+  }
+  if (/\b(gield\w*|akcj\w*)\b/.test(text) && /\b(ile|jak|jakie|ceny|cena|stoi|stoja|co)\b/.test(text)) {
+    const market = await getMarket(guild.id, now);
+    return `Ceny na \`/gielda\`: ${COMPANIES.map((company) => `${company.emoji} ${company.name} ${money(guild.id, market.prices[company.id] ?? company.base)}`).join(', ')} 📈`;
+  }
+  if (/\bz kim (jestem|mam slub|mam wspolny bank)\b|\bkto jest moim? (zona|mezem|partnerem)\b|\bkto jest moja (zona|partnerka)\b/.test(text)) {
+    const data = await getEconomyData(client, guild.id, author.id);
+    return data._joint?.partnerId ? `Twój ślub: <@${data._joint.partnerId}> 💍` : 'Nikogo tu jeszcze nie ma. Spróbuj `/randka` 🌹';
+  }
+  if (/\bile (jest )?kanalow\b/.test(text)) return `Na serwerze jest kanałów: ${guild.channels?.cache?.size ?? 0} 📋`;
+  if (/\bile (jest )?rol\b/.test(text)) return `Na serwerze jest ról: ${guild.roles?.cache?.size ?? 0} 🎭`;
+
+  // Pikczu, counted today.
+  if (/\bpikcz\w*\b/.test(text) && /\b(ile|wiek|stary|urodzin\w*|urodzil\w*|kiedy)\b/.test(text) && /\b(lat|wiek|stary|urodzin\w*|urodzil\w*)\b/.test(text)) {
+    const born = new Date(PIKCZU_BORN);
+    const today = new Date(now);
+    const hadBirthday = today.getMonth() > born.getMonth() || (today.getMonth() === born.getMonth() && today.getDate() >= born.getDate());
+    return `Pikczu urodził się 11 grudnia 2009 roku, ma ${today.getFullYear() - born.getFullYear() - (hadBirthday ? 0 : 1)} lat 🎂`;
+  }
+  if (/\b(suby?|subow|subskrybent\w*|subskrypcj\w*)\b/.test(text) && /\b(ile|pikcz\w*|kanal\w*)\b/.test(text)) {
+    return `Główny kanał Pikczu ma ponad ${Math.floor(VIDEOS.subscribers / 10_000) * 10} tys. subskrybentów, stan z ${dateOf(VIDEOS.videosAt, { day: 'numeric', month: 'long' })} 🔔`;
+  }
+  if (/\b(ostatni|najnowszy|nowy) (film|filmik|odcinek)\b|\bjaki (byl )?ostatni film\b/.test(text) && VIDEOS.latest[0]) {
+    return `Ostatni film, jaki znam: „${VIDEOS.latest[0].title}” <https://youtu.be/${VIDEOS.latest[0].id}> 🎬`;
+  }
+  if (/\b(najpopularniejszy|najlepszy|najbardziej znany|najwiecej wyswietlen)\b.*\b(film|filmik)?\b/.test(text) && /\b(film|filmik|odcinek|wyswietlen)\b/.test(text) && VIDEOS.mostViewed[0]) {
+    const video = VIDEOS.mostViewed[0];
+    return `Z filmów, które znam, najwięcej wyświetleń ma „${video.title}”: ${video.views.toLocaleString('pl-PL')} <https://youtu.be/${video.id}> 🎬`;
+  }
+
+  return knowledgeAnswer(text, parseSentence(message.content));
 }

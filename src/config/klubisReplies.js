@@ -45,7 +45,7 @@ export const KLUBIS_SKILLS = [
   {
     // First on purpose: a joke line must never answer this. Only when called, and only clear wording.
     id: 'crisis', label: 'Ktoś potrzebuje pomocy', example: 'Klubiś, nie chcę żyć', serious: true,
-    match: /\bnie chce (mi sie )?zyc\b|\bchce sie zabic\b|\bchce umrzec\b|\bzabije sie\b(?! ze smiechu)|\bsamobojstw/,
+    match: /\bnie chce (mi sie )?zyc\b|\b(chce|mam|powinienem|powinnam|moge|musze|czy) sie (zabic|powiesic|pociac|otruc|utopic)\b|\bumrzec\b|\bwarto zyc\b|\bzabije sie\b(?! ze smiechu)|\b(pociac|powiesic|otruc) sie\b|\bsamobojstw|\bsamookalecz/,
     replies: [
       'Bardzo mi przykro, że tak się czujesz, {user} 💜 Jestem tylko botem, więc odezwij się do kogoś, kto naprawdę pomoże: 116 111 to bezpłatny telefon zaufania dla dzieci i młodzieży.',
       'To ważne, {user}, i nie powinno zostać na czacie 💜 Porozmawiaj z dorosłym, któremu ufasz, albo zadzwoń pod 116 111 (bezpłatnie). Gdy jest bezpośrednie zagrożenie: 112.',

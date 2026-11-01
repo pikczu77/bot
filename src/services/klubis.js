@@ -25,7 +25,7 @@ import {
 } from '../config/klubisReplies.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
 import { findSlur } from './automodService.js';
-import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, onlyCalls, parseSentence, recalledLine, understand } from './klubisBrain.js';
+import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, likesTouchy, onlyCalls, parseSentence, recalledLine, safeLike, touchyKind, touchyLine, understand } from './klubisBrain.js';
 import { klubisFact, noteChannelMessage } from './klubisFacts.js';
 
 export { fold, likeOf };
@@ -121,10 +121,10 @@ function fill(line, message, talk = null, remembered = null) {
 
 const cut = (text, max) => (text.length > max ? `${text.slice(0, max).trimEnd()}...` : text);
 
-/** The member's words, fit to be said back. Empty when they hold a slur: the server's rule, Klubiś never repeats one. */
+/** The member's words, fit to be said back. Empty when they hold a slur (the server's rule) or a touchy word: Klubiś never repeats those. */
 export function quoteOf(raw) {
   const text = cleanText(raw);
-  return text.length < 2 || findSlur(text, PRESET_SLURS) ? '' : cut(text, QUOTE_MAX);
+  return text.length < 2 || findSlur(text, PRESET_SLURS) || touchyKind(text) ? '' : cut(text, QUOTE_MAX);
 }
 
 function keepTalk(map, key, talk) {
@@ -186,6 +186,7 @@ function flirtLine(skill, message, text, line) {
   const botId = message.client?.user?.id;
   const other = [...(message.mentions?.users?.values?.() ?? [])].find((user) => user.id !== botId);
   if (other) return `Podrywam <@${other.id}>: ${line}`;
+  if (touchyKind(text)) return null;
   const target = quoteOf(cleanText(message.content).replace(/^(a |no |to )?(poderwij|podrywaj|zarwij|zbajeruj|zagadaj do|rizzuj)\s*/iu, '').replace(/[?!.,]+$/, ''));
   return target && fold(target) !== 'mnie' ? `Podrywam ${target}: ${line}` : `{user}, ${line[0].toLocaleLowerCase('pl')}${line.slice(1)}`;
 }
@@ -214,6 +215,10 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
     memberLast.set(key, now);
     if (fact) return { line: fact, skillId: 'fact' };
     const pick = (lines, list) => pickFresh(lines, guildId, list, random);
+    // Before anything that repeats or agrees. The helpline answer and a sad reply stay first.
+    const touchy = touchyKind(text);
+    const serious = touchy ? findSkill(text, raw) : null;
+    if (touchy && !serious?.serious) return { line: touchyLine(touchy, pick, text), skillId: 'unknown' };
     const follow = talk && text ? followUp(text, talk, guildId, random) : null;
     if (follow) return { line: follow, skillId: talk.skillId, followUp: true };
     if (!text) return { line: pick(KLUBIS_CALLED, 'called'), skillId: 'called' };
@@ -221,9 +226,10 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
     if (recalled) return { line: recalled, skillId: 'aboutMe' };
 
     const parsed = parseSentence(raw);
+    if (likesTouchy(parsed)) return { line: touchyLine('touchy', pick), skillId: 'unknown' };
     const facts = remembers ? factsOf(parsed) : {};
     const learned = facts.likes && !member?.likes?.includes(facts.likes) ? facts.likes : null;
-    const withLearned = (line) => (!learned ? line : `${line} ${line.includes(learned) ? KLUBIS_ABOUT.noted : KLUBIS_ABOUT.learned.replace('{like}', () => learned)}`);
+    const withLearned = (line) => (!learned ? line : `${line} ${line.includes(learned) || !safeLike(learned) ? KLUBIS_ABOUT.noted : KLUBIS_ABOUT.learned.replace('{like}', () => learned)}`);
     const introduced = learnedLine(facts, pick);
     if (introduced) return { line: introduced, skillId: 'understood', facts };
 
@@ -308,7 +314,7 @@ export async function handleKlubisMessage(message, { prefix = '!', now, random, 
   const member = memory?.[message.author.id] ?? null;
   noteChannelMessage(message);
   const text = called ? fold(String(message.content ?? '').replace(MENTION_RE, ' ')).replace(NAME_RE_G, ' ').replace(/\s+/g, ' ').trim() : '';
-  const fact = text ? await klubisFact(message, text, { now: at, memoryOf: async (id) => memory?.[id] ?? null }).catch((error) => {
+  const fact = text && !touchyKind(text) ? await klubisFact(message, text, { now: at, memoryOf: async (id) => memory?.[id] ?? null }).catch((error) => {
     logger.warn(`Klubis fact failed in guild ${message.guild.id}: ${error.message}`);
     return null;
   }) : null;
