@@ -3,7 +3,7 @@ import './helpers/env.js';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { Collection } from 'discord.js';
+import { Collection, PermissionsBitField } from 'discord.js';
 import { mockChannel, mockGuild, mockMember, mockRole, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import { getAutomodConfig } from '../src/services/automodService.js';
@@ -606,6 +606,23 @@ test('the ticket panel takes its title, colour and button colour from the settin
     assert.equal((await call('PATCH', path, { body })).status, 400, JSON.stringify(body));
   }
   await call('PATCH', path, { body: { panelChannelId: null } });
+});
+
+test('the temporary channel module shows what the bot lacks and whether @everyone can get in', async (t) => {
+  const voice = mockChannel(guild, 'Wejście', { type: 2 });
+  const me = guild.members.me;
+  const before = me.permissions;
+  t.after(() => { me.permissions = before; });
+
+  const path = `/guilds/${guild.id}/tempvoice`;
+  const fine = await call('PATCH', path, { body: { enabled: true, triggerChannelId: voice.id } });
+  assert.deepEqual([fine.json.botMissing, fine.json.everyoneBlocked], [[], false]);
+
+  const held = new PermissionsBitField(['ViewChannel', 'Connect', 'ManageChannels']);
+  me.permissions = held;
+  voice.permissionsFor = (who) => (who === me ? held : new PermissionsBitField(['ViewChannel']));
+  const short = await call('PATCH', path, { body: { userLimit: 2 } });
+  assert.deepEqual([short.json.botMissing, short.json.everyoneBlocked], [['MoveMembers', 'ManageRoles'], true]);
 });
 
 test('the message with the temporary channel buttons is posted from the panel', async () => {

@@ -80,5 +80,10 @@
   "Your channel is now called **{0}**.": "Twój kanał nazywa się teraz **{0}**.",
   "Your channel has no user limit.": "Twój kanał nie ma limitu osób.",
   "The user limit of your channel is {0}.": "Limit osób na twoim kanale: {0}.",
-  "I am missing permissions for that. I need **Manage Channels**, **Manage Roles** and **Move Members**.": "Brakuje mi do tego uprawnień. Potrzebuję **Zarządzanie kanałami**, **Zarządzanie rolami** i **Przenoszenie członków**."
+  "The bot is missing permissions for that: **{0}**. This is not your fault: an administrator has to give them to the bot's role.": "Bot nie ma do tego uprawnień: **{0}**. To nie Twoja wina: administrator musi dać je roli bota.",
+  "View Channels": "Wyświetlanie kanałów",
+  "Connect": "Połącz",
+  "Manage Channels": "Zarządzanie kanałami",
+  "Manage Roles": "Zarządzanie rolami",
+  "Move Members": "Przenoszenie członków"
 }

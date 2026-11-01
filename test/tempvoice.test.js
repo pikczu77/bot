@@ -296,6 +296,80 @@ test('missing permissions are explained', async () => {
   assert.match(replyText(await act(owner, 'tempvoice:limit', { fields: { value: '3' } })), /missing permissions.*Manage Channels/);
 });
 
+// The bot's role holds only `names`. Creating a channel follows Discord's rule: an overwrite gives only what the bot holds.
+function limitBot(t, names) {
+  const me = guild.members.me;
+  const held = new PermissionsBitField(names);
+  const before = { permissions: me.permissions, create: guild.channels.create, triggerFor: trigger.permissionsFor };
+  me.permissions = held;
+  trigger.permissionsFor = () => held;
+  const created = [];
+  guild.channels.create = async (options) => {
+    for (const { allow } of options.permissionOverwrites) {
+      if (!held.has(allow)) throw Object.assign(new Error('Missing Permissions'), { code: 50013 });
+    }
+    created.push(options);
+    return mockVoice(options.name);
+  };
+  t.after(() => {
+    me.permissions = before.permissions;
+    guild.channels.create = before.create;
+    trigger.permissionsFor = before.triggerFor;
+  });
+  return { held, created };
+}
+
+async function enterTrigger(member) {
+  const { default: voiceStateUpdate } = await import('../src/events/voiceStateUpdate.js');
+  const state = (target) => ({ member, guild, channel: target });
+  join(member, trigger);
+  await runWithLocale('en', () => voiceStateUpdate.execute(state(null), state(trigger), client));
+}
+
+test('a bot without Priority Speaker still makes rooms', async (t) => {
+  const { created } = limitBot(t, ['ViewChannel', 'Connect', 'Speak', 'ManageChannels', 'ManageRoles', 'MoveMembers']);
+  const owner = person('Bez priorytetu');
+  await enterTrigger(owner);
+
+  assert.notEqual(owner.voice.channel.id, trigger.id, 'moved to the new room');
+  assert.equal((await record(owner.voice.channel)).ownerId, owner.id);
+  const [options] = created;
+  const allowOf = (id) => options.permissionOverwrites.find((overwrite) => overwrite.id === id).allow;
+  assert.deepEqual(allowOf(owner.id), ['ViewChannel', 'Connect', 'Speak', 'MoveMembers']);
+  assert.deepEqual(allowOf(guild.members.me.id), ['ViewChannel', 'Connect', 'ManageChannels', 'MoveMembers']);
+  assert.deepEqual(allowOf(guild.id), ['Connect', 'Speak']);
+});
+
+test('without the permissions for a room the member is told which ones', async (t) => {
+  const { created } = limitBot(t, ['ViewChannel', 'Connect', 'ManageRoles', 'MoveMembers']);
+  const owner = person('Pechowiec');
+  const direct = [];
+  owner.send = async (payload) => { direct.push(payload); };
+  await enterTrigger(owner);
+
+  assert.equal(created.length, 0);
+  assert.equal(owner.voice.channel.id, trigger.id);
+  assert.match(direct[0].content, /\*\*Manage Channels\*\*.*not your fault/);
+});
+
+test('a button names what the bot lacks in the room, and a claim gives only what the bot holds', async () => {
+  const owner = person('Hanka');
+  const guest = person('Franek');
+  const channel = await room(owner, [guest]);
+  const edit = channel.permissionOverwrites.edit;
+
+  channel.permissionsFor = () => new PermissionsBitField(['ViewChannel', 'Connect', 'ManageChannels', 'MoveMembers']);
+  channel.permissionOverwrites.edit = async () => { throw Object.assign(new Error('Missing Permissions'), { code: 50013 }); };
+  const refused = replyText(await act(owner, 'tempvoice:privacy', { values: ['lock'], hidden: true }));
+  assert.match(refused, /\*\*Manage Roles\*\*.*not your fault/);
+  assert.doesNotMatch(refused, /Manage Channels/);
+
+  channel.permissionOverwrites.edit = edit;
+  join(owner, null);
+  assert.match(replyText(await act(guest, 'tempvoice:claim')), /yours now/);
+  assert.ok(can(channel, guest.id, 'MoveMembers') && !can(channel, guest.id, 'PrioritySpeaker'));
+});
+
 test('the owner keeps the channel after leaving; an empty channel is deleted', async () => {
   const { default: voiceStateUpdate } = await import('../src/events/voiceStateUpdate.js');
   const owner = person('Pierwszy');

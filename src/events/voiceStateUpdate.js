@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits } from 'discord.js';
+import { ChannelType } from 'discord.js';
 import {
     getJoinToCreateConfig, 
     registerTemporaryChannel, 
@@ -8,7 +8,7 @@ import {
 import { sanitizeInput } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 import { handleMusicVoiceState } from '../services/music/musicVoiceState.js';
-import { deleteRoom } from '../services/tempVoiceInterface.js';
+import { deleteRoom, missingPermissionsText, missingRoomPermissions, roomOverwrites } from '../services/tempVoiceInterface.js';
 import { t } from '../i18n/index.js';
 
 const channelCreationCooldown = new Map();
@@ -148,10 +148,14 @@ if (now - lastCreation < VOICE_CREATE_COOLDOWN_MS) {
                     return;
                 }
 
-                const triggerPermissions = triggerChannel.permissionsFor(me);
-                if (!triggerPermissions?.has([PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.Connect])) {
-                    logger.warn(`Missing required permissions for temporary channel creation in guild ${guild.id} (trigger channel ${triggerChannel.id})`);
+                // Manage Roles is needed only by some interface buttons; a room works without it.
+                const missing = missingRoomPermissions(triggerChannel).filter((name) => name !== 'ManageRoles');
+                if (missing.length) {
+                    logger.warn(`Missing permissions [${missing.join(', ')}] for temporary channel creation in guild ${guild.id} (trigger channel ${triggerChannel.id})`);
                     channelCreationCooldown.delete(cooldownKey);
+                    await member.send({ content: `❌ ${missingPermissionsText(missing)}` }).catch((dmError) => {
+                        logger.debug(`Unable to send temporary channel failure DM to user ${member.id}:`, dmError);
+                    });
                     return;
                 }
 
@@ -201,16 +205,7 @@ type: ChannelType.GuildVoice,
                     parent: triggerChannel.parentId,
 userLimit: userLimit === 0 ? undefined : userLimit,
                     bitrate: bitrate,
-                    permissionOverwrites: [
-                        {
-                            id: member.id,
-                            allow: ['Connect', 'Speak', 'PrioritySpeaker', 'MoveMembers']
-                        },
-                        {
-                            id: guild.id,
-                            allow: ['Connect', 'Speak']
-                        }
-                    ]
+                    permissionOverwrites: roomOverwrites(triggerChannel, member.id)
                 });
 
                 await registerTemporaryChannel(client, guild.id, tempChannel.id, member.id, triggerChannel.id);

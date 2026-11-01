@@ -40,12 +40,61 @@ const RENAME_WINDOW_MS = 10 * 60_000;
 const MISSING_ACCESS_CODES = new Set([50001, 50013]);
 const MEMBER = { type: OverwriteType.Member };
 const ROLE = { type: OverwriteType.Role };
-const OWNER_ACCESS = { ViewChannel: true, Connect: true, Speak: true, PrioritySpeaker: true, MoveMembers: true };
+const OWNER_ACCESS = ['ViewChannel', 'Connect', 'Speak', 'PrioritySpeaker', 'MoveMembers'];
+const EVERYONE_ACCESS = ['Connect', 'Speak'];
+const BOT_ACCESS = ['ViewChannel', 'Connect', 'ManageChannels', 'MoveMembers'];
+const INTERFACE_NEEDS = ['ManageChannels', 'ManageRoles', 'MoveMembers'];
 
 const renameTimes = new Map();
 
 const mentions = (ids) => ids.map((id) => `<@${id}>`).join(', ');
 const fromHiddenMessage = (interaction) => Boolean(interaction.message?.flags?.has(MessageFlags.Ephemeral));
+
+// Discord refuses an overwrite that gives something the bot does not hold itself. Priority Speaker
+// is the usual one: without this filter a bot lacking it makes no room at all.
+const heldBy = (permissions, names) => names.filter((name) => permissions?.has(name));
+
+// The permission overwrites of a new room: the bot keeps control of it, the owner and everyone get in.
+export function roomOverwrites(triggerChannel, ownerId) {
+    const { guild } = triggerChannel;
+    const me = guild.members.me;
+    const held = triggerChannel.parent?.permissionsFor(me) ?? me.permissions;
+    return [
+        { id: me.id, type: OverwriteType.Member, allow: heldBy(held, BOT_ACCESS) },
+        { id: ownerId, type: OverwriteType.Member, allow: heldBy(held, OWNER_ACCESS) },
+        { id: guild.id, type: OverwriteType.Role, allow: heldBy(held, EVERYONE_ACCESS) },
+    ];
+}
+
+// What the bot lacks to make rooms from this channel and to run the interface in them. Empty = all fine.
+export function missingRoomPermissions(triggerChannel) {
+    const me = triggerChannel.guild.members.me;
+    if (!me) return [];
+    const here = triggerChannel.permissionsFor(me);
+    const missing = BOT_ACCESS.filter((name) => !here?.has(name));
+    // Only server administrators can set Manage Roles on one channel, so a room has it only through the bot's role on the server.
+    if (!me.permissions.has('ManageRoles')) missing.push('ManageRoles');
+    return missing;
+}
+
+export function missingPermissionsText(missing) {
+    const names = {
+        ViewChannel: t('View Channels'),
+        Connect: t('Connect'),
+        ManageChannels: t('Manage Channels'),
+        ManageRoles: t('Manage Roles'),
+        MoveMembers: t('Move Members'),
+    };
+    const list = missing.map((name) => names[name]).join(', ');
+    return t`The bot is missing permissions for that: **${list}**. This is not your fault: an administrator has to give them to the bot's role.`;
+}
+
+// Discord refused, so when the room looks fine for the bot the usual three are named.
+function missingInRoom(channel) {
+    const here = channel?.permissionsFor(channel.guild.members.me);
+    const missing = here ? INTERFACE_NEEDS.filter((name) => !here.has(name)) : [];
+    return missing.length ? missing : INTERFACE_NEEDS;
+}
 
 function interfaceButtons() {
     return [
@@ -205,7 +254,9 @@ const memberEntries = (guild, ids) => ids.map((id) => [id, guild.members.cache.g
 
 async function setOwner(client, channel, info, newOwnerId) {
     const previousOwnerId = info.ownerId;
-    await channel.permissionOverwrites.edit(newOwnerId, OWNER_ACCESS, MEMBER);
+    const held = channel.permissionsFor(channel.guild.members.me);
+    const access = Object.fromEntries(heldBy(held, OWNER_ACCESS).map((name) => [name, true]));
+    await channel.permissionOverwrites.edit(newOwnerId, access, MEMBER);
     await channel.permissionOverwrites.edit(previousOwnerId, { PrioritySpeaker: null, MoveMembers: null }, MEMBER).catch(() => {});
 
     await updateRoom(client, channel.guild.id, channel.id, (record) => { record.ownerId = newOwnerId; });
@@ -393,7 +444,7 @@ export async function handleInterfaceInteraction(interaction, client, [action] =
         if (!MISSING_ACCESS_CODES.has(error?.code)) throw error;
         logger.warn(`Temporary channel action "${action}" failed in guild ${interaction.guildId}: ${error.message}`);
         const payload = {
-            embeds: [warningEmbed(t('I am missing permissions for that. I need **Manage Channels**, **Manage Roles** and **Move Members**.'))],
+            embeds: [warningEmbed(missingPermissionsText(missingInRoom(interaction.member?.voice?.channel)))],
             flags: MessageFlags.Ephemeral,
         };
         return interaction.replied || interaction.deferred ? interaction.followUp(payload) : interaction.reply(payload);

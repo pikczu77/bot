@@ -22,7 +22,7 @@ import { getEconomyPrefix, getJoinToCreateConfig, getWelcomeConfig, saveJoinToCr
 import { getGuildTicketStats } from '../utils/database/tickets.js';
 import { TICKET_BUTTON_STYLES, buildPanelButtonRow, buildPanelEmbed } from '../commands/Ticket/modules/ticket_panel.js';
 import { validateChannelNameTemplate } from '../services/joinToCreateService.js';
-import { syncInterfaceMessage } from '../services/tempVoiceInterface.js';
+import { missingRoomPermissions, syncInterfaceMessage } from '../services/tempVoiceInterface.js';
 import { getColor, getCommandPrefix } from '../config/bot.js';
 import { backupChannelProblem, getBackupSettings, problemText, sendBackup, updateBackupSettings } from '../services/dataBackup.js';
 import { MESSAGE_MAX as BOOST_MESSAGE_MAX, defaultThanks, getBoostData, postBoostInfo, refreshBoostInfo, removeBoosterRole, roleProblem } from '../services/serverBoost.js';
@@ -933,7 +933,10 @@ function tempVoiceView(config, guild) {
   const triggerChannelId = config.triggerChannels.find((id) => guild.channels.cache.has(id)) ?? null;
   const options = (triggerChannelId && config.channelOptions?.[triggerChannelId]) || {};
   const interfaceChannelId = config.interfaceChannelId && guild.channels.cache.has(config.interfaceChannelId) ? config.interfaceChannelId : null;
+  const trigger = triggerChannelId ? guild.channels.cache.get(triggerChannelId) : null;
   return {
+    botMissing: trigger ? missingRoomPermissions(trigger) : [],
+    everyoneBlocked: trigger ? !trigger.permissionsFor(guild.roles.everyone)?.has(['ViewChannel', 'Connect']) : false,
     enabled: Boolean(config.enabled && triggerChannelId),
     triggerChannelId,
     nameTemplate: trAny(options.nameTemplate || config.channelNameTemplate),
