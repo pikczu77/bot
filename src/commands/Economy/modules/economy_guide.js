@@ -291,7 +291,7 @@ function prestigeTopic({ guildId, settings }) {
       field(t('🔄 Prestige resets'), t('cash and bank, upgrades\nshares, buildings\nitems, cards and badges stay')),
       field(t('⚡ /boosty'), t`💰 x${BOOST_FACTOR} money: **${money(guildId, boosts.moneyHourPrice)}** an hour\n⭐ x${BOOST_FACTOR} XP: **${money(guildId, boosts.xpHourPrice)}** an hour\nup to ${MAX_BOOST_HOURS} h ahead`),
       field(t('🔨 /polacz'), t`**${MERGE_COUNT}** copies of one card\n= 1 card of the next rarity\nthe version (golden, diamond) stays`),
-      field(t('💎 /booster'), t('boost the server: money and a pack every 30 days\nbonus to payouts and XP, your own role')),
+      field(t('💎 /booster'), t('boost the server: money and a pack every 30 days\nbonus to payouts and XP')),
       field(t('🎉 /event'), t('holidays with their own currency\nfor messages, jobs and chat games\nshop: boosts, packs, the event rank')),
     ],
   };

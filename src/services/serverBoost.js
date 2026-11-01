@@ -3,24 +3,23 @@
 //
 // Perks, set in the panel (settings.serverBoost, economySettings.js): thanks on a channel, money and a free pack when a
 // boost starts and every 30 days after that, +% money and +% XP while boosting (userData.serverBooster), a short x2 money
-// event for the whole server, an own role with a name and a colour (/booster rola), two badges (stat boostRewards).
+// event for the whole server, two badges (stat boostRewards).
 //
 // Three things lead here: guildMemberUpdate (premiumSince changed), the system message "X boosted the server" (the only
 // sign of a second boost by the same member) and the job every 10 minutes (what happened while the bot was off, the
 // 30-day rewards). All of them may fire for one boost, so every decision is taken and saved inside the store lock.
 //
-// Store guild:{id}:server-boost = { members: { [userId]: { active, since, nextRewardAt, rewards, lastThanksAt, lastEventAt, roleId, roleChangedAt } },
-// info: { channelId, messageId } } (the "what a boost gives" message posted from the panel).
+// Store guild:{id}:server-boost = { members: { [userId]: { active, since, nextRewardAt, rewards, lastThanksAt, lastEventAt } },
+// info: { channelId, messageId, rev } } (the "what a boost gives" message posted from the panel).
 // nextRewardAt stays after a boost ends: taking a boost off and on again pays nothing extra.
 
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageType, PermissionFlagsBits, resolveColor } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageType } from 'discord.js';
 import { createEmbed } from '../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
 import { guildStore, userError } from '../utils/featureKit.js';
 import { createTraceId, logger, runWithTraceContext } from '../utils/logger.js';
 import { enterLocale, t, tr } from '../i18n/index.js';
 import { getGuildLocale } from './languageService.js';
-import { findBannedWord, findSlur, getAutomodConfig } from './automodService.js';
 import { PACKS } from './collections.js';
 import { activeEventType, getEconomySettings, money } from './economySettings.js';
 import { MIN_EVENT_MINUTES, startEvent } from './economyEvents.js';
@@ -31,10 +30,7 @@ export const REWARD_EVERY_DAYS = 30;
 export const REWARD_EVERY_MS = REWARD_EVERY_DAYS * 86_400_000;
 export const THANKS_GAP_MS = 86_400_000;
 export const EVENT_GAP_MS = 7 * 86_400_000;
-export const ROLE_CHANGE_GAP_MS = 10 * 60_000;
-export const ROLE_NAME_MAX = 32;
 export const MESSAGE_MAX = 500;
-const ROLE_NAME_MIN = 2;
 // A boost the job finds this soon after it started still gets the thanks and the event. Older ones (members who boosted
 // before this code, a long time offline) only get the reward.
 const FRESH_MS = 2 * 3_600_000;
@@ -42,8 +38,6 @@ const MEMBERS_FETCH_EVERY_MS = 3_600_000;
 const LOCK = '#server-boost';
 const GONE_CODES = new Set([10007, 10013]); // Unknown Member, Unknown User
 const COLOR = '#F47FFF';
-const COLOR_RE = /^#?[0-9a-f]{6}$/i;
-const RESERVED_ROLE_NAME = /admin|moder|\bmod\b|w[lł]a[sś]ciciel|owner|staff|ekipa|support|discord|everyone|https?:|[@#`]/iu;
 
 export const BOOST_MESSAGE_TYPES = new Set([MessageType.GuildBoost, MessageType.GuildBoostTier1, MessageType.GuildBoostTier2, MessageType.GuildBoostTier3]);
 
@@ -65,7 +59,6 @@ export function perkLines(guildId, boost) {
     reward ? t`🎁 ${reward} at once, then every ${REWARD_EVERY_DAYS} days of boosting` : null,
     boost.moneyPercent > 0 ? t`💰 **+${boost.moneyPercent}%** of every payout while you boost` : null,
     boost.xpPercent > 0 ? t`⭐ **+${boost.xpPercent}%** XP for messages while you boost` : null,
-    boost.customRole ? t`🎨 your own role, name and colour: \`/booster rola\`` : null,
     boost.eventMinutes > 0 ? t`💸 **${boost.eventMinutes} min** of double money for the whole server` : null,
     t('🏅 two badges in `/osiagniecia`'),
   ].filter(Boolean);
@@ -95,22 +88,24 @@ function payReward(client, guildId, userId, settings, now, random) {
   }));
 }
 
-async function deleteRole(guild, roleId) {
-  const role = roleId ? guild.roles.cache.get(roleId) : null;
-  await role?.delete(t('The boost ended or the own role was removed')).catch((error) => {
-    logger.warn(`Booster role ${roleId} not deleted in guild ${guild.id}: ${error.message}`);
+// /booster rola is gone (2026-11-01, owner: "nie chce tego wcale dodawac"). A role someone made before that goes with the next job run.
+async function dropOldRole(guild, entry) {
+  if (!entry.roleId) return;
+  await guild.roles.cache.get(entry.roleId)?.delete(t('The boost ended or the own role was removed')).catch((error) => {
+    logger.warn(`Booster role ${entry.roleId} not deleted in guild ${guild.id}: ${error.message}`);
   });
+  delete entry.roleId;
+  delete entry.roleChangedAt;
 }
 
-/** A boost is over (or the member left): no more bonus, the own role goes. Keeps nextRewardAt. */
+/** A boost is over (or the member left): no more bonus. Keeps nextRewardAt. */
 async function endBoost(guild, userId) {
   await withEconomyLock(guild.id, LOCK, async () => {
     const data = await store.get(guild.id);
     const entry = data.members?.[userId];
     if (!entry?.active) return;
-    await deleteRole(guild, entry.roleId);
+    await dropOldRole(guild, entry);
     entry.active = false;
-    entry.roleId = null;
     await store.set(guild.id, data);
     await setBoosterFlag(guild.client, guild.id, userId, false);
   });
@@ -156,6 +151,7 @@ export async function processBooster(guild, member, { boosted = false, now = Dat
     const data = await store.get(guild.id);
     data.members ??= {};
     const entry = data.members[member.id] ?? {};
+    await dropOldRole(guild, entry);
     const isNew = boosted || (!entry.active && now - member.premiumSinceTimestamp < FRESH_MS);
     entry.active = true;
     entry.since = member.premiumSinceTimestamp;
@@ -224,7 +220,8 @@ export async function tickServerBoost(guild, now = Date.now()) {
     lastMembersFetch.set(guild.id, now);
     await guild.members.fetch().catch((error) => logger.warn(`Members not fetched for boosts in guild ${guild.id}: ${error.message}`));
   }
-  const { members } = await getBoostData(guild.id);
+  const { members, info } = await getBoostData(guild.id);
+  if (info?.messageId && info.rev !== INFO_REV) await refreshBoostInfo(guild);
   const ids = new Set(Object.entries(members ?? {}).filter(([, entry]) => entry.active).map(([id]) => id));
   for (const member of guild.members.cache.values()) if (member.premiumSinceTimestamp) ids.add(member.id);
 
@@ -258,6 +255,8 @@ export async function runServerBoost(client) {
 // edits it, so the numbers on the channel are always the ones that apply. The button opens /booster info privately.
 
 const UNKNOWN_MESSAGE = 10008;
+// Bump when the text changes: the job edits a message posted earlier once. 2 = no own role in the list.
+const INFO_REV = 2;
 
 export function boostInfoMessage(guild, settings) {
   const lines = perksOn(settings)
@@ -299,7 +298,7 @@ export async function postBoostInfo(guild, channelId) {
         throw userError(t`The bot cannot write on #${channel.name}. Check its permissions there.`);
       }
     }
-    data.info = { channelId, messageId: message.id };
+    data.info = { channelId, messageId: message.id, rev: INFO_REV };
     await store.set(guild.id, data);
     return data.info;
   });
@@ -314,6 +313,13 @@ export async function refreshBoostInfo(guild) {
   try {
     if (!channel) throw Object.assign(new Error('channel gone'), { code: UNKNOWN_MESSAGE });
     await channel.messages.edit(info.messageId, payload);
+    if (info.rev !== INFO_REV) {
+      await withEconomyLock(guild.id, LOCK, async () => {
+        const data = await store.get(guild.id);
+        if (data.info?.messageId === info.messageId) data.info.rev = INFO_REV;
+        await store.set(guild.id, data);
+      });
+    }
     return true;
   } catch (error) {
     if (error?.code !== UNKNOWN_MESSAGE) {
@@ -327,87 +333,4 @@ export async function refreshBoostInfo(guild) {
     });
     return false;
   }
-}
-
-// ---------------------------------------------------------------- own role
-
-/**
- * Why the bot cannot make own roles, or null. They sit right above the server's booster role: higher, a booster could
- * outrank moderators and they could no longer ban that member.
- */
-export function roleProblem(guild) {
-  const me = guild.members.me;
-  if (!me?.permissions?.has?.(PermissionFlagsBits.ManageRoles)) return t('The bot needs the Manage Roles permission.');
-  const anchor = guild.roles.premiumSubscriberRole;
-  if (!anchor) return t('The server has no booster role yet: it appears after the first boost.');
-  if (me.roles.highest.position <= anchor.position) return t`Move the bot's role above ${anchor.name} in the server settings.`;
-  return null;
-}
-
-async function roleNameProblem(guild, name, ownRoleId) {
-  if (name.length < ROLE_NAME_MIN || name.length > ROLE_NAME_MAX) return t`The name has ${ROLE_NAME_MIN}-${ROLE_NAME_MAX} characters.`;
-  if (RESERVED_ROLE_NAME.test(name)) return t('That name is not allowed: it looks like a staff role or a link.');
-  const { rules } = await getAutomodConfig(guild.id);
-  if (findSlur(name, rules.slurs?.list ?? []) || findBannedWord(name, rules.words?.list ?? [], rules.words?.allow ?? [])) return t('That name is not allowed.');
-  const taken = [...guild.roles.cache.values()].some((role) => role.id !== ownRoleId && role.name?.toLowerCase() === name.toLowerCase());
-  return taken ? t('A role with that name already exists.') : null;
-}
-
-async function createRole(guild, name, colorValue, reason) {
-  const role = await guild.roles.create({ name, colors: { primaryColor: colorValue }, permissions: [], hoist: false, mentionable: false, reason });
-  try {
-    await role.setPosition(guild.roles.premiumSubscriberRole.position + 1, { reason });
-  } catch (error) {
-    await role.delete(reason).catch(() => {});
-    logger.warn(`Booster role not moved in guild ${guild.id}: ${error.message}`);
-    throw userError(t`Move the bot's role above ${guild.roles.premiumSubscriberRole.name} in the server settings.`);
-  }
-  return role;
-}
-
-/** /booster rola: make or change the member's own role. Throws `userError`. Returns the role. */
-export async function setBoosterRole({ guild, member, name, color, now = Date.now() }) {
-  const settings = await getEconomySettings(guild.id);
-  if (!perksOn(settings) || !settings.serverBoost.customRole) throw userError(t('Own roles are turned off on this server.'));
-  if (!member.premiumSinceTimestamp) throw userError(t('Only members who boost the server can have their own role.'));
-  const problem = roleProblem(guild);
-  if (problem) throw userError(problem);
-  const cleanName = String(name ?? '').trim().replace(/\s+/g, ' ');
-  if (!COLOR_RE.test(String(color ?? '').trim())) throw userError(t('Give the colour as a hex code, for example #ff66cc.'));
-  // Discord reads colour 0 as "no colour".
-  const colorValue = resolveColor(`#${String(color).trim().replace('#', '')}`) || 1;
-
-  await processBooster(guild, member, { now });
-  return withEconomyLock(guild.id, LOCK, async () => {
-    const data = await store.get(guild.id);
-    const entry = data.members[member.id];
-    const nameProblem = await roleNameProblem(guild, cleanName, entry.roleId);
-    if (nameProblem) throw userError(nameProblem);
-    const nextChange = (Number(entry.roleChangedAt) || 0) + ROLE_CHANGE_GAP_MS;
-    if (now < nextChange) throw userError(t`You can change your role again <t:${Math.ceil(nextChange / 1000)}:R>.`);
-
-    const reason = t`Own role of a booster: ${member.user?.tag ?? member.id}`;
-    let role = entry.roleId ? guild.roles.cache.get(entry.roleId) : null;
-    if (role) await role.edit({ name: cleanName, colors: { primaryColor: colorValue }, reason });
-    else role = await createRole(guild, cleanName, colorValue, reason);
-    if (!member.roles.cache.has(role.id)) await member.roles.add(role, reason);
-
-    entry.roleId = role.id;
-    entry.roleChangedAt = now;
-    await store.set(guild.id, data);
-    return role;
-  });
-}
-
-/** Remove a member's own role (/booster usun-role, a moderator in the panel). Returns false when there was none. */
-export function removeBoosterRole(guild, userId) {
-  return withEconomyLock(guild.id, LOCK, async () => {
-    const data = await store.get(guild.id);
-    const entry = data.members?.[userId];
-    if (!entry?.roleId) return false;
-    await deleteRole(guild, entry.roleId);
-    entry.roleId = null;
-    await store.set(guild.id, data);
-    return true;
-  });
 }

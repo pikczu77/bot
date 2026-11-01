@@ -647,7 +647,7 @@ export const KLUBIS_SKILLS = [
       'Masz niezłą pewność siebie, {user}. Doceniam 😎',
       'Daj mi najpierw powód. Dobre zachowanie się liczy 😇',
       'Moderatorem zostaje się przez bycie miłym, nie przez proszenie bota 🛡️',
-      'Boosterzy mają własną rolę: `/booster info` 💎',
+      'Boosterzy mają bonus do kasy i XP: `/booster info` 💎',
     ],
   },
   {
@@ -842,7 +842,7 @@ export const KLUBIS_SKILLS = [
     match: /\b(boost\w*)\b/,
     replies: [
       'Nagrody za boost: `/booster info` 💎',
-      'Boost serwera to kasa, XP i własna rola 💎',
+      'Boost serwera to kasa, paczka i więcej XP 💎',
       'Potki x2 to co innego: `/boosty` ⚡',
     ],
   },

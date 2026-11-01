@@ -3,9 +3,9 @@ import './helpers/env.js';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { Collection, MessageType, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
+import { Collection, MessageType } from 'discord.js';
 import { mockChannel, mockGuild, mockInteraction, mockMember, mockRole, mockUser, replyText } from './helpers/mock.js';
-import { initializeDatabase } from '../src/utils/database.js';
+import { initializeDatabase, setInDb } from '../src/utils/database.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { runWithLocale, t } from '../src/i18n/index.js';
 import { activeEventType, earningsLine, getEconomySettings, scaleEarnings, serverBoostPercent, updateEconomySettings } from '../src/services/economySettings.js';
@@ -13,8 +13,8 @@ import { xpBoostFactor } from '../src/services/boosts.js';
 import { economyStatsView, flushEconomyStats } from '../src/services/economyStats.js';
 import { progressOptions } from '../src/services/progress.js';
 import {
-  BOOST_MESSAGE_TYPES, EVENT_GAP_MS, REWARD_EVERY_MS, ROLE_CHANGE_GAP_MS, THANKS_GAP_MS,
-  getBoostData, handleBoostMessage, noteBoostChange, processBooster, removeBoosterRole, roleProblem, setBoosterRole, tickServerBoost,
+  BOOST_MESSAGE_TYPES, EVENT_GAP_MS, REWARD_EVERY_MS, THANKS_GAP_MS,
+  getBoostData, handleBoostMessage, noteBoostChange, processBooster, tickServerBoost,
 } from '../src/services/serverBoost.js';
 
 const KEY = 'test-panel-key-0123456789abcdef';
@@ -76,24 +76,6 @@ const booster = (guild, name = 'pat', since = NOW) => {
 };
 const description = (message) => message.embeds[0].data.description;
 const walletOf = async (guild, member) => (await getEconomyData(client, guild.id, member.id)).wallet;
-
-function withRoles(guild, { anchorPosition = 5, botPosition = 20 } = {}) {
-  const anchor = mockRole(guild, 'Server Booster', { position: anchorPosition, tags: { premiumSubscriberRole: true } });
-  guild.roles.premiumSubscriberRole = anchor;
-  guild.members.me.roles.highest = { position: botPosition };
-  const created = [];
-  guild.roles.create = async (options) => {
-    const role = mockRole(guild, options.name, {
-      options,
-      setPosition: async (position) => { role.position = position; return role; },
-      edit: async (data) => { Object.assign(role, data); return role; },
-      delete: async () => { guild.roles.cache.delete(role.id); role.deleted = true; },
-    });
-    created.push(role);
-    return role;
-  };
-  return { anchor, created };
-}
 
 // ---------- a new boost ----------
 
@@ -287,95 +269,6 @@ test('the badges and the statistics see the reward', async () => {
   assert.ok(stats.sources7.some((source) => source.id === 'job:server_boost' && source.in >= 50_000), 'source of the money in the statistics');
 });
 
-// ---------- own role ----------
-
-test('own role: made right above the booster role, with no permissions; changed, not made again', async () => {
-  const { guild } = await setup('Rola');
-  const { anchor, created } = withRoles(guild);
-  const member = booster(guild);
-
-  const role = await setBoosterRole({ guild, member, name: '  Król   Klubu ', color: 'ff66cc', now: NOW });
-  assert.equal(role.name, 'Król Klubu');
-  assert.equal(role.position, anchor.position + 1);
-  assert.deepEqual(role.options.permissions, []);
-  assert.equal(role.options.mentionable, false);
-  assert.equal(role.options.hoist, false);
-  assert.equal(role.options.colors.primaryColor, 0xff66cc);
-  assert.ok(member.roles.cache.has(role.id));
-
-  await assert.rejects(() => setBoosterRole({ guild, member, name: 'Inna', color: '#000000', now: NOW + 1000 }), /again/);
-  const edited = await setBoosterRole({ guild, member, name: 'Inna', color: '#000000', now: NOW + ROLE_CHANGE_GAP_MS + 1 });
-  assert.equal(edited.id, role.id);
-  assert.equal(edited.name, 'Inna');
-  assert.equal(edited.colors.primaryColor, 1, 'colour 0 would mean no colour');
-  assert.equal(created.length, 1);
-
-  assert.equal(await removeBoosterRole(guild, member.id), true);
-  assert.equal(role.deleted, true);
-  assert.equal(await removeBoosterRole(guild, member.id), false);
-});
-
-test('own role: bad requests are refused', async () => {
-  const { guild } = await setup('Zle role');
-  const { created } = withRoles(guild);
-  mockRole(guild, 'Zajeta');
-  const member = booster(guild);
-  await updateAutomodWords(guild.id, ['brzydkie']);
-
-  for (const name of ['x', 'y'.repeat(33), 'Administrator', 'Moderacja', 'Mod', 'Właściciel', '@everyone', 'https://x.pl', 'zajeta', 'brzydkie słowo', 'n1gger']) {
-    await assert.rejects(() => setBoosterRole({ guild, member, name, color: '#ff66cc', now: NOW }), { message: /./ }, name);
-  }
-  await assert.rejects(() => setBoosterRole({ guild, member, name: 'Dobra', color: 'czerwony', now: NOW }), /hex/);
-  assert.equal(created.length, 0);
-
-  const notBoosting = mockMember(guild, mockUser('nie'));
-  await assert.rejects(() => setBoosterRole({ guild, member: notBoosting, name: 'Dobra', color: '#ff66cc', now: NOW }), /boost/);
-
-  await updateEconomySettings(guild.id, (data) => { data.serverBoost.customRole = false; });
-  await assert.rejects(() => setBoosterRole({ guild, member, name: 'Dobra', color: '#ff66cc', now: NOW }), /turned off/);
-});
-
-async function updateAutomodWords(guildId, list) {
-  const { updateAutomodConfig } = await import('../src/services/automodService.js');
-  await updateAutomodConfig(guildId, (config) => { config.rules.words.list = list; });
-}
-
-test('own role: a bot below the booster role cannot make one, a failed move leaves no role behind', async () => {
-  const { guild } = await setup('Pozycja');
-  const { created } = withRoles(guild, { anchorPosition: 25, botPosition: 20 });
-  const member = booster(guild);
-  assert.match(roleProblem(guild), /Server Booster/);
-  await assert.rejects(() => setBoosterRole({ guild, member, name: 'Dobra', color: '#ff66cc', now: NOW }), /above/);
-  assert.equal(created.length, 0);
-
-  guild.members.me.roles.highest = { position: 30 };
-  assert.equal(roleProblem(guild), null);
-  const create = guild.roles.create;
-  let orphan;
-  guild.roles.create = async (options) => {
-    orphan = await create(options);
-    orphan.setPosition = async () => { throw new Error('Missing Permissions'); };
-    return orphan;
-  };
-  await assert.rejects(() => setBoosterRole({ guild, member, name: 'Dobra', color: '#ff66cc', now: NOW }), /above/);
-  assert.equal(orphan.deleted, true);
-  assert.equal((await getBoostData(guild.id)).members[member.id].roleId, undefined);
-
-  guild.members.me.permissions = new PermissionsBitField([PermissionFlagsBits.ViewChannel]);
-  assert.match(roleProblem(guild), /Manage Roles/);
-});
-
-test('the end of a boost removes the own role', async () => {
-  const { guild } = await setup('Koniec');
-  withRoles(guild);
-  const member = booster(guild);
-  const role = await setBoosterRole({ guild, member, name: 'Moja', color: '#ff66cc', now: NOW });
-  member.premiumSinceTimestamp = null;
-  await processBooster(guild, member, { now: NOW + 1000 });
-  assert.equal(role.deleted, true);
-  assert.equal((await getBoostData(guild.id)).members[member.id].roleId, null);
-});
-
 // ---------- /booster ----------
 
 test('/booster info shows the perks to someone who does not boost, and the status to a booster', async () => {
@@ -388,7 +281,8 @@ test('/booster info shows the perks to someone who does not boost, and the statu
   assert.match(text, /do not boost/);
   assert.match(text, /\$50,000/);
   assert.match(text, /\+25%/);
-  assert.match(text, /\/booster rola/);
+  assert.doesNotMatch(text, /booster rola|own role/);
+  assert.deepEqual(command.data.toJSON().options.map((option) => option.name), ['info']);
 
   const member = booster(guild, 'fan', Date.now());
   await processBooster(guild, member, {});
@@ -396,21 +290,6 @@ test('/booster info shows the perks to someone who does not boost, and the statu
   await command.execute(askedBooster, {}, client);
   assert.match(replyText(askedBooster), /You boost this server since/);
   assert.match(replyText(askedBooster), /Next reward/);
-});
-
-test('/booster rola and usun-role answer the member', async () => {
-  const { default: command } = await import('../src/commands/Economy/booster.js');
-  const { guild, channel } = await setup('Komenda rola');
-  withRoles(guild);
-  const member = booster(guild, 'mala', Date.now());
-  const made = mockInteraction({ client, guild, channel, member, commandName: 'booster', subcommand: 'rola', options: { nazwa: 'Mała', kolor: '#123456' } });
-  await command.execute(made, {}, client);
-  assert.match(replyText(made), /ready/);
-  const removed = mockInteraction({ client, guild, channel, member, commandName: 'booster', subcommand: 'usun-role' });
-  await command.execute(removed, {}, client);
-  assert.match(replyText(removed), /gone/);
-  const again = mockInteraction({ client, guild, channel, member, commandName: 'booster', subcommand: 'usun-role' });
-  await assert.rejects(() => command.execute(again, {}, client));
 });
 
 test('Polish texts are there', () => runWithLocale('pl', () => {
@@ -422,11 +301,10 @@ test('Polish texts are there', () => runWithLocale('pl', () => {
 
 // ---------- panel ----------
 
-test('panel: the module shows the settings and the boosters, saves, refuses bad values, takes a role away', async () => {
+test('panel: the module shows the settings and the boosters, saves, refuses bad values', async () => {
   const { guild, channel } = await setup('Panel');
-  withRoles(guild);
   const member = booster(guild, 'zosia', NOW);
-  await setBoosterRole({ guild, member, name: 'Zosia', color: '#ff66cc', now: NOW });
+  await processBooster(guild, member, { now: NOW });
 
   const read = await call('GET', `/guilds/${guild.id}`);
   assert.equal(read.status, 200);
@@ -437,29 +315,55 @@ test('panel: the module shows the settings and the boosters, saves, refuses bad 
   assert.equal(view.pack, 'legend');
   assert.equal(view.packs.length, 3);
   assert.equal(view.count, 3);
-  assert.equal(view.roleProblem, null);
+  assert.ok(!('customRole' in view) && !('roleProblem' in view));
   assert.equal(view.boosters.length, 1);
   assert.equal(view.boosters[0].userId, member.id);
-  assert.equal(view.boosters[0].roleName, 'Zosia');
 
   const patched = await call('PATCH', `/guilds/${guild.id}/serverboost`, {
-    enabled: false, channelId: null, message: 'Dzięki {user}', cashReward: 100, pack: null, moneyPercent: 10, xpPercent: 0, eventMinutes: 0, customRole: false,
+    enabled: false, channelId: null, message: 'Dzięki {user}', cashReward: 100, pack: null, moneyPercent: 10, xpPercent: 0, eventMinutes: 0,
   });
   assert.equal(patched.status, 200);
   assert.equal(patched.json.enabled, false);
   assert.equal(patched.json.channelId, null);
   assert.equal(patched.json.message, 'Dzięki {user}');
   assert.equal(patched.json.pack, null);
-  assert.equal(patched.json.customRole, false);
   assert.equal((await getEconomySettings(guild.id)).serverBoost.cashReward, 100);
 
-  for (const body of [{ cashReward: -1 }, { pack: 'zla' }, { moneyPercent: 201 }, { eventMinutes: 3 }, { message: 'x'.repeat(501) }, { channelId: '1' }, { enabled: 'tak' }, { removeRole: 'x' }]) {
+  for (const body of [{ cashReward: -1 }, { pack: 'zla' }, { moneyPercent: 201 }, { eventMinutes: 3 }, { message: 'x'.repeat(501) }, { channelId: '1' }, { enabled: 'tak' }]) {
     assert.equal((await call('PATCH', `/guilds/${guild.id}/serverboost`, body)).status, 400, JSON.stringify(body));
   }
+});
 
-  const withoutRole = await call('PATCH', `/guilds/${guild.id}/serverboost`, { removeRole: member.id });
-  assert.equal(withoutRole.status, 200);
-  assert.equal(withoutRole.json.boosters[0].roleName, null);
+test('own roles are gone: a role made before goes, also when the boost ends', async () => {
+  const { guild } = await setup('Stara rola');
+  const member = booster(guild);
+  await processBooster(guild, member, { now: NOW });
+  const oldRole = (name) => {
+    const role = mockRole(guild, name, { delete: async () => { guild.roles.cache.delete(role.id); role.deleted = true; } });
+    return role;
+  };
+  const giveRole = async (role) => {
+    const data = await getBoostData(guild.id);
+    Object.assign(data.members[member.id], { roleId: role.id, roleChangedAt: NOW });
+    await setInDb(`guild:${guild.id}:server-boost`, data);
+  };
+
+  const first = oldRole('Stara');
+  await giveRole(first);
+  await tickServerBoost(guild, NOW + 1000);
+  assert.equal(first.deleted, true);
+  let entry = (await getBoostData(guild.id)).members[member.id];
+  assert.ok(!('roleId' in entry) && !('roleChangedAt' in entry));
+  assert.equal(entry.active, true);
+
+  const second = oldRole('Druga');
+  await giveRole(second);
+  member.premiumSinceTimestamp = null;
+  await processBooster(guild, member, { now: NOW + 2000 });
+  assert.equal(second.deleted, true);
+  entry = (await getBoostData(guild.id)).members[member.id];
+  assert.ok(!('roleId' in entry));
+  assert.equal(entry.active, false);
 });
 
 test('saved money data keeps the flag', async () => {
@@ -510,6 +414,7 @@ test('panel: the info message is posted, kept up to date, moved and forgotten wh
   assert.match(description(message), /\$50,000/);
   assert.match(description(message), /\+25%/);
   assert.match(description(message), /Jak zboostować/);
+  assert.doesNotMatch(description(message), /booster rola|własn/);
   assert.equal(message.components[0].components[0].data.custom_id, 'booster:status');
   assert.deepEqual(message.allowedMentions, { parse: [] });
 
@@ -546,6 +451,18 @@ test('panel: the info message is posted, kept up to date, moved and forgotten wh
   const refused = await call('PATCH', `/guilds/${guild.id}/serverboost`, { postInfo: closed.id });
   assert.equal(refused.status, 400);
   assert.match(refused.json.error, /nie może pisać na #zamkniety/);
+});
+
+test('a message posted with the old text is edited once by the job', async () => {
+  const { guild } = await setup('Stary opis');
+  const channel = infoChannel(guild, 'opis');
+  await setInDb(`guild:${guild.id}:server-boost`, { members: {}, info: { channelId: channel.id, messageId: '123' } });
+  await tickServerBoost(guild, NOW);
+  assert.equal(channel.edits.length, 1);
+  assert.equal(channel.edits[0].id, '123');
+  assert.doesNotMatch(description(channel.edits[0].payload), /booster rola|own role/);
+  await tickServerBoost(guild, NOW + 2 * 3_600_000);
+  assert.equal(channel.edits.length, 1, 'once is enough');
 });
 
 test('the "My boost" button answers privately with the member\'s status', async () => {

@@ -69,7 +69,7 @@ export const ECONOMY_DEFAULTS = Object.freeze({
   reminders: { enabled: true },
   // Members who boost the server (services/serverBoost.js). channelId null = no thanks message, the rest still works.
   // cashReward and pack: when a boost starts and every 30 days of boosting; eventMinutes 0 = no x2 money event.
-  serverBoost: { enabled: true, channelId: null, message: '', cashReward: 50_000, pack: 'legend', moneyPercent: 25, xpPercent: 25, eventMinutes: 30, customRole: true },
+  serverBoost: { enabled: true, channelId: null, message: '', cashReward: 50_000, pack: 'legend', moneyPercent: 25, xpPercent: 25, eventMinutes: 30 },
   // Timed events (services/economyEvents.js): announcement channel, optional role ping, automatic
   // events every `everyHours` lasting `durationMinutes`, and the running one.
   events: { channelId: null, roleId: null, auto: false, everyHours: 24, durationMinutes: 60, active: null, nextAutoAt: 0 },
