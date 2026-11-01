@@ -169,6 +169,9 @@ change you make, so the next session knows what was done and why.
   reads digits/symbols as letters (`findSlur`). Keep it that way. Since 2026-10-26 its preset also
   holds sexual words that are never allowed on a server with young members (nudes, pedofil, porn).
 - `rules.words.freeChannels`: channels where swearing is allowed (the owner's #wulgarny-chat).
+- Who is checked (since 2026-11-01, owner): slurs and banned words apply to everyone, moderators (Manage Messages),
+  administrators and exempt roles too (`swearingOnly` in `runAutomod`, option of `checkMessage`). Those people still
+  skip the other rules (links, caps, spam ...). Exempt channels skip everything. Test: `test/automod-staff.test.js`.
 - Night channels: `src/services/nightChannel.js`, settings `nightChannels: [{ channelId, from, to }]`
   (max 10, text or voice) in the automod config, job `night_channel` every minute
   (`src/services/features.js`), also run after a panel save. Remembers who could see each channel
@@ -820,3 +823,10 @@ change you make, so the next session knows what was done and why.
   - A panel save used to store the whole ladder, so a stored copy of the old one reads as the new one (`migrate`, also the 30 days as 14). I could not read the live settings. A ladder the server changed itself stays as it is, and so does any save after this change (`rev`): the old ladder typed in by hand is respected.
   - Warnings already given stay, timeouts and bans already running stay. "Wyzeruj wszystkie" in the panel is still the owner's call.
   - The same day the owner restarted the bot with the boost rewards: `/health` healthy, 85 commands.
+- **2026-11-01, evening** (owner: "ban na przeklenstwa maja dzialac na wszystkich, nie tylko ludzi zwyklych, moderacje tez"). Live after the owner restarts
+  the bot. Before, `isExempt` skipped automod completely for Manage Messages and for exempt roles. Now the slurs and banned words rules check everyone,
+  administrators and the server owner included: the message is deleted and the rule's action runs (a warning counts on the ladder; a timeout, kick or ban
+  is skipped when the bot's role is not above that person, `moderatable` / `kickable` / `bannable`). The other rules still skip moderators and exempt roles,
+  so they can post links, use caps and mention many people. Exempt channels and the free channel of the words rule (🤬｜nocny-chat) work as before.
+  My reading: "na wszystkich" includes exempt roles and administrators, not only Manage Messages. Panel text of the "Wyjątki" tab changed in pikczu
+  `tools/serwer/bot.html` (not deployed yet: another session had unsent /donate changes in the site bundle).

@@ -23,7 +23,8 @@ const DEFAULT_CONFIG = {
   timeoutMinutes: 10,
   rules: {
     // Slurs (2026-10-15, owner): on by default, also during the words rule's free hours and on its
-    // free channels. Digits and symbols count as letters (n1gg3r). Exempt roles/channels still apply.
+    // free channels. Digits and symbols count as letters (n1gg3r). Exempt channels still apply; moderators and
+    // exempt roles are checked too (only for slurs and banned words, see swearingOnly).
     slurs: { enabled: true, action: 'warn', list: [...PRESET_SLURS] },
     invites: { enabled: false, action: 'delete' },
     links: { enabled: false, action: 'delete', allow: [] },
@@ -174,9 +175,10 @@ function hostAllowed(host, allow) {
  * @param {object} config  automod config
  * @param {{ content: string, mentionCount: number, mentionsEveryone: boolean }} message
  * @param {{ timestamps: number[], recent: string[] }} history  the author's recent activity (mutated)
+ * @param {{ swearingOnly?: boolean }} options  swearingOnly: only the slurs and banned words rules (moderators, exempt roles)
  * @returns {{ rule: string, detail: string } | null}
  */
-export function checkMessage(config, message, history, now = Date.now()) {
+export function checkMessage(config, message, history, now = Date.now(), { swearingOnly = false } = {}) {
   const { rules } = config;
   const content = String(message.content ?? '');
 
@@ -185,11 +187,11 @@ export function checkMessage(config, message, history, now = Date.now()) {
     if (slur) return { rule: 'slurs', detail: slur };
   }
 
-  if (rules.invites.enabled && INVITE_RE.test(content)) {
+  if (!swearingOnly && rules.invites.enabled && INVITE_RE.test(content)) {
     return { rule: 'invites', detail: content.match(INVITE_RE)[0] };
   }
 
-  if (rules.links.enabled) {
+  if (!swearingOnly && rules.links.enabled) {
     for (const match of content.matchAll(URL_RE)) {
       if (INVITE_RE.test(match[0])) continue; // handled by the invites rule
       if (!hostAllowed(match[1], rules.links.allow)) return { rule: 'links', detail: match[1] };
@@ -201,6 +203,7 @@ export function checkMessage(config, message, history, now = Date.now()) {
     const word = findBannedWord(content, rules.words.list, rules.words.allow ?? PRESET_ALLOWED_WORDS);
     if (word) return { rule: 'words', detail: word };
   }
+  if (swearingOnly) return null;
 
   if (rules.mentions.enabled && (message.mentionCount >= rules.mentions.limit)) {
     return { rule: 'mentions', detail: String(message.mentionCount) };
@@ -274,11 +277,14 @@ export function actionLabel(action) {
   return { delete: t('delete'), warn: t('delete + warning'), timeout: t('delete + timeout') }[action] ?? action;
 }
 
-function isExempt(message, config) {
-  const member = message.member;
-  if (!member) return true;
+function exemptChannel(message, config) {
+  return config.exemptChannels.includes(message.channelId) || config.exemptChannels.includes(message.channel.parentId);
+}
+
+// Owner 2026-11-01: "ban na przeklenstwa maja dzialac na wszystkich, nie tylko ludzi zwyklych, moderacje tez". Moderators
+// (Manage Messages) and exempt roles skip every rule except slurs and banned words; exempt channels still skip everything.
+function swearingOnly(member, config) {
   if (member.permissions.has(PermissionFlagsBits.ManageMessages)) return true;
-  if (config.exemptChannels.includes(message.channelId) || config.exemptChannels.includes(message.channel.parentId)) return true;
   return member.roles.cache.some((role) => config.exemptRoles.includes(role.id));
 }
 
@@ -330,7 +336,8 @@ export async function runAutomod(message) {
 
   const now = Date.now();
   await noteFreeHours(message.guild, config, now);
-  if (isExempt(message, config)) return false;
+  if (!message.member || exemptChannel(message, config)) return false;
+  const onlySwearing = swearingOnly(message.member, config);
 
   sweep(now);
   const key = `${message.guild.id}:${message.author.id}`;
@@ -341,7 +348,7 @@ export async function runAutomod(message) {
     channelId: message.channelId,
     parentId: message.channel?.parentId ?? null,
     mentionCount: message.mentions.users.size + message.mentions.roles.size + (message.mentions.everyone ? config.rules.mentions.limit : 0),
-  }, histories.get(key), now);
+  }, onlySwearing ? null : histories.get(key), now, { swearingOnly: onlySwearing });
   if (!violation) return false;
 
   const rule = config.rules[violation.rule];
