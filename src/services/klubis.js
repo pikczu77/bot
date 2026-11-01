@@ -46,9 +46,9 @@ export async function saveKlubisSettings(guildId, updates) {
   return data;
 }
 
-/** Lower case, no Polish letters, punctuation as spaces: what the skills match. */
+/** Lower case, no Polish letters, punctuation as spaces, stretched letters cut ("seriooo" = "serio"): what the skills match. */
 export const fold = (text) => String(text ?? '').toLocaleLowerCase('pl').normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, ' ').trim();
+  .replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, ' ').replace(/([a-z])\1{2,}/g, '$1').trim();
 
 /** The message calls Klubiś: a mention (also of its own role), a reply to its message or its name. */
 export function callsKlubis(message) {

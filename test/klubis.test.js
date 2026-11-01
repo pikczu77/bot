@@ -6,7 +6,10 @@ import express from 'express';
 import { Collection } from 'discord.js';
 import { mockChannel, mockGuild, mockMember, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
-import { KLUBIS_SKILLS, KLUBIS_STARTER, KLUBIS_UNKNOWN } from '../src/config/klubisReplies.js';
+import { KLUBIS_CALLED, KLUBIS_SKILLS, KLUBIS_STARTER, KLUBIS_UNKNOWN } from '../src/config/klubisReplies.js';
+import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
+import { findBannedWord, findSlur } from '../src/services/automodService.js';
+import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { MEMBER_GAP_MS, callsKlubis, findSkill, fold, getKlubisSettings, handleKlubisMessage, saveKlubisSettings } from '../src/services/klubis.js';
 import { handleTagMessage, setResponders } from '../src/services/tagService.js';
 
@@ -74,6 +77,8 @@ const filled = (list, name = 'Ola', server = '') => list.map((line) => line.repl
 test('fold, the name and the skills', () => {
   assert.equal(fold('Siema KLUBIŚ, jak się masz?!'), 'siema klubis jak sie masz');
   assert.equal(fold('Żółć łąki'), 'zolc laki');
+  assert.equal(fold('SIEMAAAA klubiśśś, seriooo?'), 'siema klubis serio');
+  assert.equal(fold('xdddd'), 'xd');
   for (const text of ['klubiś', 'Klubisiu chodź', 'hej klubisie', 'dzięki klubisiowi', 'klubiku!']) {
     assert.equal(callsKlubis({ content: text, client }), true, text);
   }
@@ -107,16 +112,79 @@ test('called by a mention, a reply or the name: a skill answers, unknown text ge
   assert.ok(filled(lines('how')).includes(how.content), how.content);
 
   const yesNo = await say(message(guild, chat, member, 'a ty myślisz, że wygram?', { replyToBot: true }));
-  assert.ok(lines('question').includes(yesNo.content), yesNo.content);
+  assert.ok(filled(lines('question')).includes(yesNo.content), yesNo.content);
 
   const update = await say(message(guild, chat, member, `<@${client.user.id}> kiedy update`, { mentionBot: true }));
-  assert.ok(lines('update').includes(update.content), update.content);
+  assert.ok(filled(lines('update')).includes(update.content), update.content);
 
   const unknown = await say(message(guild, chat, member, 'klubiś banan traktor'));
-  assert.ok(KLUBIS_UNKNOWN.includes(unknown.content), unknown.content);
+  assert.ok(filled(KLUBIS_UNKNOWN).includes(unknown.content), unknown.content);
 
   const onlyName = await say(message(guild, chat, member, 'Klubiś'));
-  assert.match(onlyName.content, /Tak|Wołałeś|Jestem/);
+  assert.ok(filled(KLUBIS_CALLED).includes(onlyName.content), onlyName.content);
+});
+
+// What members really wrote on the server on 2026-11-01, and the skill that must answer it.
+const LIVE_MESSAGES = [
+  ['Co chcesz?', 'want'],
+  ['Lubię grać w minecraft a ty?', 'minecraft'],
+  ['Okej', 'ack'],
+  ['Co seriooooooo bruh', 'serio'],
+  ['jakie bity', 'bits'],
+  ['Brat nie ogarnia', 'lost'],
+  ['umiesz inaczej pisac?', 'can'],
+  ['kiedy update', 'update'],
+  ['jest regulamin?', 'rules'],
+  ['rozumiesz conapisales?', 'lost'],
+  ['dobrze', 'fine'],
+];
+
+test('what members wrote to Klubiś gets an answer that fits', () => {
+  for (const [raw, id] of LIVE_MESSAGES) assert.equal(findSkill(fold(raw), raw)?.id, id, raw);
+});
+
+test('a question with a question word is never answered with yes or no', () => {
+  const cases = [
+    ['co to jest?', 'askWhat'], ['kto to zrobił?', 'askWho'], ['gdzie to jest?', 'askWhere'], ['kiedy to będzie?', 'askWhen'],
+    ['czemu tak jest?', 'askWhy'], ['ile to kosztuje?', 'askHowMany'], ['jak to zrobić?', 'askHow'], ['jaki jest najlepszy?', 'askWhich'],
+    ['a co ty na to?', 'askWhat'], ['brat kiedy to?', 'askWhen'],
+  ];
+  for (const [raw, id] of cases) assert.equal(findSkill(fold(raw), raw)?.id, id, raw);
+  for (const raw of ['czy pada?', 'a czy pada', 'wygram?', 'nie wiem czy pada?']) assert.equal(findSkill(fold(raw), raw)?.id, 'question', raw);
+});
+
+test('skills that could get in each other\'s way', () => {
+  const cases = [
+    ['nie lubię cię', 'mean'], ['kocham cię', 'love'], ['jak masz na imię?', 'name'], ['ile masz lat?', 'age'], ['ile to 2+2', 'math'],
+    ['minecraft czy roblox?', 'choice'], ['pizza czy burger', 'choice'], ['lubisz koty?', 'pets'], ['lubisz minecrafta?', 'minecraft'], ['lubisz banany?', 'like'],
+    ['co myślisz o pikczu?', 'pikczu'], ['co myślisz o tym?', 'opinion'], ['powiedz coś miłego', 'compliment'], ['powiedz coś', 'facts'],
+    ['opowiedz żart', 'joke'], ['opowiedz bajkę', 'story'], ['daj kasę', 'money'], ['daj admina', 'rank'], ['dobrze, a u ciebie?', 'fine'], ['a ty?', 'youToo'],
+    ['xddddd', 'laugh'], ['hahaha', 'laugh'], ['nie', 'no'], ['no', 'yes'], ['siemaaaa', 'hello'], ['dzień dobry', 'morning'], ['oceń mnie', 'rate'],
+    ['kot czy pies', 'choice'], ['jest jakiś event?', 'event'], ['będzie nowy film?', 'video'], ['jakie jest IP?', 'smp'], ['masz coś?', 'have'],
+    ['jesteś tu?', 'youAre'], ['napiszesz coś?', 'doYou'], ['gram dzisiaj w lego', 'me'], ['kartkówka jutro', 'school'],
+    ['nie chcę żyć', 'crisis'], ['chcę zabić creepera', 'minecraft'], ['zabiję się ze śmiechu', null],
+  ];
+  for (const [raw, id] of cases) assert.equal(findSkill(fold(raw), raw)?.id ?? null, id, raw);
+});
+
+test('the lines: enough of them, no repeats in a skill, real commands, nothing the server itself bans', async () => {
+  const all = KLUBIS_SKILLS.flatMap((skill) => skill.replies);
+  assert.ok(new Set(all).size + KLUBIS_UNKNOWN.length + KLUBIS_CALLED.length >= 700, `${new Set(all).size} lines`);
+  for (const list of [...KLUBIS_SKILLS.map((skill) => skill.replies), KLUBIS_UNKNOWN, KLUBIS_CALLED]) {
+    assert.equal(new Set(list).size, list.length, list[0]);
+  }
+  assert.equal(new Set(KLUBIS_SKILLS.map((skill) => skill.id)).size, KLUBIS_SKILLS.length);
+
+  const loaded = { commands: new Collection(), guilds: { cache: new Collection() } };
+  await loadCommands(loaded);
+  const named = [...all, ...KLUBIS_UNKNOWN, ...KLUBIS_CALLED].flatMap((line) => [...line.matchAll(/(?:^|[\s`(])\/([a-z]+)/g)].map((match) => match[1]));
+  assert.ok(named.length > 50);
+  assert.deepEqual([...new Set(named)].filter((name) => !loaded.commands.has(name)), []);
+
+  for (const line of [...all, ...KLUBIS_UNKNOWN, ...KLUBIS_CALLED]) {
+    assert.equal(findBannedWord(line, PRESET_WORDS, PRESET_ALLOWED_WORDS), null, line);
+    assert.equal(findSlur(line, PRESET_SLURS), null, line);
+  }
 });
 
 test('one answer per member every few seconds; commands with the prefix are left alone', async () => {
