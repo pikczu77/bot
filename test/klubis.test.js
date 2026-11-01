@@ -11,7 +11,7 @@ import {
 } from '../src/config/klubisReplies.js';
 import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
 import * as GRAMMAR from '../src/config/klubisGrammar.js';
-import { factsOf, parseSentence, reflect, touchyKind, understand } from '../src/services/klubisBrain.js';
+import { factsOf, parseSentence, plural, reflect, relationshipOf, touchyKind, understand, wordStem, yearsOld } from '../src/services/klubisBrain.js';
 import { sumOf } from '../src/services/klubisFacts.js';
 import { asksLiveQuestion, knowledgeAnswer } from '../src/services/klubisKnowledge.js';
 import { SMP_GROUPS, SMP_ITEMS, SMP_RECIPES } from '../src/config/klubisKnowledgeData.js';
@@ -480,7 +480,7 @@ test('a reply to the helpline answer or to a sad one is never a joke', async () 
 test('the long memory: what a member likes, how many talks, a long break, and forgetting', async () => {
   assert.equal(likeOf('Lubię grać w minecraft, a ty?'), 'grać w minecraft');
   assert.equal(likeOf('klubiś uwielbiam pizzę'), 'pizzę');
-  assert.equal(likeOf('kocham Anię'), 'Anię', 'server 16+: the owner lifted that limit');
+  assert.equal(relationshipOf('kocham Anię').loves, 'Anię', 'server 16+: the owner lifted that limit');
   for (const text of ['lubię cię', 'lubię to', 'lubię 123456789', 'nie lubię szkoły', 'jak lubisz', 'lubię bardzo długie zdania które nie mają końca i są o niczym']) {
     assert.equal(likeOf(text), null, text);
   }
@@ -491,7 +491,7 @@ test('the long memory: what a member likes, how many talks, a long break, and fo
   assert.deepEqual(stored.members[member.user.id].likes, ['grać w minecraft']);
   assert.ok(!(await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft'))).content.includes('Zapamiętam'), 'once is enough');
   const about = await say(message(guild, chat, member, 'klubiś co o mnie wiesz?'));
-  assert.match(about.content, /Pewnie, że pamiętam, Ola! Znam cię od \d+ \S+, rozmów ze mną: 2\. Lubisz: grać w minecraft 📓/);
+  assert.match(about.content, /Pewnie, że pamiętam, Ola! Znam cię od \d+ \S+, mamy za sobą 2 rozmowy\. Lubisz: grać w minecraft 📓/);
 
   tick(4 * 86_400_000);
   const back = await say(message(guild, chat, member, 'klubiś siema'));
@@ -603,7 +603,7 @@ test('real answers: sums, money, level, the date, the server, other members', as
   assert.match(await answer('kiedy daily?'), /odbierz/);
   assert.match(await answer('która godzina?'), /^Jest \d\d:\d\d/);
   assert.match(await answer('jaki dziś dzień?'), /^Dzisiaj /);
-  assert.match(await answer('ile osób jest na serwerze?'), /^Na serwerze jest nas /);
+  assert.match(await answer('ile osób jest na serwerze?'), /^Na serwerze (jest|są) \d+ (osoba|osoby|osób)/);
 
   const other = mockMember(guild, mockUser('kuba-fakty'));
   const asked = message(guild, chat, member, `klubiś kim jest <@${other.user.id}>?`);
@@ -726,4 +726,87 @@ test('from the live server: a mention in the question, quotes, a question with a
   assert.ok(!quoted.includes('"'), quoted);
   assert.equal(parseSentence('na jaka platforme').qSkill, 'askWhich');
   assert.equal(parseSentence('w czym montuje pikczu').qSkill, 'askWhat');
+});
+
+// 2026-11-01, owner: "odmiany polskie go naucz".
+test('verbs: any person, known or not, said from the other side', () => {
+  const said = (text) => reflect(parseSentence(text).words).join(' ');
+  const cases = [
+    // The table.
+    ['ja cie bije', 'ty mnie bijesz'], ['myję auto', 'myjesz auto'], ['krzyczę na brata', 'krzyczysz na brata'], ['noszę czapkę', 'nosisz czapkę'], ['płacę kartą', 'płacisz kartą'],
+    // By the ending, verbs that are in no table.
+    ['konstruuję most', 'konstruujesz most'], ['pracuje dzisiaj', 'pracujesz dzisiaj'], ['ja rozwijam serwer', 'ty rozwijasz serwer'], ['wymyślam nazwę', 'wymyślasz nazwę'], ['tęsknię za domem', 'tęsknisz za domem'],
+    ['nie zgaduję', 'nie zgadujesz'], ['kolekcjonuję karty', 'kolekcjonujesz karty'],
+    // To Klubiś.
+    ['rozwijasz serwer?', 'rozwijam serwer'], ['konstruujesz most?', 'konstruuję most'], ['robisz błędy', 'robię błędy'], ['uczysz się?', 'uczę się'], ['dajesz radę?', 'daję radę'], ['ciągniesz to?', 'ciągnę to'],
+    // Past, for her and for him, and for Klubiś.
+    ['zrobilam ciasto', 'zrobiłaś ciasto'], ['poszedłem spać', 'poszedłeś spać'], ['byłaś tam?', 'byłem tam'], ['mogłem wygrać', 'mogłeś wygrać'],
+    // We, and the conditional.
+    ['gramy w cs', 'gracie w cs'], ['robimy serwer', 'robicie serwer'], ['byliśmy w kinie', 'byliście w kinie'], ['chciałbym psa', 'chciałbyś psa'], ['zrobiłabym ciasto', 'zrobiłabyś ciasto'], ['chciałbyś psa?', 'chciałbym psa'],
+    // Not verbs.
+    ['program jest dobry', 'program jest dobry'], ['nasz serwer żyje', 'wasz serwer żyje'], ['wodę piję', 'wodę pijesz'], ['tam jest fajnie', 'tam jest fajnie'],
+    // Polish letters in what comes back.
+    ['grałem cala noc', 'grałeś cała noc'], ['zrobilam dzis ciasto', 'zrobiłaś dziś ciasto'], ['bede juz spal', 'będziesz już spal'],
+  ];
+  for (const [text, expected] of cases) assert.equal(said(text), expected, text);
+  assert.equal(parseSentence('rozwijam serwer').person, 'me');
+  assert.equal(parseSentence('rozwijasz serwer').person, 'you');
+  assert.equal(parseSentence('kuba rozwija serwer').person, 'other');
+  assert.equal(parseSentence('byliśmy w kinie').past, true);
+});
+
+test('numbers and nouns agree', () => {
+  const cases = [[1, 'rok'], [2, 'lata'], [4, 'lata'], [5, 'lat'], [12, 'lat'], [14, 'lat'], [17, 'lat'], [21, 'lat'], [22, 'lata'], [24, 'lata'], [25, 'lat'], [102, 'lata'], [112, 'lat'], [0, 'lat']];
+  for (const [count, form] of cases) assert.equal(plural(count, 'rok', 'lata', 'lat'), form, String(count));
+  assert.equal(yearsOld(22), '22 lata');
+});
+
+test('the same thing in any case is found', () => {
+  assert.deepEqual(wordStem('boga'), { prefix: 'bog', also: 'bodz' });
+  const ask = (text) => knowledgeAnswer(fold(text), parseSentence(text));
+  for (const text of ['co to miecz boga', 'co wiesz o mieczu boga', 'jak działa miecz boga', 'opowiedz o mieczu boga']) assert.match(ask(text) ?? '', /Miecz Boga/, text);
+  for (const text of ['co to rzadka skrzynka', 'co wiesz o rzadkiej skrzynce', 'jak działa rzadka skrzynka', 'opowiedz o rzadkiej skrzynce']) assert.match(ask(text) ?? '', /Rzadka Skrzynka/, text);
+  for (const text of ['gdzie są diamenty?', 'gdzie szukać diamentów', 'gdzie znajdę diament', 'na jakim poziomie diamenty']) assert.match(ask(text) ?? '', /Y -59/, text);
+});
+
+test('age and counts read right', async () => {
+  const { guild, chat, member } = setup('Liczby');
+  const answer = async (text) => (await say(message(guild, chat, member, `klubiś ${text}`), { random: () => 0.99 })).content;
+  assert.match(await answer('mam 22 lata'), /22 lata/);
+  assert.match(await answer('ile mam lat?'), /22 lata/);
+  assert.match(await answer('co o mnie wiesz'), /22 lata/);
+  assert.match(await answer('ile lat ma pikczu'), /ma \d+ (lat|lata|rok)/);
+});
+
+// 2026-11-01, owner with a screenshot: "jak sie pyta kogo kocham to nie dziala, niech pamieta jak sie napisze ze jestem w zwiazku z @osoba".
+test('it remembers who a member loves and is with, and "zapamiętaj, że ..."', async () => {
+  assert.deepEqual(relationshipOf('kocham szeldis'), { loves: 'szeldis' });
+  assert.deepEqual(relationshipOf('Klubiś, kocham <@123456789012345678>'), { loves: '<@123456789012345678>' });
+  assert.deepEqual(relationshipOf('jestem w związku z <@123456789012345678>'), { partner: 'Jesteś w związku z <@123456789012345678>' });
+  assert.deepEqual(relationshipOf('jestem z <@123456789012345678>'), { partner: 'Jesteś z <@123456789012345678>' });
+  assert.deepEqual(relationshipOf('chodzę z Anią'), { partner: 'Chodzisz z Anią' });
+  assert.deepEqual(relationshipOf('moja dziewczyna to Ania'), { partner: 'Twoja dziewczyna to Ania' });
+  assert.deepEqual(relationshipOf('A czy ty możesz zapamiętać że kocham szeldis?'), { note: 'kochasz szeldis', loves: 'szeldis' });
+  assert.deepEqual(relationshipOf('zapamiętaj że mam psa'), { note: 'masz psa' });
+  for (const text of ['kocham cię', 'kocham to', 'jestem z Krakowa', 'zapamiętaj że lubię małe dzieci', 'zapamiętaj mój numer 123456789', 'lubię pizzę']) {
+    assert.deepEqual(relationshipOf(text), {}, text);
+  }
+
+  const { guild, chat, member } = setup('Zwiazki');
+  const other = mockMember(guild, mockUser('szeldis'));
+  const talk = async (text, mention = null) => {
+    const msg = message(guild, chat, member, `klubiś ${text}`);
+    msg.mentions.users.set(client.user.id, client.user);
+    if (mention) msg.mentions.users.set(mention.user.id, mention.user);
+    return (await say(msg, { random: () => 0.99 })).content;
+  };
+  assert.match(await talk('kogo kocham?'), /Jeszcze mi tego|notes jest pusty|Tego jeszcze/);
+  assert.match(await talk('A czy ty możesz zapamiętać że kocham szeldis?'), /szeldis/);
+  assert.match(await talk('kogo kocham?'), /szeldis/);
+  assert.match(await talk(`jestem w związku z <@${other.user.id}>`, other), new RegExp(`Jesteś w związku z <@${other.user.id}>`));
+  assert.match(await talk('z kim jestem?'), new RegExp(`Jesteś w związku z <@${other.user.id}>`));
+  assert.match(await talk('co o mnie wiesz?'), /szeldis/);
+  assert.match(await talk('co zapamiętałeś?'), /kochasz szeldis/);
+  await talk('zapomnij o mnie');
+  assert.match(await talk('kogo kocham?'), /Jeszcze mi tego|notes jest pusty|Tego jeszcze/, 'forgotten');
 });

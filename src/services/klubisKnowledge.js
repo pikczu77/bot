@@ -7,7 +7,7 @@ import { SMP_GROUPS, SMP_ITEMS, SMP_RECIPES } from '../config/klubisKnowledgeDat
 import { QUIZ_QUESTIONS } from '../config/quizQuestions.js';
 import { DAILY_TRIVIA } from '../config/chatPrompts.js';
 import { STOPWORDS } from '../config/klubisGrammar.js';
-import { fold } from './klubisBrain.js';
+import { fold, wordStem } from './klubisBrain.js';
 
 const MAKE = 'craft|zrobi|stworz|przepis|wytworz|zbudowa|skraft|recept';
 // The question is about what something is.
@@ -18,7 +18,7 @@ const QUIZ_SHARE = 0.75;
 
 /** 'stolic franc|=usa' into groups of alternatives. */
 const groupsOf = (words) => words.split(' ').map((group) => group.split('|').map((alt) => (alt.startsWith('=') ? { exact: alt.slice(1) } : { prefix: alt })));
-const altFits = (alt, token) => (alt.exact ? token === alt.exact : token.startsWith(alt.prefix));
+const altFits = (alt, token) => (alt.exact ? token === alt.exact : token.startsWith(alt.prefix) || Boolean(alt.also && token.startsWith(alt.also)));
 
 function groupsScore(groups, tokens) {
   let score = 0;
@@ -30,10 +30,9 @@ function groupsScore(groups, tokens) {
   return score;
 }
 
-/** The beginnings of a name's words: "Miecz Boga" -> miec, boga. Short words ("z", "na") do not count. */
+/** The stems of a name's words, so every case fits: "Miecz Boga" takes "miecza bogów". Short words ("z", "na") do not count. */
 function stemsOf(name) {
-  return fold(name).split(' ').filter((word) => word.length > 2 && !STOPWORDS.has(word))
-    .map((word) => ({ prefix: word.slice(0, Math.max(4, word.length - 2)) }));
+  return fold(name).split(' ').filter((word) => word.length > 2 && !STOPWORDS.has(word)).map(wordStem);
 }
 
 const named = NAMED.map(([forms, text]) => ({

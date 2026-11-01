@@ -21,6 +21,11 @@ export const VERB_GROUPS = {
     ['wydaję', 'wydajesz'], ['biorę', 'bierzesz'], ['daję', 'dajesz'], ['dostaję', 'dostajesz'], ['czekam', 'czekasz'], ['pomagam', 'pomagasz'], ['sprzątam', 'sprzątasz'],
     ['gotuję', 'gotujesz'], ['szykuję', 'szykujesz'], ['trenuję', 'trenujesz'], ['biegam', 'biegasz'], ['pływam', 'pływasz'], ['wygrywam', 'wygrywasz'], ['przegrywam', 'przegrywasz'],
     ['rozmawiam', 'rozmawiasz'], ['gadam', 'gadasz'], ['naprawiam', 'naprawiasz'], ['testuję', 'testujesz'], ['ogarniam', 'ogarniasz'], ['próbuję', 'próbujesz'], ['tworzę', 'tworzysz'],
+    ['myję', 'myjesz'], ['szyję', 'szyjesz'], ['żyję', 'żyjesz'], ['kopię', 'kopiesz'], ['śmieję', 'śmiejesz'], ['płaczę', 'płaczesz'], ['krzyczę', 'krzyczysz'], ['skaczę', 'skaczesz'], ['palę', 'palisz'],
+    ['noszę', 'nosisz'], ['proszę', 'prosisz'], ['płacę', 'płacisz'], ['dzwonię', 'dzwonisz'], ['kończę', 'kończysz'], ['liczę', 'liczysz'], ['patrzę', 'patrzysz'], ['tęsknię', 'tęsknisz'], ['gonię', 'gonisz'],
+    ['walczę', 'walczysz'], ['ciągnę', 'ciągniesz'], ['budzę', 'budzisz'], ['wstaję', 'wstajesz'], ['zostaję', 'zostajesz'], ['nudzę', 'nudzisz'], ['kłamię', 'kłamiesz'], ['żartuję', 'żartujesz'], ['niosę', 'niesiesz'],
+    ['piekę', 'pieczesz'], ['tnę', 'tniesz'], ['rzucam', 'rzucasz'], ['klikam', 'klikasz'], ['strzelam', 'strzelasz'], ['wołam', 'wołasz'], ['pytam', 'pytasz'], ['chowam', 'chowasz'], ['zmieniam', 'zmieniasz'],
+    ['odpowiadam', 'odpowiadasz'], ['otwieram', 'otwierasz'], ['zamykam', 'zamykasz'], ['wysyłam', 'wysyłasz'], ['zaczynam', 'zaczynasz'], ['zapominam', 'zapominasz'], ['sprawdzam', 'sprawdzasz'], ['dodaję', 'dodajesz'],
   ],
   eat: [['jem', 'jesz'], ['piję', 'pijesz'], ['zjem', 'zjesz'], ['wypiję', 'wypijesz'], ['zamawiam', 'zamawiasz']],
   think: [['myślę', 'myślisz'], ['sądzę', 'sądzisz'], ['uważam', 'uważasz'], ['wierzę', 'wierzysz'], ['czuję', 'czujesz'], ['mówię', 'mówisz'], ['twierdzę', 'twierdzisz'], ['zgadzam', 'zgadzasz']],
@@ -32,9 +37,30 @@ export const VERB_GROUPS = {
   future: [
     ['będę', 'będziesz'], ['zrobię', 'zrobisz'], ['kupię', 'kupisz'], ['napiszę', 'napiszesz'], ['sprawdzę', 'sprawdzisz'], ['spróbuję', 'spróbujesz'], ['wezmę', 'weźmiesz'],
     ['powiem', 'powiesz'], ['obejrzę', 'obejrzysz'], ['wygram', 'wygrasz'], ['przegram', 'przegrasz'], ['zdam', 'zdasz'], ['dostanę', 'dostaniesz'], ['zostanę', 'zostaniesz'],
+    ['wyślę', 'wyślesz'], ['odpiszę', 'odpiszesz'], ['zadzwonię', 'zadzwonisz'], ['przyjdę', 'przyjdziesz'], ['wejdę', 'wejdziesz'], ['wyjdę', 'wyjdziesz'], ['znajdę', 'znajdziesz'], ['wstanę', 'wstaniesz'],
+    ['zasnę', 'zaśniesz'], ['wrócę', 'wrócisz'], ['skończę', 'skończysz'], ['zacznę', 'zaczniesz'], ['pokażę', 'pokażesz'], ['opowiem', 'opowiesz'], ['odpowiem', 'odpowiesz'], ['dam', 'dasz'], ['oddam', 'oddasz'],
+    ['sprzedam', 'sprzedasz'], ['zapomnę', 'zapomnisz'], ['przypomnę', 'przypomnisz'], ['przeczytam', 'przeczytasz'], ['posłucham', 'posłuchasz'], ['pomyślę', 'pomyślisz'], ['zjadę', 'zjedziesz'],
     ['poczekam', 'poczekasz'], ['pomogę', 'pomożesz'], ['zbuduję', 'zbudujesz'], ['zapamiętam', 'zapamiętasz'], ['zobaczę', 'zobaczysz'], ['nauczę', 'nauczysz'],
   ],
   fear: [['boję', 'boisz']],
+};
+
+// Words that end like a verb and are not one.
+export const NOT_VERB_AM = new Set(['tam', 'sam', 'nam', 'wam', 'program', 'adam', 'islam', 'salam', 'instagram', 'telegram', 'diagram', 'kilogram', 'madam', 'balsam', 'reklam', 'kwiatam', 'kolegam', 'siam', 'wietnam', 'amsterdam', 'kram', 'tram']);
+export const NOT_VERB_ASZ = new Set(['nasz', 'wasz', 'tomasz', 'lukasz', 'kasz', 'gulasz', 'afisz', 'kosz', 'pasz', 'mysz', 'towarzysz', 'nisz', 'arkusz', 'tysz']);
+// How an unknown verb goes from "you" to "I" (folded ending -> ending). The longest that fits: "lubisz"-type verbs have their own rule below.
+export const YOU_TO_ME = [['ujesz', 'uję'], ['ijesz', 'iję'], ['ajesz', 'aję'], ['ejesz', 'eję'], ['niesz', 'nę'], ['dziesz', 'dę'], ['cisz', 'cę'], ['dzisz', 'dzę'], ['sisz', 'szę'], ['zisz', 'żę'], ['lisz', 'lę'], ['ysz', 'ę'], ['isz', 'ię'], ['asz', 'am']];
+// From "I" to "you", when the word plainly is a verb: spelled with ę, or after "ja".
+export const ME_TO_YOU = [['uję', 'ujesz'], ['iję', 'ijesz'], ['aję', 'ajesz'], ['eję', 'ejesz'], ['nę', 'niesz'], ['czę', 'czysz'], ['rzę', 'rzysz'], ['szę', 'sisz'], ['dzę', 'dzisz'], ['dę', 'dziesz'], ['cę', 'cisz'], ['żę', 'zisz'], ['lę', 'lisz'], ['ię', 'isz']];
+
+// Common words typed without Polish letters. What Klubiś says back is written properly.
+export const WITH_ACCENTS = {
+  cala: 'cała', calo: 'cało', cale: 'całe', caly: 'cały', calej: 'całej', dzis: 'dziś', juz: 'już', sie: 'się', moze: 'może', tez: 'też', duzo: 'dużo', malo: 'mało', czesc: 'cześć', sa: 'są', wiecej: 'więcej', mniej: 'mniej', dzien: 'dzień',
+  ktos: 'ktoś', cos: 'coś', gdzies: 'gdzieś', jakis: 'jakiś', jakas: 'jakaś', jakies: 'jakieś', zeby: 'żeby', ze: 'że', zebym: 'żebym', wszystkie: 'wszystkie', dobrze: 'dobrze', zle: 'źle', ladny: 'ładny', ladna: 'ładna', ladnie: 'ładnie', swietny: 'świetny', swietnie: 'świetnie',
+  szkola: 'szkoła', szkole: 'szkole', szkoly: 'szkoły', ksiazke: 'książkę', ksiazka: 'książka', ksiazki: 'książki', swoj: 'swój', swoja: 'swoja', swoim: 'swoim', jablko: 'jabłko', wode: 'wodę', kawe: 'kawę', herbate: 'herbatę', pizze: 'pizzę', rybe: 'rybę', dziewczyne: 'dziewczynę', prace: 'pracę', gre: 'grę', gry: 'gry', gier: 'gier', nauke: 'naukę', mame: 'mamę', tate: 'tatę', brata: 'brata', siostre: 'siostrę',
+  bede: 'będę', bedzie: 'będzie', beda: 'będą', byl: 'był', byla: 'była', bylo: 'było', byly: 'były', mial: 'miał', miala: 'miała', mialo: 'miało', wczesniej: 'wcześniej', pozniej: 'później', pozno: 'późno', wieczorem: 'wieczorem', rano: 'rano', tydzien: 'tydzień', miesiac: 'miesiąc', swiat: 'świat', swieta: 'święta', przyjaciol: 'przyjaciół', kolega: 'kolega', kolezanka: 'koleżanka', zycie: 'życie',
+  gdzie: 'gdzie', dokad: 'dokąd', skad: 'skąd', dlaczego: 'dlaczego', ktory: 'który', ktora: 'która', ktore: 'które', ile: 'ile', jesli: 'jeśli', jeszcze: 'jeszcze', troche: 'trochę', wlasnie: 'właśnie', naprawde: 'naprawdę', powaznie: 'poważnie', chyba: 'chyba', ciezko: 'ciężko', latwo: 'łatwo', szybko: 'szybko', wolno: 'wolno', gorszy: 'gorszy', lepszy: 'lepszy', najlepszy: 'najlepszy', mozna: 'można', trzeba: 'trzeba',
+  plytke: 'płytkę', plyte: 'płytę', pieniadze: 'pieniądze', pieniedzy: 'pieniędzy', zloty: 'złoty', zlota: 'złota', zlote: 'złote', chleb: 'chleb', miesa: 'mięsa', mieso: 'mięso', piatek: 'piątek', swiatlo: 'światło', piosenke: 'piosenkę', muzyke: 'muzykę', platforme: 'platformę', jaka: 'jaka', jaki: 'jaki',
 };
 
 // Past forms that do not end in a vowel + ł: "poszedłem", "mogłam". Compared folded, without the ending.
@@ -213,16 +239,22 @@ export const WILL_NOT_REPEAT = ['Takich słów nie powtarzam 🙊', 'O, tego sł
 // When a member says who they are. {x} = what they said.
 export const LEARNED = {
   name: ['Miło mi, {x}! Zapamiętam 📓', 'Cześć, {x}! Teraz już wiem, jak do ciebie mówić 😄', '{x}? Ładnie. Zapisuję 📓'],
-  age: ['{x} lat? Zapisuję 📓', 'Masz {x} lat? Ja liczę w restartach 🎂', 'Dobrze wiedzieć, {x} lat 📓'],
+  age: ['{x}? Zapisuję 📓', 'Masz {x}? Ja liczę w restartach 🎂', 'Dobrze wiedzieć, {x} 📓'],
   city: ['{x}? Ładnie tam? Zapamiętam 📓', 'Zapisuję: {x} 📓', 'O, {x}! Fajnie tam?'],
+  partner: ['{x}? Gratulacje 💘 Zapamiętam!', 'O, {x}! Zapisuję w notesie 💘', '{x}. Pięknie, zapamiętam 💘'],
+  loves: ['Kochasz {x}? Zapamiętam 💘', 'Zapisuję: kochasz {x} 💘', 'Aww. Kochasz {x}, mam to w notesie 💘'],
+  note: ['Zapamiętane: {x} 📓', 'Dobra, mam to: {x} 📓', 'Zapisuję: {x} 📓'],
 };
 // "Jak mam na imię?" and the like. {x} = the fact, nothing known = `unknown`.
 export const RECALLED = {
   name: ['{x}, pamiętam 😎', 'Masz na imię {x}. Mam to w notesie 📓'],
-  age: ['Masz {x} lat, tak mi napisano 📓', '{x}, o ile nikt nie skłamał 👀'],
+  age: ['Masz {x}, tak mi napisano 📓', '{x}, o ile nikt nie skłamał 👀'],
   city: ['{x}. Pamiętam 😎', 'Z notesu: {x} 📓'],
   likes: ['Lubisz: {x} 📓', 'Z notesu: {x} 😎'],
   plays: ['Grasz {x} 🎮', 'Z notesu: grasz {x} 📓'],
+  loves: ['Kochasz: {x} 💘', 'Z notesu: kochasz {x} 💘', 'Pamiętam, kochasz {x} 💘'],
+  partner: ['{x} 💘', 'Z notesu: {x} 📓', 'Pamiętam! {x} 💘'],
+  notes: ['Mam zapisane: {x} 📓', 'Z notesu: {x} 📓'],
   dislikes: ['Nie lubisz: {x} 📓', 'Tego nie lubisz: {x} 😅'],
   unknown: ['Jeszcze mi tego nie napisano. Powiedz, to zapamiętam 📓', 'Nie wiem, notes jest pusty. Napisz mi to 📓', 'Tego jeszcze nie wiem 🤔 Opowiedz!'],
 };

@@ -9,7 +9,7 @@ import {
   ANSWER_MAYBE, ANSWER_NO, ANSWER_YES, ASKED_NO, ASKED_TO_DO, ASKED_TO_SAY, ASKED_UNKNOWN, SAY_COMMANDS, ASKED_YES, BAD_WORDS, BEING_HIT, GAME_WORDS, HITTING_OTHERS, HIT_WORDS, QUESTION_PREPOSITIONS, KILL_WORDS, LIKE_TOUCHY, SAFE_LIKES, TOUCHY_WORDS, WONT_TOUCH, COMMANDS, FEELINGS, FILLERS, GOOD_WORDS, GREETINGS, HAVE_PERSON, INSULT_WORDS, JUST_CALLING, LEARNED,
   LONG_TEXT, NOT_PAST, ONE_WORD, PERSON_WORDS, SAID_INSULT,
   PAST_STEMS, PREPOSITIONS, PRONOUN_PAIRS, PRONOUNS, QUESTION_WORDS, RECALLED, SAID_ABOUT_ME, SAID_ABOUT_ME_BAD, SAID_ABOUT_ME_GOOD, SAID_ABOUT_SELF, SAID_OTHER,
-  SAID_OTHER_BAD, SAID_OTHER_GOOD, STOPWORDS, VERB_GROUPS, WILL_NOT_REPEAT,
+  SAID_OTHER_BAD, SAID_OTHER_GOOD, STOPWORDS, VERB_GROUPS, WILL_NOT_REPEAT, ME_TO_YOU, NOT_VERB_AM, NOT_VERB_ASZ, WITH_ACCENTS, YOU_TO_ME,
 } from '../config/klubisGrammar.js';
 import { KLUBIS_SKILLS } from '../config/klubisReplies.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
@@ -27,6 +27,8 @@ const LONG_WORDS = 14;
 const YES_PERCENT = 45;
 const NO_PERCENT = 40;
 const LIKE_MAX = 40;
+const NOTE_MAX = 120;
+const PARTNER_WORDS_MAX = 10;
 const FACT_WORDS_MAX = 5;
 
 const VERBS_ME = new Map();
@@ -38,6 +40,28 @@ for (const [group, pairs] of Object.entries(VERB_GROUPS)) {
   }
 }
 
+/** "1 rok", "22 lata", "25 lat": the Polish rule for a noun after a number. */
+export function plural(count, one, few, many) {
+  const n = Math.abs(Number(count));
+  if (n === 1) return one;
+  const tens = n % 100;
+  const ones = n % 10;
+  return ones >= 2 && ones <= 4 && (tens < 12 || tens > 14) ? few : many;
+}
+export const yearsOld = (age) => `${age} ${plural(age, 'rok', 'lata', 'lat')}`;
+
+const ENDINGS = ['ami', 'ach', 'owi', 'emu', 'ego', 'iem', 'ich', 'ych', 'imi', 'ymi', 'owie', 'ow', 'om', 'em', 'ie', 'ej', 'ym', 'im', 'a', 'e', 'i', 'o', 'u', 'y'];
+// k becomes c ("karta", "karcie"), g becomes dz, r becomes rz.
+const SOFTENED = { t: 'c', k: 'c', g: 'dz', d: 'dz', r: 'rz' };
+/** The part of a folded word that stays in every case: "bogów", "bogu", "boga" -> "bog". With `also` when the last letter softens. */
+export function wordStem(word) {
+  let stem = word;
+  const ending = ENDINGS.find((item) => word.endsWith(item) && word.length - item.length >= 3);
+  if (ending) stem = word.slice(0, -ending.length);
+  const last = stem.at(-1);
+  return SOFTENED[last] ? { prefix: stem, also: stem.slice(0, -1) + SOFTENED[last] } : { prefix: stem };
+}
+
 const pastEnding = (word, endings) => endings.some((ending) => word.endsWith(ending));
 const isPast = (word, previous, endings) => {
   if (word.length < 5 || NOT_PAST.has(word) || PREPOSITIONS.has(previous) || !pastEnding(word, endings)) return false;
@@ -46,6 +70,55 @@ const isPast = (word, previous, endings) => {
 };
 const isPastMe = (word, previous = '') => isPast(word, previous, ['em', 'am']);
 const isPastYou = (word, previous = '') => isPast(word, previous, ['es', 'as']);
+
+const ending = (word, table) => table.find(([from]) => word.endsWith(from));
+
+/**
+ * A word as a verb in the verb's place in a sentence: { person, me, you, group } or null. First the verbs in the table, then the past, the conditional
+ * ("zrobiłbym"), "we" ("gramy"), then any other verb by its ending. `subject`: the sentence has "ja" or "ty" in front of it.
+ */
+function verbFrom(raw, word, previous = '', subject = '', next = '') {
+  if (COMMANDS[word] || SAY_COMMANDS.has(word)) return null;
+  const known = VERBS_ME.get(word) ?? VERBS_YOU.get(word);
+  if (known) return { person: VERBS_ME.has(word) ? 'me' : 'you', me: known.me, you: known.you, group: known.group };
+  const lower = raw.toLocaleLowerCase('pl');
+  if (isPastMe(word, previous) || isPastYou(word, previous)) return { person: isPastMe(word, previous) ? 'me' : 'you', group: 'past', past: true };
+  if (/l(a)?bym$/.test(word)) return { person: 'me', me: lower, you: `${lower.slice(0, -1)}ś`, group: /^chcial/.test(word) ? 'want' : 'do' };
+  if (/l(a)?bys$/.test(word)) return { person: 'you', me: `${lower.replace(/[łl]a?by[sś]$/, 'ł')}bym`, you: lower, group: /^chcial/.test(word) ? 'want' : 'do' };
+  if (/(li|ly)smy$/.test(word)) return { person: 'me', me: lower, you: `${lower.slice(0, -3)}ście`, group: 'past', past: true };
+  if (/(li|ly)scie$/.test(word)) return { person: 'you', me: `${lower.slice(0, -4)}śmy`, you: lower, group: 'past', past: true };
+  if (word.length >= 5 && /[aie]my$/.test(word) && !/mamy$/.test(word)) return { person: 'me', me: lower, you: `${lower.slice(0, -2)}cie`, group: 'do' };
+
+  // "You" has a clear ending.
+  const toMe = word.length >= 4 && !NOT_VERB_ASZ.has(word) ? ending(word, YOU_TO_ME) : null;
+  if (toMe) return { person: 'you', me: `${word.slice(0, -toMe[0].length)}${toMe[1]}`, you: lower, group: 'do' };
+
+  // "I" does not: "szkołę" also ends in ę. Only for a clear ending, and never when the next word is the verb ("wodę piję").
+  if (VERBS_ME.has(next) || VERBS_YOU.has(next)) return null;
+  if (word.length >= 4 && word.endsWith('am') && !NOT_VERB_AM.has(word)) return { person: 'me', me: lower, you: `${lower.slice(0, -2)}asz`, group: 'do' };
+  if (word.length >= 5 && /[ui]je$/.test(word)) return { person: 'me', me: `${lower.slice(0, -1)}ę`, you: `${lower.replace(/[eę]$/, '')}esz`, group: 'do' };
+  const spelled = lower.endsWith('ę') ? lower : subject === 'ja' && lower.endsWith('e') ? `${lower.slice(0, -1)}ę` : null;
+  const toYou = spelled ? ending(spelled, ME_TO_YOU) : null;
+  if (toYou) return { person: 'me', me: spelled, you: `${spelled.slice(0, -toYou[0].length)}${toYou[1]}`, group: 'do' };
+  return null;
+}
+
+/** Where the verb is: after words that change nothing, as in "no ja dzisiaj nie gram". { index, verb, negated }. */
+function findVerb(words, from = 0) {
+  const folded = words.map((word) => fold(word));
+  let negated = false;
+  let subject = '';
+  for (let i = from; i < Math.min(folded.length, 7); i += 1) {
+    const word = folded[i];
+    if (word === 'nie') negated = true;
+    else if (word === 'ja' || word === 'ty') subject = word;
+    else if (!FILLERS.has(word) && !PRONOUNS[word] && word !== 'sie') {
+      const verb = verbFrom(words[i], word, i ? folded[i - 1] : '', subject, folded[i + 1] ?? '');
+      return verb ? { index: i, verb, negated } : { index: -1, verb: null, negated };
+    }
+  }
+  return { index: -1, verb: null, negated };
+}
 
 /**
  * A message Klubiś must not say back or agree with: 'touchy', 'hit' (someone hitting it or someone else), or null. Klubiś repeats words, so anybody
@@ -71,7 +144,7 @@ export const likesTouchy = (parsed) => (parsed.group === 'like' || parsed.group 
 export const safeLike = (like) => fold(like).split(' ').some((word) => SAFE_LIKES.test(word));
 
 /** A verb or a past form: not a topic of a talk. */
-export const isVerbWord = (word) => VERBS_ME.has(word) || VERBS_YOU.has(word) || isPastMe(word) || isPastYou(word);
+export const isVerbWord = (word) => Boolean(verbFrom(word, word));
 
 /** The message only calls Klubiś: "ej", "halo", nothing else that means anything. */
 export const onlyCalls = (parsed) => parsed.words.every((word) => FILLERS.has(fold(word)) || JUST_CALLING.has(fold(word)) || GREETINGS.has(fold(word)));
@@ -82,8 +155,10 @@ const capital = (text) => (text ? text[0].toLocaleUpperCase('pl') + text.slice(1
 export const cleanText = (raw) => String(raw ?? '').replace(MENTION_RE, ' ').replace(/https?:\S+/gi, ' ').replace(/klubi[sś]\p{L}*/giu, ' ')
   .replace(/[`*_~|>#@<{}\\"„”“«»]/g, '').replace(/\s+/g, ' ').replace(/^[\s,.:;!?-]+/, '').trim();
 
-/** The words said from the other side: I becomes you and you becomes I, verbs and pronouns too. Klubiś's own past forms are masculine. */
+/** The words said from the other side: I becomes you and you becomes I, verbs and pronouns too, in Polish letters. Klubiś's own past forms are masculine. */
 export function reflect(words) {
+  const start = words.findIndex((word) => fold(word) === 'czy') + 1;
+  const place = findVerb(words, start);
   const out = [];
   for (let i = 0; i < words.length; i += 1) {
     const raw = words[i];
@@ -93,12 +168,14 @@ export function reflect(words) {
     if (pair) {
       out.push(pair);
       i += 1;
-    } else if (VERBS_ME.has(word)) out.push(VERBS_ME.get(word).you);
+    } else if (i === place.index && !place.verb.past) out.push(place.verb.person === 'me' ? place.verb.you : place.verb.me);
+    else if (i === place.index && (/smy$/.test(word) || /scie$/.test(word))) out.push(place.verb.person === 'me' ? place.verb.you : place.verb.me);
+    else if (VERBS_ME.has(word) && (raw.toLocaleLowerCase('pl') === VERBS_ME.get(word).me || !VERBS_ME.get(word).me.endsWith('ę') || ['ze', 'bo', 'gdy', 'jak', 'kiedy'].includes(previous))) out.push(VERBS_ME.get(word).you);
     else if (VERBS_YOU.has(word)) out.push(VERBS_YOU.get(word).me);
     else if (isPastMe(word, previous)) out.push(`${raw.slice(0, -3)}ł${word.endsWith('em') ? 'eś' : 'aś'}`);
     else if (isPastYou(word, previous)) out.push(`${raw.slice(0, -3)}łem`);
     else if (PRONOUNS[word]) out.push(raw.endsWith('ą') ? PRONOUNS[word].replace(/a$/, 'ą') : PRONOUNS[word]);
-    else out.push(raw);
+    else out.push(raw === raw.toLocaleLowerCase('pl') ? WITH_ACCENTS[word] ?? raw : raw);
   }
   return out;
 }
@@ -121,25 +198,14 @@ export function parseSentence(raw) {
   else if (first && QUESTION_WORDS[first]) parsed.qSkill = QUESTION_WORDS[first];
   else if (QUESTION_PREPOSITIONS.has(first) && QUESTION_WORDS[folded[start + 1]]) parsed.qSkill = QUESTION_WORDS[folded[start + 1]];
 
-  for (let i = parsed.asks ? folded.indexOf('czy') + 1 : 0; i < Math.min(folded.length, 7); i += 1) {
-    const word = folded[i];
-    if (word === 'nie') {
-      parsed.negated = true;
-    } else if (!FILLERS.has(word)) {
-      const previous = i ? folded[i - 1] : '';
-      if (VERBS_ME.has(word) || VERBS_YOU.has(word)) {
-        parsed.verb = VERBS_ME.get(word) ?? VERBS_YOU.get(word);
-        parsed.group = parsed.verb.group;
-        parsed.person = VERBS_ME.has(word) ? 'me' : 'you';
-        parsed.index = i;
-      } else if (isPastMe(word, previous) || isPastYou(word, previous)) {
-        parsed.past = true;
-        parsed.group = 'past';
-        parsed.person = isPastMe(word, previous) ? 'me' : 'you';
-        parsed.index = i;
-      }
-      break;
-    }
+  const place = findVerb(words, parsed.asks ? folded.indexOf('czy') + 1 : 0);
+  parsed.negated = place.negated;
+  if (place.verb) {
+    parsed.verb = place.verb.past ? null : { me: place.verb.me, you: place.verb.you, group: place.verb.group };
+    parsed.group = place.verb.group;
+    parsed.person = place.verb.person;
+    parsed.past = Boolean(place.verb.past);
+    parsed.index = place.index;
   }
   return parsed;
 }
@@ -227,7 +293,7 @@ export function understand(parsed, { pick, random = Math.random, topic = null, c
       if (!safe) return { line: pick(ASKED_UNKNOWN, 'askedUnknown'), skillId: 'understood' };
       const side = sideOf(words.join(' '));
       const answer = random() < 0.3 ? topicLine() : null;
-      const asked = fold(words[0]) === 'czy' ? echo : e && e.length <= ECHO_MAX ? `Czy ${e}? ` : '';
+      const asked = asks ? echo : e && e.length <= ECHO_MAX ? `Czy ${e}? ` : '';
       return { line: `${asked}${answer ?? pick(side === 'no' ? ASKED_NO : ASKED_YES, `asked:${side === 'no' ? 'no' : 'yes'}`)}`, skillId: 'understood' };
     }
     const mood = moodOf(rest);
@@ -313,11 +379,50 @@ export function factsOf(parsed) {
   } else if (group === 'live' && /^(w|we|na) \S+( \S+)?$/.test(folded) && fold(words[index]) === 'mieszkam') {
     facts.city = `${fold(rest[0])} ${rest.slice(1).map(capital).join(' ')}`;
   } else if (short && !NOT_A_FACT.test(folded)) {
-    if (group === 'like' && !negated) facts.likes = said;
+    if (group === 'like' && !negated && fold(words[index]) !== 'kocham') facts.likes = said;
     if ((group === 'like' && negated) || group === 'hate') facts.dislikes = said;
     if (group === 'play' && !negated) facts.plays = said;
   }
   return facts;
+}
+
+// "Zapamiętaj, że ...", "możesz zapamiętać, że ...".
+const REMEMBER_THIS = /^(?:a |no |ale )?(?:czy )?(?:ty )?(?:mozesz |umiesz |potrafisz |musisz |prosze )?(?:sobie )?(?:zapamietac|zapamietaj|zapamietasz|zapisz|zanotuj|pamietaj|zapisz sobie)(?: sobie)?(?: ze| to| o tym ze)?\b/;
+// "Jestem w związku z @Kuba", "chodzę z Anią", "moja dziewczyna to Ania", "mój chłopak to @Kuba".
+const PARTNER_SAID = /^(?:ja )?(?:(?:jestem|bede|jestesmy)(?: teraz)? (?:w zwiazku|po slubie|zareczon\w*) z|chodze z|spotykam sie z|mam dziewczyne|mam chlopaka|mam zone|mam meza|moja (?:dziewczyna|zona|partnerka|ukochana) to|moj (?:chlopak|maz|partner|ukochany) to)\b/;
+
+/** Words kept with their mentions, so "@Kuba" stays who it is. */
+const wordsWithMentions = (raw) => String(raw ?? '').replace(/https?:\S+/gi, ' ').replace(/klubi[sś]\p{L}*/giu, ' ').replace(/[`*_~|#{}\\"„”“«»]/g, '').replace(/[?!.…;:,]+/g, ' ').split(/\s+/).filter(Boolean);
+
+/** What is said to remember or about a partner, kept as said back: { partner, note, loves }. Touchy words and secrets never get here. */
+export function relationshipOf(raw) {
+  const words = wordsWithMentions(raw);
+  const text = fold(cleanText(raw));
+  if (touchyKind(text) || SECRET.test(fold(words.join(' ')).replace(/\d{15,22}/g, ''))) return {};
+  const folded = words.map((word) => (/^<@/.test(word) ? word : fold(word)));
+  const joined = folded.join(' ');
+
+  const remember = REMEMBER_THIS.exec(joined);
+  if (remember) {
+    const count = remember[0].trim().split(' ').length;
+    const inner = words.slice(count);
+    if (!inner.length || inner.join(' ').length > NOTE_MAX) return {};
+    const said = reflect(inner).join(' ');
+    return { note: said, ...relationshipOf(inner.join(' ')) };
+  }
+  const partner = PARTNER_SAID.exec(joined);
+  if (partner && words.length > partner[0].trim().split(' ').length && words.length <= PARTNER_WORDS_MAX) return { partner: capital(reflect(words).join(' ')) };
+
+  // "Kocham szeldis", "kocham @Kuba".
+  if (/^(?:a |no |ja |tez |bardzo )*kocham\b/.test(joined)) {
+    const at = folded.indexOf('kocham');
+    const who = words.slice(at + 1).filter((word) => !['a', 'ty'].includes(fold(word)));
+    const name = who.join(' ');
+    if (who.length && who.length <= FACT_WORDS_MAX && !NOT_A_FACT.test(fold(name))) return { loves: name };
+  }
+  // "Jestem z @Kuba": with a mention it is a person, not a town.
+  if (/^(?:ja )?jestem z <@/.test(joined)) return { partner: capital(reflect(words).join(' ')) };
+  return {};
 }
 
 /** "Lubię grać w minecraft, a ty?" -> "grać w minecraft". */
@@ -325,15 +430,18 @@ export const likeOf = (raw) => factsOf(parseSentence(raw)).likes ?? null;
 
 /** The line for a member who just said who they are, or null. */
 export function learnedLine(facts, pick) {
-  for (const key of ['name', 'age', 'city']) {
-    if (facts[key]) return capital(pick(LEARNED[key], `learned:${key}`).replaceAll('{x}', () => String(facts[key])));
+  for (const key of ['partner', 'loves', 'note', 'name', 'age', 'city']) {
+    if (facts[key]) return capital(pick(LEARNED[key], `learned:${key}`).replaceAll('{x}', () => (key === 'age' ? yearsOld(facts[key]) : String(facts[key]))));
   }
   return null;
 }
 
 /** "Jak mam na imię?", "ile mam lat?", "co lubię?": from the member's memory. Null when the message asks none of these. */
 export function recalledLine(text, member, pick) {
-  const asked = /\bjak (mam na imie|sie nazywam)\b|\bmoje imie\b/.test(text) ? 'name'
+  const asked = /\bkogo (ja )?kocham\b|\bkto jest moja milosc\b|\bkogo lubie\b/.test(text) ? 'loves'
+    : /\bz kim (ja )?(jestem|chodze|sie spotykam)\b|\bkto jest moim? (chlopakiem|mezem|partnerem)\b|\bkto jest moja (dziewczyna|zona|partnerka)\b|\bmam (dziewczyne|chlopaka|zone|meza)\b/.test(text) ? 'partner'
+      : /\bco (sobie )?(zapamietales|zapisales|masz zapisane|masz w notesie)\b/.test(text) ? 'notes'
+        : /\bjak (mam na imie|sie nazywam)\b|\bmoje imie\b/.test(text) ? 'name'
     : /\bile mam lat\b/.test(text) ? 'age'
       : /\bskad jestem\b|\bgdzie mieszkam\b/.test(text) ? 'city'
         : /\bczego nie lubie\b/.test(text) ? 'dislikes'
@@ -341,7 +449,7 @@ export function recalledLine(text, member, pick) {
             : /\bw co gram\b/.test(text) ? 'plays' : null;
   if (!asked) return null;
   const value = member?.[asked];
-  const shown = Array.isArray(value) ? value.join(', ') : value;
+  const shown = Array.isArray(value) ? value.join(', ') : asked === 'age' && value ? yearsOld(value) : value;
   if (!shown) return pick(RECALLED.unknown, 'recalled:unknown');
   return capital(pick(RECALLED[asked], `recalled:${asked}`).replaceAll('{x}', () => String(shown)));
 }

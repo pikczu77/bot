@@ -4,7 +4,7 @@
 
 import { STOPWORDS } from '../config/klubisGrammar.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
-import { MENTION_RE, cleanText, fold, isVerbWord, parseSentence, safeLike, touchyKind } from './klubisBrain.js';
+import { MENTION_RE, cleanText, fold, isVerbWord, parseSentence, plural, safeLike, touchyKind, yearsOld } from './klubisBrain.js';
 import { asksLiveQuestion, knowledgeAnswer } from './klubisKnowledge.js';
 import { PIKCZU_BORN } from '../config/klubisKnowledge.js';
 import { VIDEOS } from '../config/klubisKnowledgeData.js';
@@ -136,7 +136,7 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
   const botId = client?.user?.id;
   const other = [...(message.mentions?.users?.values?.() ?? [])].find((user) => user.id !== botId);
   // The mention is gone from `text`, so "co myslisz o @Kuba" reads "co myslisz o". Only what is safe to tell about someone else.
-  if (other && /\b(kim|kto|kogo|co)\b.*\b(jest|to|wiesz|znasz|lubi|gra|myslisz|sadzisz|powiesz)\b|\bznasz\b/.test(text)) {
+  if (other && /\b(kim|kto|kogo|co|z kim)\b.*\b(jest|to|wiesz|znasz|lubi|gra|kocha|myslisz|sadzisz|powiesz)\b|\bznasz\b/.test(text)) {
     const member = guild.members?.cache?.get(other.id);
     const level = await getUserLevelData(client, guild.id, other.id).catch(() => null);
     const memory = await memoryOf(other.id);
@@ -149,6 +149,8 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
     const likes = (memory?.likes ?? []).filter(safeLike);
     if (likes.length) known.push(`Lubi: ${likes.join(', ')}.`);
     if (memory?.plays?.length) known.push(`Gra ${memory.plays.join(', ')}.`);
+    if (memory?.loves?.length) known.push(`Kocha: ${memory.loves.join(', ')}.`);
+    if (/\b(z kim|kogo|kocha|zwiazk\w*|chlopak\w*|dziewczyn\w*)\b/.test(text) && !known.length) known.push('Nic o tym nie wiem 🤷');
     return known.length ? `${line} ${known.join(' ')}` : line;
   }
 
@@ -158,7 +160,9 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
   }
   if (/\bile mam (kart|kard)\b|\bile (kart|ryb) mam\b|\bile mam ryb\b/.test(text)) {
     const data = await getEconomyData(client, guild.id, author.id);
-    return `Masz ${count(data.cards)} kart i ${count(data.fishIndex)} złowionych ryb 🃏🎣`;
+    const cards = count(data.cards);
+    const fish = count(data.fishIndex);
+    return `Masz ${cards} ${plural(cards, 'kartę', 'karty', 'kart')} i ${fish} ${plural(fish, 'złowioną rybę', 'złowione ryby', 'złowionych ryb')} 🃏🎣`;
   }
   if (/\b(jaki|ktory|ile) (mam )?(poziom\w*|lvl|level\w*)\b|\bmoj (poziom|level|lvl)\b|\bile mam (xp|expa|exp|poziomu|poziomow|levela)\b/.test(text)) {
     const level = await getUserLevelData(client, guild.id, author.id);
@@ -167,7 +171,7 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
   if (/\bile mam (warn\w*|ostrzezen\w*)\b|\bmam (jakies )?(warn\w*|ostrzezeni\w*)\b/.test(text)) {
     const settings = await getPunishmentSettings(guild.id);
     const warnings = await activeWarnings(guild.id, author.id, settings, now);
-    return warnings.length ? `Masz ostrzeżeń: ${warnings.length} 🚨 Liczą się przez ${settings.expireDays} dni.` : 'Masz czysto, zero ostrzeżeń 😇';
+    return warnings.length ? `Masz ${warnings.length} ${plural(warnings.length, 'ostrzeżenie', 'ostrzeżenia', 'ostrzeżeń')} 🚨 Liczą się przez ${settings.expireDays} ${plural(settings.expireDays, 'dzień', 'dni', 'dni')}.` : 'Masz czysto, zero ostrzeżeń 😇';
   }
   if (/\bdaily\b|\bdejli\b/.test(text) && /\b(moge|mam|kiedy|odebrac|czy|moje|ile)\b/.test(text)) {
     const settings = await getEconomySettings(guild.id);
@@ -176,7 +180,8 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
     return wait > 0 ? `Następne daily za ${waitOf(wait)} ⏰` : 'Daily czeka, odbierz: `/daily` 💰';
   }
   if (/\bile (jest )?(tu )?(nas|osob|ludzi|czlonkow)\b|\bile osob\b/.test(text)) {
-    return `Na serwerze jest nas ${(guild.memberCount ?? guild.members?.cache?.size ?? 0).toLocaleString('pl-PL')} 👥`;
+    const people = guild.memberCount ?? guild.members?.cache?.size ?? 0;
+    return `Na serwerze ${plural(people, 'jest', 'są', 'jest')} ${people.toLocaleString('pl-PL')} ${plural(people, 'osoba', 'osoby', 'osób')} 👥`;
   }
   if (/\bkto (jest )?(tu )?(wlascicielem|wlasciciel|zalozycielem|zalozyl)\b/.test(text)) {
     return guild.ownerId ? `Właściciel serwera to <@${guild.ownerId}> 👑` : null;
@@ -221,17 +226,25 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
   }
   if (/\bz kim (jestem|mam slub|mam wspolny bank)\b|\bkto jest moim? (zona|mezem|partnerem)\b|\bkto jest moja (zona|partnerka)\b/.test(text)) {
     const data = await getEconomyData(client, guild.id, author.id);
-    return data._joint?.partnerId ? `Twój ślub: <@${data._joint.partnerId}> 💍` : 'Nikogo tu jeszcze nie ma. Spróbuj `/randka` 🌹';
+    if (data._joint?.partnerId) return `Twój ślub: <@${data._joint.partnerId}> 💍`;
+    const own = await memoryOf(author.id);
+    return own?.partner ? null : 'Nikogo tu jeszcze nie ma. Napisz: „Klubiś, jestem w związku z ...”, to zapamiętam. Albo spróbuj `/randka` 🌹';
   }
-  if (/\bile (jest )?kanalow\b/.test(text)) return `Na serwerze jest kanałów: ${guild.channels?.cache?.size ?? 0} 📋`;
-  if (/\bile (jest )?rol\b/.test(text)) return `Na serwerze jest ról: ${guild.roles?.cache?.size ?? 0} 🎭`;
+  if (/\bile (jest )?kanalow\b/.test(text)) {
+    const channels = guild.channels?.cache?.size ?? 0;
+    return `Na serwerze ${plural(channels, 'jest', 'są', 'jest')} ${channels} ${plural(channels, 'kanał', 'kanały', 'kanałów')} 📋`;
+  }
+  if (/\bile (jest )?rol\b/.test(text)) {
+    const roles = guild.roles?.cache?.size ?? 0;
+    return `Na serwerze ${plural(roles, 'jest', 'są', 'jest')} ${roles} ${plural(roles, 'rola', 'role', 'ról')} 🎭`;
+  }
 
   // Pikczu, counted today.
   if (/\bpikcz\w*\b/.test(text) && /\b(ile|wiek|stary|urodzin\w*|urodzil\w*|kiedy)\b/.test(text) && /\b(lat|wiek|stary|urodzin\w*|urodzil\w*)\b/.test(text)) {
     const born = new Date(PIKCZU_BORN);
     const today = new Date(now);
     const hadBirthday = today.getMonth() > born.getMonth() || (today.getMonth() === born.getMonth() && today.getDate() >= born.getDate());
-    return `Pikczu urodził się 11 grudnia 2009 roku, ma ${today.getFullYear() - born.getFullYear() - (hadBirthday ? 0 : 1)} lat 🎂`;
+    return `Pikczu urodził się 11 grudnia 2009 roku, ma ${yearsOld(today.getFullYear() - born.getFullYear() - (hadBirthday ? 0 : 1))} 🎂`;
   }
   if (/\b(suby?|subow|subskrybent\w*|subskrypcj\w*)\b/.test(text) && /\b(ile|pikcz\w*|kanal\w*)\b/.test(text)) {
     return `Główny kanał Pikczu ma ponad ${Math.floor(VIDEOS.subscribers / 10_000) * 10} tys. subskrybentów, stan z ${dateOf(VIDEOS.videosAt, { day: 'numeric', month: 'long' })} 🔔`;

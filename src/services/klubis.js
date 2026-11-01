@@ -12,7 +12,7 @@
 // What it remembers (owner: "brakuje mi takiego czegos ze on wie na co odpowiada"):
 //  - a talk: what it said and what that answered. In memory only, a restart forgets. A reply to its message finds the talk by
 //    message id, also when someone else replies; a call by name continues this member's last talk for CONTEXT_MS.
-//  - a member: store guild:{id}:klubis-memory = { members: { [id]: { talks, firstAt, lastAt, name, age, city, likes, dislikes, plays } } }. What the
+//  - a member: store guild:{id}:klubis-memory = { members: { [id]: { talks, firstAt, lastAt, name, age, city, partner, loves, notes, likes, dislikes, plays } } }. What the
 //    member wrote to it (services/klubisBrain.js, factsOf). Name, age and city are said only to that member; likes and games also to someone who
 //    asks about them. "Zapomnij o mnie" and /wipedata delete it; the switch `memory` stops it. Owner: "brac wszystkie informacje", server 16+.
 //
@@ -25,7 +25,7 @@ import {
 } from '../config/klubisReplies.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
 import { findSlur } from './automodService.js';
-import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, likesTouchy, onlyCalls, parseSentence, recalledLine, safeLike, touchyKind, touchyLine, understand } from './klubisBrain.js';
+import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, likesTouchy, onlyCalls, parseSentence, plural, recalledLine, relationshipOf, safeLike, touchyKind, touchyLine, understand, yearsOld } from './klubisBrain.js';
 import { klubisFact, noteChannelMessage } from './klubisFacts.js';
 
 export { fold, likeOf };
@@ -172,11 +172,14 @@ function followUp(text, talk, guildId, random) {
 function aboutLine(member) {
   const since = new Date(member.firstAt).toLocaleDateString('pl-PL', { timeZone: 'Europe/Warsaw', day: 'numeric', month: 'long' });
   const known = [
-    member.name && `imię ${member.name}`, member.age && `${member.age} lat`, member.city,
+    member.name && `imię ${member.name}`, member.age && yearsOld(member.age), member.city,
+    member.partner, member.loves?.length && `kochasz: ${member.loves.join(', ')}`,
     member.plays?.length && `grasz ${member.plays.join(', ')}`, member.dislikes?.length && `nie lubisz: ${member.dislikes.join(', ')}`,
+    member.notes?.length && `zapisane: ${member.notes.join('; ')}`,
   ].filter(Boolean).join(', ');
   const likes = member.likes?.length ? KLUBIS_ABOUT.likes.replace('{likes}', () => member.likes.join(', ')) : KLUBIS_ABOUT.noLikes;
-  const about = KLUBIS_ABOUT.known.replace('{since}', since).replace('{talks}', String(member.talks ?? 1));
+  const talks = member.talks ?? 1;
+  const about = KLUBIS_ABOUT.known.replace('{since}', since).replace('{talks}', `${talks} ${plural(talks, 'rozmowa', 'rozmowy', 'rozmów')}`);
   return [about, known && KLUBIS_ABOUT.facts.replace('{facts}', () => known), likes].filter(Boolean).join(' ');
 }
 
@@ -227,7 +230,7 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
 
     const parsed = parseSentence(raw);
     if (likesTouchy(parsed)) return { line: touchyLine('touchy', pick), skillId: 'unknown' };
-    const facts = remembers ? factsOf(parsed) : {};
+    const facts = remembers ? { ...factsOf(parsed), ...relationshipOf(raw) } : {};
     const learned = facts.likes && !member?.likes?.includes(facts.likes) ? facts.likes : null;
     const withLearned = (line) => (!learned ? line : `${line} ${line.includes(learned) || !safeLike(learned) ? KLUBIS_ABOUT.noted : KLUBIS_ABOUT.learned.replace('{like}', () => learned)}`);
     const introduced = learnedLine(facts, pick);
@@ -279,10 +282,10 @@ async function noteMember(guildId, userId, facts, now) {
     const member = data.members[userId] ?? { talks: 0, firstAt: now, likes: [] };
     member.talks += 1;
     member.lastAt = now;
-    for (const key of ['name', 'age', 'city']) if (facts?.[key]) member[key] = facts[key];
-    for (const key of ['likes', 'dislikes', 'plays']) {
-      const list = member[key] ?? [];
-      if (facts?.[key] && !list.includes(facts[key])) member[key] = [...list, facts[key]].slice(-MAX_LIKES);
+    for (const key of ['name', 'age', 'city', 'partner']) if (facts?.[key]) member[key] = facts[key];
+    for (const [key, field] of [['likes', 'likes'], ['dislikes', 'dislikes'], ['plays', 'plays'], ['loves', 'loves'], ['note', 'notes']]) {
+      const list = member[field] ?? [];
+      if (facts?.[key] && !list.includes(facts[key])) member[field] = [...list, facts[key]].slice(-MAX_LIKES);
     }
     data.members[userId] = member;
   });

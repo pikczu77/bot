@@ -1953,7 +1953,7 @@ export const KLUBIS_FOLLOW_SKILLS = {
 
 // The member's long memory. {since}, {talks}, {likes}, {like}, {days} are filled in by services/klubis.js.
 export const KLUBIS_ABOUT = {
-  known: 'Pewnie, że pamiętam, {user}! Znam cię od {since}, rozmów ze mną: {talks}.',
+  known: 'Pewnie, że pamiętam, {user}! Znam cię od {since}, mamy za sobą {talks}.',
   facts: 'Wiem jeszcze: {facts} 📓',
   likes: 'Lubisz: {likes} 📓',
   noLikes: 'Nie wiem jeszcze, co lubisz. Napisz: „Klubiś, lubię ...” 📓',
