@@ -6,11 +6,16 @@ import express from 'express';
 import { Collection } from 'discord.js';
 import { mockChannel, mockGuild, mockMember, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
-import { KLUBIS_CALLED, KLUBIS_SKILLS, KLUBIS_STARTER, KLUBIS_UNKNOWN } from '../src/config/klubisReplies.js';
+import {
+  KLUBIS_ABOUT, KLUBIS_CALLED, KLUBIS_FOLLOW, KLUBIS_FOLLOW_KINDS, KLUBIS_FOLLOW_SKILLS, KLUBIS_SKILLS, KLUBIS_STARTER, KLUBIS_UNKNOWN, KLUBIS_WELCOME_BACK,
+} from '../src/config/klubisReplies.js';
 import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
 import { findBannedWord, findSlur } from '../src/services/automodService.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
-import { MEMBER_GAP_MS, callsKlubis, findSkill, fold, getKlubisSettings, handleKlubisMessage, saveKlubisSettings } from '../src/services/klubis.js';
+import {
+  MEMBER_GAP_MS, callsKlubis, findSkill, fold, forgetKlubisMember, getKlubisSettings, handleKlubisMessage, likeOf, quoteOf, saveKlubisSettings,
+} from '../src/services/klubis.js';
+import { getFromDb } from '../src/utils/database.js';
 import { handleTagMessage, setResponders } from '../src/services/tagService.js';
 
 const KEY = 'test-panel-key-0123456789abcdef';
@@ -54,16 +59,18 @@ function setup(name) {
 }
 
 /** A message; `replies` collects what Klubiś answered with message.reply. */
-function message(guild, channel, member, content, { mentionBot = false, replyToBot = false } = {}) {
+let sentMessages = 0;
+function message(guild, channel, member, content, { mentionBot = false, replyToBot = false, replyTo = null } = {}) {
   const botId = client.user.id;
   const users = new Collection();
-  if (mentionBot || replyToBot) users.set(botId, client.user);
+  if (mentionBot || replyToBot || replyTo) users.set(botId, client.user);
   const msg = {
     guild, client, channel, channelId: channel.id, member, author: member.user, content,
-    mentions: { users, roles: new Collection(), repliedUser: replyToBot ? client.user : null },
+    mentions: { users, roles: new Collection(), repliedUser: replyToBot || replyTo ? client.user : null },
+    reference: replyTo ? { messageId: replyTo } : null,
     replies: [],
   };
-  msg.reply = async (payload) => { msg.replies.push(payload); return { id: '1' }; };
+  msg.reply = async (payload) => { msg.replies.push(payload); sentMessages += 1; msg.sentId = `sent-${sentMessages}`; return { id: msg.sentId }; };
   return msg;
 }
 
@@ -168,7 +175,11 @@ test('skills that could get in each other\'s way', () => {
 });
 
 test('the lines: enough of them, no repeats in a skill, real commands, nothing the server itself bans', async () => {
-  const all = KLUBIS_SKILLS.flatMap((skill) => skill.replies);
+  const follow = [
+    ...Object.values(KLUBIS_FOLLOW).flat(), ...Object.values(KLUBIS_FOLLOW_SKILLS).flatMap(Object.values).flat().filter((line) => line !== 'more'),
+    ...KLUBIS_WELCOME_BACK, ...Object.values(KLUBIS_ABOUT),
+  ];
+  const all = [...KLUBIS_SKILLS.flatMap((skill) => skill.replies), ...follow];
   assert.ok(new Set(all).size + KLUBIS_UNKNOWN.length + KLUBIS_CALLED.length >= 700, `${new Set(all).size} lines`);
   for (const list of [...KLUBIS_SKILLS.map((skill) => skill.replies), KLUBIS_UNKNOWN, KLUBIS_CALLED]) {
     assert.equal(new Set(list).size, list.length, list[0]);
@@ -264,6 +275,7 @@ test('panel: settings, taught answers, skills; bad values are refused', async ()
   const view = read.json.modules.klubis;
   assert.equal(view.enabled, true);
   assert.equal(view.mentions, true);
+  assert.equal(view.memory, true);
   assert.equal(view.chance, 30);
   assert.equal(view.responders.length, KLUBIS_STARTER.length, 'the answers about the server are there from the start');
   assert.deepEqual(view.responders[0], { trigger: 'jak zarobić', mode: 'contains', responses: KLUBIS_STARTER[0].responses });
@@ -276,13 +288,14 @@ test('panel: settings, taught answers, skills; bad values are refused', async ()
   });
   assert.equal(saved.status, 200);
   assert.equal(saved.json.phrases, false);
+  assert.equal((await call('PATCH', `/guilds/${guild.id}/klubis`, { memory: false })).json.memory, false);
   assert.equal(saved.json.chance, 50);
   assert.deepEqual(saved.json.channels, [chat.id]);
   assert.deepEqual(saved.json.responders, [{ trigger: 'ile kosztuje vip', mode: 'contains', responses: ['VIP kosztuje 10 zł', 'Zajrzyj na pikczu.pl/donate'] }]);
   assert.equal((await getKlubisSettings(guild.id)).cooldownMinutes, 10);
 
   for (const body of [
-    { chance: 101 }, { cooldownMinutes: -1 }, { enabled: 'tak' }, { channels: ['1'] }, { channels: 'x' },
+    { chance: 101 }, { cooldownMinutes: -1 }, { enabled: 'tak' }, { memory: 'tak' }, { channels: ['1'] }, { channels: 'x' },
     { responders: [{ trigger: '', responses: ['a'] }] },
     { responders: [{ trigger: 'a', responses: [] }] },
     { responders: [{ trigger: 'a', mode: 'regex', responses: ['b'] }] },
@@ -353,4 +366,138 @@ test('"co robicie": 20 answers, always (no chance), its own break; "siema @Klubi
   assert.ok(filled(lines('hello'), 'Ola', guild.name).includes(hiName.content), hiName.content);
   const both = await say(message(guild, chat, member, 'siema klubiś, co robisz?'));
   assert.ok(doing.includes(both.content), 'the question wins over the greeting');
+});
+
+// 2026-11-01, owner: "brakuje mi takiego czegos ze on wie na co odpowiada".
+test('a reply to Klubiś: it knows which of its messages it is, and what that message answered', async () => {
+  const { guild, chat, member } = setup('Pamiec rozmowy');
+  const other = mockMember(guild, mockUser('kuba-pamiec'));
+  other.displayName = 'Kuba';
+  const first = message(guild, chat, member, 'Klubiś, czy wygram w lotto?');
+  const answer = await say(first);
+  assert.ok(filled(lines('question')).includes(answer.content), answer.content);
+
+  const recall = await say(message(guild, chat, member, 'na co odpowiadasz?', { replyTo: first.sentId }), { random: () => 0 });
+  assert.equal(recall.content, `Odpisałem na: „czy wygram w lotto?”. A napisałem: „${answer.content}” 🧠`);
+
+  // Somebody else replies to the same message: the same talk, not that member's own.
+  const why = await say(message(guild, chat, other, 'czemu', { replyTo: first.sentId }), { random: () => 0 });
+  assert.equal(why.content, KLUBIS_FOLLOW_SKILLS.question.why[0]);
+  const really = await say(message(guild, chat, other, 'seriooo?', { replyTo: first.sentId }));
+  assert.ok(filled(KLUBIS_FOLLOW_SKILLS.question.really.map((line) => line.replace('{asked}', 'czy wygram w lotto?').replace('{said}', answer.content))).includes(really.content), really.content);
+});
+
+test('"jeszcze" gets another line of the same skill, "xd" and "słabe" fit what was said', async () => {
+  const { guild, chat, member } = setup('Pamiec zart');
+  const joke = message(guild, chat, member, 'Klubiś, opowiedz żart');
+  const told = await say(joke);
+  assert.ok(lines('joke').includes(told.content));
+
+  const next = message(guild, chat, member, 'jeszcze', { replyTo: joke.sentId });
+  const second = await say(next);
+  assert.ok(lines('joke').includes(second.content), second.content);
+  assert.notEqual(second.content, told.content);
+
+  const laugh = await say(message(guild, chat, member, 'xddd', { replyTo: next.sentId }));
+  assert.ok(KLUBIS_FOLLOW_SKILLS.joke.laugh.includes(laugh.content), laugh.content);
+  const bad = await say(message(guild, chat, member, 'słabe', { replyTo: next.sentId }));
+  assert.ok(KLUBIS_FOLLOW_SKILLS.joke.bad.some((line) => bad.content === line.replace('{said}', second.content)), bad.content);
+  const again = await say(message(guild, chat, member, 'tak', { replyTo: next.sentId }));
+  assert.ok(lines('joke').includes(again.content), 'tak = another one');
+});
+
+test('a call by name continues the last talk for a while; an answer without a call starts one too', async () => {
+  const { guild, chat, member } = setup('Pamiec imie');
+  await say(message(guild, chat, member, 'Klubiś, czy pada?'));
+  const why = await say(message(guild, chat, member, 'klubiś czemu'));
+  assert.ok(KLUBIS_FOLLOW_SKILLS.question.why.some((line) => why.content === line.replace('{asked}', 'czy pada?')), why.content);
+
+  tick(11 * 60_000);
+  const late = await say(message(guild, chat, member, 'klubiś czemu'));
+  assert.ok(lines('askWhy').includes(late.content), late.content);
+
+  await saveKlubisSettings(guild.id, { cooldownMinutes: 0 });
+  const alone = message(guild, chat, member, 'co robicie?');
+  await say(alone);
+  const asked = await say(message(guild, chat, member, 'czemu', { replyTo: alone.sentId }));
+  assert.ok(KLUBIS_FOLLOW_SKILLS.doingAll.why.includes(asked.content), asked.content);
+});
+
+test('a reply nothing understood says which talk it belongs to, half of the time', async () => {
+  const { guild, chat, member } = setup('Pamiec nie wiem');
+  const first = message(guild, chat, member, 'Klubiś, banan traktor');
+  const unknown = await say(first);
+  const stay = await say(message(guild, chat, member, 'traktor banan', { replyTo: first.sentId }), { random: () => 0 });
+  assert.equal(stay.content, `Czyli to odpowiedź na moje „${unknown.content}”? Nie wiem, co na to powiedzieć 😅`);
+  const plain = await say(message(guild, chat, member, 'traktor banan', { replyTo: first.sentId }), { random: () => 0.9 });
+  assert.ok(filled(KLUBIS_UNKNOWN).includes(plain.content), plain.content);
+  assert.ok(filled(KLUBIS_UNKNOWN).includes((await say(message(guild, chat, member, 'klubiś traktor banan'))).content), 'a call by name is not a reply');
+});
+
+test('what the member wrote is said back only when it is safe', async () => {
+  assert.equal(quoteOf('<@123456789012345678> @everyone zobacz https://x.pl **hej** `kod`'), 'everyone zobacz hej kod');
+  assert.equal(quoteOf('KLUBIŚ, co tam?'), 'co tam?');
+  assert.equal(quoteOf('x'.repeat(100)).length, 63);
+  const banned = PRESET_WORDS.find((word) => !word.includes('*'));
+  const slur = PRESET_SLURS.find((word) => !word.includes('*'));
+  assert.equal(quoteOf(`to ${banned} jest`), '');
+  assert.equal(quoteOf(`to ${slur} jest`), '');
+
+  const { guild, chat, member } = setup('Pamiec cytat');
+  const first = message(guild, chat, member, `klubiś czy ${banned}?`);
+  const answer = await say(first);
+  const recall = await say(message(guild, chat, member, 'na co odpowiadasz', { replyTo: first.sentId }));
+  assert.equal(recall.content, `Napisałem: „${answer.content}”. Na co? Tego już nie pamiętam 😅`);
+  assert.ok(!recall.content.includes(banned));
+  assert.deepEqual(recall.allowedMentions, { parse: [], repliedUser: false });
+});
+
+test('a reply to the helpline answer or to a sad one is never a joke', async () => {
+  const { guild, chat, member } = setup('Pamiec powaznie');
+  for (const [text, id] of [['Klubiś, nie chcę żyć', 'crisis'], ['Klubiś, smutno mi', 'sad']]) {
+    const first = message(guild, chat, member, text);
+    assert.ok(filled(lines(id)).includes((await say(first)).content));
+    for (const reply of ['nie', 'xd', 'czemu', 'banan traktor']) {
+      const answer = await say(message(guild, chat, member, reply, { replyTo: first.sentId }));
+      assert.ok(filled(lines(id)).includes(answer.content), `${reply}: ${answer.content}`);
+    }
+  }
+});
+
+test('the long memory: what a member likes, how many talks, a long break, and forgetting', async () => {
+  assert.equal(likeOf('Lubię grać w minecraft, a ty?'), 'grać w minecraft');
+  assert.equal(likeOf('klubiś uwielbiam pizzę'), 'pizzę');
+  for (const text of ['lubię cię', 'lubię to', 'lubię 123456789', 'nie lubię szkoły', 'jak lubisz', 'lubię bardzo długie zdania które nie mają końca i są o niczym']) {
+    assert.equal(likeOf(text), null, text);
+  }
+
+  const { guild, chat, member } = setup('Pamiec dluga');
+  const first = await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft, a ty?'));
+  assert.ok(first.content.endsWith('Zapamiętam, że lubisz grać w minecraft 📓'), first.content);
+  assert.ok(!(await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft'))).content.includes('Zapamiętam'), 'once is enough');
+  const about = await say(message(guild, chat, member, 'klubiś co o mnie wiesz?'));
+  assert.match(about.content, /Pewnie, że pamiętam, Ola! Znam cię od \d+ \S+, rozmów ze mną: 2\. Lubisz: grać w minecraft 📓/);
+
+  tick(4 * 86_400_000);
+  const back = await say(message(guild, chat, member, 'klubiś siema'));
+  assert.ok(filled(KLUBIS_WELCOME_BACK).some((line) => back.content === line.replace('{days}', '4')), back.content);
+  assert.ok(filled(lines('hello'), 'Ola', guild.name).includes((await say(message(guild, chat, member, 'klubiś siema'))).content), 'no break any more');
+
+  await say(message(guild, chat, member, 'klubiś zapomnij o mnie'));
+  const after = await say(message(guild, chat, member, 'klubiś co o mnie wiesz'));
+  assert.ok(filled(lines('aboutMe')).includes(after.content), after.content);
+  await forgetKlubisMember(guild.id, member.user.id);
+
+  await saveKlubisSettings(guild.id, { memory: false });
+  const off = await say(message(guild, chat, member, 'Klubiś, lubię pizzę'));
+  assert.ok(!off.content.includes('Zapamiętam'));
+  assert.equal((await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} })).members[member.user.id], undefined, 'off = nothing is written');
+});
+
+test('every follow-up skill exists', () => {
+  const ids = new Set([...KLUBIS_SKILLS.map((skill) => skill.id), 'unknown']);
+  assert.deepEqual(Object.keys(KLUBIS_FOLLOW_SKILLS).filter((id) => !ids.has(id)), []);
+  const kinds = new Set(KLUBIS_FOLLOW_KINDS.map((kind) => kind.id));
+  assert.deepEqual(Object.values(KLUBIS_FOLLOW_SKILLS).flatMap(Object.keys).filter((kind) => !kinds.has(kind)), []);
+  for (const list of Object.values(KLUBIS_FOLLOW)) assert.ok(list.some((line) => !line.includes('{asked}')), `${list[0]}: needs a line without a quote`);
 });

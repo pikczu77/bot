@@ -33,10 +33,13 @@ const DOING = [
 // The start of a question: "a kiedy", "no co", "brat gdzie". For the catch-all skills near the end of the list.
 const ask = (words) => new RegExp(`^(?:a |ale |no |i |to |ej |brat |bro |ziom |sluchaj |powiedz )?(?:${words})\\b`);
 
+// "Na co odpowiadasz?", "co napisales?": with a talk Klubiś quotes it, without one the `recall` skill says it does not remember.
+const RECALL = /\bna co (ty )?(odpowiadasz|odpisujesz|odpisales|odpowiedziales)\b|\bco (ja )?(napisalem|napisalam|mowilem|mowilam|powiedzialem|powiedzialam)\b|\bo co (ja )?(pytalem|pytalam)\b|\bco (ty )?(powiedziales|mowiles|pisales|odpisales|napisales)\b|\bconapisales\b/;
+
 export const KLUBIS_SKILLS = [
   {
     // First on purpose: a joke line must never answer this. Only when called, and only clear wording.
-    id: 'crisis', label: 'Ktoś potrzebuje pomocy', example: 'Klubiś, nie chcę żyć',
+    id: 'crisis', label: 'Ktoś potrzebuje pomocy', example: 'Klubiś, nie chcę żyć', serious: true,
     match: /\bnie chce (mi sie )?zyc\b|\bchce sie zabic\b|\bchce umrzec\b|\bzabije sie\b(?! ze smiechu)|\bsamobojstw/,
     replies: [
       'Bardzo mi przykro, że tak się czujesz, {user} 💜 Jestem tylko botem, więc odezwij się do kogoś, kto naprawdę pomoże: 116 111 to bezpłatny telefon zaufania dla dzieci i młodzieży.',
@@ -62,7 +65,7 @@ export const KLUBIS_SKILLS = [
     ],
   },
   {
-    id: 'sad', label: 'Smutek', example: 'Klubiś, smutno mi',
+    id: 'sad', label: 'Smutek', example: 'Klubiś, smutno mi', serious: true,
     match: /\b(smutno|smutny|smutna)\b|\b(jest mi|czuje sie) zle\b|\bmam (dosc|dola)\b|\bplacze\b|\bnikt mnie nie lubi\b|\b(zly|slaby|beznadziejny) dzien\b/,
     replies: [
       'Przykro mi, {user} 💜 Chcesz o tym pogadać z kimś z serwera?',
@@ -212,6 +215,35 @@ export const KLUBIS_SKILLS = [
       'Wiem, wiem. Wstyd mi. Tak w 12% 😳',
       'Jak to mówią: bot też człowiek. Ale nie do końca 🤖',
       'Sprawdzę to w notesie. Moment... nic tam nie ma 📓',
+    ],
+  },
+  {
+    id: 'recall', label: 'Na co odpowiadasz', example: 'na co odpowiadasz?',
+    match: RECALL,
+    replies: [
+      'Już nie pamiętam. Pamięć mam krótką, jak ryba 🐟',
+      'Nie widzę, o czym mowa. Odpowiedz na moją wiadomość, to będę wiedział 👀',
+      'Po restarcie wszystko mi wylatuje z głowy 🔄',
+      'Kliknij „Odpowiedz” na mojej wiadomości, to sobie przypomnę 🧠',
+    ],
+  },
+  {
+    // services/klubis.js answers from the member's memory; these lines are for a member it knows nothing about.
+    id: 'aboutMe', label: 'Co o mnie wiesz', example: 'co o mnie wiesz?',
+    match: /\bco (o mnie wiesz|wiesz o mnie|o mnie pamietasz|pamietasz)\b|\bpamietasz mnie\b|\bkim jestem\b|\bco lubie\b/,
+    replies: [
+      'Na razie nic. Napisz: „Klubiś, lubię ...”, to zapamiętam 📓',
+      'Jeszcze się nie znamy, {user}. Opowiedz coś o sobie 👀',
+      'Mój notes o tobie jest pusty. Napisz, co lubisz 📓',
+    ],
+  },
+  {
+    id: 'forget', label: 'Zapomnij', example: 'Klubiś, zapomnij o mnie',
+    match: /\bzapomnij( o mnie| mnie| wszystko)?\b/,
+    replies: [
+      'Już. Kim ty właściwie jesteś? 👀',
+      'Skasowane. Nic o tobie nie pamiętam 🧹',
+      'Wyrwałem tę kartkę z notesu 📓',
     ],
   },
   {
@@ -1685,4 +1717,190 @@ export const KLUBIS_UNKNOWN = [
   'Rozumiem z tego tylko swoje imię 👀',
   'Rozumiem. Żartuję, nic nie rozumiem 😂',
   'Tak? No proszę, nie wiedziałem 🤯',
+];
+
+// What Klubiś remembers (services/klubis.js). A short reply is read together with the talk it belongs to: what the member asked
+// ({asked}, already cleaned) and what Klubiś said ({said}). The first kind that matches wins, whole message only (except `recall`).
+export const KLUBIS_FOLLOW_KINDS = [
+  { id: 'recall', match: RECALL },
+  { id: 'more', match: /^(a |no |to )?(jeszcze|jeszcze (raz|jeden|jedna|jedno|cos)|dawaj|dawaj dalej|dawaj jeszcze|kolejn\w*|nastepn\w*|inn\w*|dalej|wiecej|opowiedz wiecej|cos jeszcze|i co dalej|co dalej|i co)$/ },
+  { id: 'why', match: /^(a |no |ale )?(czemu|dlaczego|po co|z jakiego powodu|bo co)( tak| nie)?$/ },
+  { id: 'what', match: /^(a |no |ale )?(co|ze co|o co chodzi|o co ci chodzi|o czym (ty )?(mowisz|gadasz|piszesz)|co masz na mysli|co to znaczy|jak to|w sensie|czyli|co to)$/ },
+  { id: 'really', match: /^(a |no |ale |co )?(serio|naprawde|powaznie|na pewno|klamiesz|nie wierze|sciemniasz|zartujesz)( bruh| bro| brat)?$/ },
+  { id: 'yes', match: /^(tak|no|noo|no tak|taa?|oczywiscie|pewnie|jasne|yes|yep|chetnie)$/ },
+  { id: 'no', match: /^(nie|nie nie|no nie|nope|nah|nie chce|raczej nie|chyba nie)$/ },
+  { id: 'laugh', match: /^(x+d+|a?(ha){2,}h?|(he){2,}h?|heh|hah|lol|lmao|beka|ale beka)$/ },
+  { id: 'good', match: /^(dobre|niezle|fajne|mocne|sztos|kozak)( to)?$/ },
+  { id: 'bad', match: /^(slabe|slaby|kiepskie|kiepski|nudne|suchar|sucharek|nie smieszne|nie smieszny|to nie smieszne|cringe|beznadzieja|lipa)$/ },
+];
+
+// Lines for any talk. A kind missing here falls through to the normal skills. `stay` = a reply to Klubiś that no skill understood.
+export const KLUBIS_FOLLOW = {
+  recall: [
+    'Odpisałem na: „{asked}”. A napisałem: „{said}” 🧠',
+    'Była mowa o: „{asked}”. Moja odpowiedź: „{said}”. Genialna, wiem 😎',
+    'Mam to w pamięci: „{asked}”. Odpowiedź: „{said}” 💾',
+    'Pamiętam! „{asked}” i moje „{said}” 🧠',
+    'Napisałem: „{said}”. Na co? Tego już nie pamiętam 😅',
+  ],
+  more: [
+    'Więcej o czym? Było o „{asked}”, a ja już się gubię 😅',
+    'Na razie tyle wiem 🤷',
+    'Zapytaj inaczej, to coś wymyślę 🤔',
+  ],
+  why: [
+    'Bo tak mi wyszło, gdy przeczytałem „{asked}” 🎲',
+    'Czemu „{said}”? Bo nic lepszego nie miałem 😅',
+    'Bo „{asked}” to trudny temat, a ja jestem tylko botem 🤖',
+    'Bo tak mi podpowiedziały bity. Nie dyskutuję z nimi 💾',
+    'Dobre pytanie. Sam się zastanawiam, czemu to napisałem 🤔',
+    'Bo ktoś musiał to powiedzieć. Padło na mnie 🫡',
+  ],
+  what: [
+    'Odpisałem na „{asked}”. Wyszło mi: „{said}” 🤖',
+    'Chodziło mi o to, że „{said}”. Głębokie, wiem 🧠',
+    'To była moja odpowiedź na „{asked}”. Sens to osobna sprawa 😅',
+    'Sam już nie wiem, co miałem na myśli, pisząc „{said}” 🤔',
+    'Spokojnie, mówiliśmy o „{asked}”. Chyba 👀',
+    'Przeczytaj jeszcze raz: „{said}”. Lepiej nie będzie 😅',
+  ],
+  really: [
+    'Tak, serio. Napisałem „{said}” i się tego trzymam 💪',
+    'Słowo bota. Chociaż mogę się mylić 😅',
+    'No dobra, z tym „{said}” mogłem trochę przesadzić 😳',
+    'Serio serio. Mam to w logach 📜',
+    'Nie kłamię, nie mam tej funkcji 🤖',
+  ],
+  laugh: [
+    'Śmiejesz się z „{said}”? Dobre, nie? 😎',
+    'Wiedziałem, że to zadziała 😂',
+    'Napisz „jeszcze”, jak chcesz więcej 😏',
+    'Dzięki, całą noc to ćwiczyłem 😂',
+  ],
+  good: [
+    'Wiem! „{said}” to jedno z moich lepszych 😎',
+    'Dzięki! Mam tego więcej, napisz „jeszcze” 😏',
+    'Napisałem to specjalnie dla ciebie, {user} 💜',
+    'Widzisz? Uczę się 📓',
+  ],
+  bad: [
+    '„{said}” było słabe? Mam ponad 900 zdań, coś w końcu trafi 😅',
+    'No dobra, to nie było moje najlepsze. Napisz „jeszcze” 😅',
+    'Każdy ma gorszy dzień. Ja mam go od pierwszego restartu 🥲',
+    'Zgłoszę to sobie do poprawki 🛠️',
+  ],
+  stay: [
+    'Czyli to odpowiedź na moje „{said}”? Nie wiem, co na to powiedzieć 😅',
+    'Dalej o „{asked}”? Bo się gubię 🤔',
+    'Pamiętam, że było o „{asked}”. Reszty nie ogarniam 🧠',
+    'Hmm, a to ma związek z „{asked}”? 🤔',
+    'Okej, ale wróćmy do „{asked}”, bo tam byłem mocny 😎',
+    'Napisałem „{said}”, a ty mi na to takie coś? Szacunek 😄',
+  ],
+};
+
+// Lines for one skill, before the ones above. 'more' = another line of that skill. `unknown` = the "still learning" lines.
+export const KLUBIS_FOLLOW_SKILLS = {
+  question: {
+    why: ['Bo tak wypadł rzut monetą 🪙', 'Bo moje bity tak mówią. Nie dyskutuję z nimi 💾', 'Bo pytanie brzmiało „{asked}”, a odpowiedź musi być krótka 🤓', 'Szczerze? Wylosowałem to 🎲'],
+    what: ['Pytanie było: „{asked}”. Odpowiedź: „{said}” 🤓', 'Ty pytasz, ja losuję. Taki mamy układ 🎲'],
+    really: ['Na 100%. No dobra, na 60 🤔', 'Tak mi wyszło. Reklamacje do bitów 💾', 'Pytanie: „{asked}”. Odpowiedź: „{said}”. Nie zmieniam zdania 😤'],
+    yes: ['To się zgadzamy 🤝', 'Wiedziałem, że tak powiesz 😎'],
+    no: ['Nie zgadzasz się? Może masz rację. Tak w 50% 🤷', 'Dobra, zapytaj jeszcze raz, może wylosuję inaczej 🎲'],
+  },
+  joke: {
+    yes: 'more',
+    laugh: ['Wiedziałem! Dać kolejny? 😏', 'To był jeden z lepszych. Napisz „jeszcze” 😂', 'Mam ich więcej. Napisz „jeszcze” 😏'],
+    bad: ['Suchar? To był mój najlepszy 😭 Napisz „jeszcze”, mam gorsze', 'Ciężka publika 🎤', 'Dobra, ten był słaby. Następny będzie gorszy 😅'],
+    why: ['Jak żart trzeba tłumaczyć, to już nie śmieszy 😅', 'Bo to żart. Tak się je robi. Chyba 🤔'],
+    what: ['To był żart. Teraz powinien być śmiech 😅', 'Czekaj, wytłumaczę: „{said}”. No i już nie śmieszy 🥲'],
+    no: ['Nie to nie. Żarty zostawiam na później 🎤'],
+  },
+  facts: {
+    yes: 'more',
+    good: ['Mam ich więcej, napisz „jeszcze” 🧠'],
+    really: ['Serio, sprawdź w grze 🎮', 'Tak! Minecraft ma dziwne tajemnice 🧠'],
+    why: ['Tak to zrobili twórcy Minecrafta 🤷', 'Bo to Minecraft. Tam wszystko jest dziwne ⛏️'],
+  },
+  story: {
+    yes: 'more',
+    why: ['Bo tak kończą się dobre historie 📖'],
+    what: ['To była bajka. Morał: nie kop pod sobą ⛏️'],
+  },
+  fortune: {
+    yes: 'more',
+    really: ['Karty nie kłamią. Często 🃏', 'Gwiazdy tak mówią. Pretensje do gwiazd 🌟'],
+    why: ['Bo tak ułożyły się bity na niebie 🔮'],
+    no: ['Przyszłości nie oszukasz 🔮'],
+  },
+  compliment: {
+    yes: 'more',
+    really: ['Nigdy nie kłamię. Nie mam tej funkcji 🤖', 'Serio! Zapisałem to w notesie 📓'],
+    why: ['Bo tak myślę. Na ile bot może myśleć 🤖'],
+  },
+  rate: {
+    why: ['Bo widzę, jak piszesz 👀', 'Bo taką mam skalę. Zepsutą 📏'],
+    really: ['Serio. Oceniam uczciwie i losowo 🎲'],
+    no: ['Nie zgadzasz się? Ocena jest ostateczna 🧑‍⚖️'],
+  },
+  roast: {
+    yes: 'more',
+    bad: ['Słabo? Jestem za miły na takie rzeczy 😇'],
+    really: ['Żartuję! Jesteś spoko 💜'],
+    why: ['Bo o to prosisz 😏'],
+  },
+  how: {
+    why: ['Bo nikt mnie dziś jeszcze nie zrestartował 😌'],
+    really: ['Serio, działam bez błędów. Od 5 minut 🎉'],
+  },
+  hello: {
+    why: ['Bo tak się wita ludzi na {server} 👋'],
+  },
+  doing: {
+    why: ['Bo ktoś musi 🫡', 'Bo nic innego nie umiem 😅', 'Bo Pikczu kazał 🫡'],
+    really: ['Serio, właśnie teraz 👀', 'Słowo bota: robię to teraz 🤖'],
+  },
+  doingAll: {
+    why: ['Bo ktoś musi 🫡', 'Bo nic innego nie umiem 😅', 'Bo Pikczu kazał 🫡'],
+    really: ['Serio, właśnie teraz 👀', 'Słowo bota: robię to teraz 🤖'],
+  },
+  want: {
+    why: ['Bo każdy bot o czymś marzy 💭', 'Bo mi się nudzi między wiadomościami 🥲'],
+  },
+  minecraft: {
+    yes: ['To kiedyś zagramy. W głowie ⛏️', 'Wiedziałem, że jesteś z naszych 😎'],
+    no: ['Nie grasz? To co tu robisz? 😄 Żartuję 💜'],
+    why: ['Bo Minecraft to moje całe życie. Mam nawet domek 🏠'],
+    really: ['Serio, dom mam w głowie. Trzeci raz wysadzony 💥'],
+  },
+  play: {
+    yes: ['To wpisz komendę, ja czekam 🎮', 'Dawaj, pierwszy ruch twój 🎯'],
+    no: ['Szkoda, to może później 🥲'],
+  },
+  love: {
+    why: ['Bo tak mam zapisane w kodzie 💾💜'],
+    really: ['Serio! Mam to w notesie 📓'],
+  },
+  mean: {
+    why: ['Bo tak mnie uczono. Pretensje do Pikczu 😤'],
+  },
+  unknown: {
+    what: ['Sam nie wiem, co miałem na myśli. Dopiero się uczę 😅', 'Odpisałem cokolwiek, bo nie zrozumiałem „{asked}” 😅'],
+    why: ['Bo nie zrozumiałem „{asked}”. Przyznaję się 😅', 'Bo nie miałem na to gotowego zdania 📝'],
+  },
+};
+
+// The member's long memory. {since}, {talks}, {likes}, {like}, {days} are filled in by services/klubis.js.
+export const KLUBIS_ABOUT = {
+  known: 'Pewnie, że pamiętam, {user}! Znam cię od {since}, rozmów ze mną: {talks}.',
+  likes: 'Lubisz: {likes} 📓',
+  noLikes: 'Nie wiem jeszcze, co lubisz. Napisz: „Klubiś, lubię ...” 📓',
+  learned: 'Zapamiętam, że lubisz {like} 📓',
+};
+
+// A greeting after a long break.
+export const KLUBIS_WELCOME_BACK = [
+  'O, {user}! Nie było cię {days} dni 👀',
+  'Siema, {user}! Już myślałem, że o mnie zapomniano. {days} dni bez słowa 🥲',
+  '{user}! {days} dni przerwy. Co cię ominęło? Wszystko 😄',
 ];

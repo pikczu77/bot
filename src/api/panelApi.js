@@ -1888,6 +1888,7 @@ async function klubisView(guild) {
     enabled: settings.enabled !== false,
     mentions: settings.mentions !== false,
     phrases: settings.phrases !== false,
+    memory: settings.memory !== false,
     chance: settings.chance,
     cooldownMinutes: settings.cooldownMinutes,
     channels: (settings.channels ?? []).filter((id) => guild.channels.cache.has(id)),
@@ -1921,7 +1922,7 @@ function responderList(value) {
 
 async function applyKlubis(guild, body) {
   const updates = {};
-  for (const key of ['enabled', 'mentions', 'phrases']) if (key in body) updates[key] = boolean(body[key], key);
+  for (const key of ['enabled', 'mentions', 'phrases', 'memory']) if (key in body) updates[key] = boolean(body[key], key);
   if ('chance' in body) updates.chance = integer(body.chance, 'chance', 0, 100);
   if ('cooldownMinutes' in body) updates.cooldownMinutes = integer(body.cooldownMinutes, 'cooldownMinutes', 0, 1440);
   if ('channels' in body) {

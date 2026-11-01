@@ -14,6 +14,7 @@ import {
     getUserLevelPrefix,
 } from '../utils/database.js';
 import { t } from '../i18n/index.js';
+import { forgetKlubisMember } from '../services/klubis.js';
 const wipedataConfirmHandler = {
   name: 'wipedata_yes',
   async execute(interaction, client) {
@@ -53,6 +54,8 @@ const wipedataConfirmHandler = {
         `lastRob:${guildId}:${userId}`,
         `${guildId}:leveling:users:${userId}`,
       ];
+
+      await forgetKlubisMember(guildId, userId);
 
       let deletedCount = 0;
       const deleteErrors = [];
