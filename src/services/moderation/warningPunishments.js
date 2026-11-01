@@ -22,9 +22,25 @@ export const MAX_TIMEOUT_MINUTES = 28 * 24 * 60; // Discord's limit
 export const MAX_BAN_MINUTES = 365 * 24 * 60;
 export const MAX_STEPS = 15;
 
-// My ladder for a server with young members: two light steps, then longer timeouts, a kick, temporary bans.
-// A permanent ban stays a decision of the moderators.
+// Softer since 2026-11-01 (owner: "zbyt rygorystyczne kary za warny"; the numbers are mine): two warnings with no
+// punishment, short timeouts of at most a day, a kick at 10, a 7-day ban at 12. A permanent ban stays a decision of the moderators.
 export const DEFAULT_STEPS = Object.freeze([
+  { count: 1, action: 'none', minutes: 0 },
+  { count: 2, action: 'none', minutes: 0 },
+  { count: 3, action: 'timeout', minutes: 10 },
+  { count: 4, action: 'timeout', minutes: 30 },
+  { count: 5, action: 'timeout', minutes: 60 },
+  { count: 6, action: 'timeout', minutes: 3 * 60 },
+  { count: 7, action: 'timeout', minutes: 12 * 60 },
+  { count: 8, action: 'timeout', minutes: 24 * 60 },
+  { count: 10, action: 'kick', minutes: 0 },
+  { count: 12, action: 'ban', minutes: 7 * 24 * 60 },
+]);
+export const DEFAULT_EXPIRE_DAYS = 14;
+
+const ladderKey = (steps) => JSON.stringify([...(steps ?? [])].sort((a, b) => a.count - b.count).map(({ count, action, minutes }) => [count, action, Number(minutes) || 0]));
+// The ladder of 2026-10-26. Any save in the panel stored it, so it counts as "never changed" until the first save after the softer one came.
+const OLD_LADDER = ladderKey([
   { count: 1, action: 'none', minutes: 0 },
   { count: 2, action: 'timeout', minutes: 10 },
   { count: 3, action: 'timeout', minutes: 60 },
@@ -35,10 +51,22 @@ export const DEFAULT_STEPS = Object.freeze([
   { count: 8, action: 'ban', minutes: 7 * 24 * 60 },
   { count: 9, action: 'ban', minutes: 30 * 24 * 60 },
 ]);
+const LADDER_REV = 2;
 
-const store = guildStore('warning-punishments', { enabled: true, expireDays: 30, steps: DEFAULT_STEPS.map((step) => ({ ...step })) });
-export const getPunishmentSettings = (guildId) => store.get(guildId);
-export const updatePunishmentSettings = (guildId, mutate) => store.update(guildId, mutate);
+/** Old stored settings are fixed when read. `rev` = saved after the softer ladder, so what is stored is what the server wants. */
+function migrate(settings) {
+  if (settings.rev >= LADDER_REV || ladderKey(settings.steps) !== OLD_LADDER) return settings;
+  return { ...settings, steps: DEFAULT_STEPS.map((step) => ({ ...step })), expireDays: Number(settings.expireDays) === 30 ? DEFAULT_EXPIRE_DAYS : settings.expireDays };
+}
+
+const store = guildStore('warning-punishments', { enabled: true, expireDays: DEFAULT_EXPIRE_DAYS, steps: DEFAULT_STEPS.map((step) => ({ ...step })) });
+export const getPunishmentSettings = async (guildId) => migrate(await store.get(guildId));
+export const updatePunishmentSettings = (guildId, mutate) => store.update(guildId, async (stored) => {
+  const data = migrate(stored);
+  const next = (await mutate(data)) ?? data;
+  next.rev = LADDER_REV;
+  return next;
+});
 
 /** The step for `count` warnings: the exact one, or the highest below it. */
 export function stepFor(settings, count) {

@@ -1,4 +1,4 @@
-// What each number of warnings does (2026-10-26): the ladder, the 30-day window, the DM, /warn and
+// What each number of warnings does (2026-10-26, softer 2026-11-01): the ladder, the 14-day window, the DM, /warn and
 // automod through warnMember, the one-time reset of every warning and the panel module.
 import './helpers/env.js';
 import test, { before, after } from 'node:test';
@@ -7,7 +7,7 @@ import express from 'express';
 import { Collection } from 'discord.js';
 import { mockChannel, mockGuild, mockInteraction, mockMember, mockUser, replyText } from './helpers/mock.js';
 import { runWithLocale } from '../src/i18n/index.js';
-import { initializeDatabase } from '../src/utils/database.js';
+import { initializeDatabase, setInDb } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { WarningService } from '../src/services/moderation/warningService.js';
 import { getTempbans } from '../src/services/moderation/tempbanService.js';
@@ -54,14 +54,14 @@ after(async () => {
 test('the ladder: a step for every count, the last one above it', () => {
   const settings = { steps: DEFAULT_STEPS };
   assert.equal(stepFor(settings, 0), null);
-  assert.equal(stepFor(settings, 1).action, 'none');
-  assert.deepEqual([2, 3, 4, 5, 6].map((count) => stepFor(settings, count).minutes), [10, 60, 360, 1440, 4320]);
-  assert.equal(stepFor(settings, 7).action, 'kick');
-  assert.equal(stepFor(settings, 8).minutes, 7 * 1440);
-  assert.equal(stepFor(settings, 15).minutes, 30 * 1440);
+  assert.deepEqual([1, 2].map((count) => stepFor(settings, count).action), ['none', 'none']);
+  assert.deepEqual([3, 4, 5, 6, 7, 8, 9].map((count) => stepFor(settings, count).minutes), [10, 30, 60, 180, 720, 1440, 1440]);
+  assert.deepEqual([10, 11].map((count) => stepFor(settings, count).action), ['kick', 'kick']);
+  assert.equal(stepFor(settings, 12).minutes, 7 * 1440);
+  assert.equal(stepFor(settings, 20).minutes, 7 * 1440, 'the last step is the highest punishment');
   runWithLocale('en', () => {
-    assert.equal(describeStep(stepFor(settings, 3)), 'timeout 1 h');
-    assert.equal(describeStep(stepFor(settings, 8)), 'ban for 7 days');
+    assert.equal(describeStep(stepFor(settings, 5)), 'timeout 1 h');
+    assert.equal(describeStep(stepFor(settings, 12)), 'ban for 7 days');
     assert.equal(describeStep({ action: 'ban', minutes: 0 }), 'permanent ban');
   });
 });
@@ -73,25 +73,61 @@ test('warnings climb the ladder: DM, timeouts, kick, temporary ban that lifts it
   assert.equal(first.count, 1);
   assert.equal(first.applied, false);
   assert.equal(member.dms.length, 1);
-  assert.match(member.dms[0].embeds[0].toJSON().description, /Next warning:\*\* timeout 10 min/);
+  assert.match(member.dms[0].embeds[0].toJSON().description, /Next warning:\*\* only a warning/);
+  const second = await warn();
+  assert.equal(second.applied, false);
+  assert.match(member.dms[1].embeds[0].toJSON().description, /Next warning:\*\* timeout 10 min/);
   await warn();
   assert.deepEqual(member.actions.at(-1).slice(0, 2), ['timeout', 10]);
-  for (let index = 3; index <= 6; index += 1) await warn();
-  assert.deepEqual(member.actions.filter((action) => action[0] === 'timeout').map((action) => action[1]), [10, 60, 360, 1440, 4320]);
+  for (let index = 4; index <= 9; index += 1) await warn();
+  assert.deepEqual(member.actions.filter((action) => action[0] === 'timeout').map((action) => action[1]).slice(0, 6), [10, 30, 60, 180, 720, 1440]);
   const kick = await warn();
-  assert.equal(kick.count, 7);
+  assert.equal(kick.count, 10);
   assert.equal(member.actions.at(-1)[0], 'kick');
+  await warn();
   const banned = [];
   guild.members.ban = async (userId, options) => { banned.push([userId, options.reason]); };
-  await warn();
+  const ban = await warn();
+  assert.equal(ban.count, 12);
   assert.equal(banned.length, 1);
   const tempban = (await getTempbans(guild.id)).find((entry) => entry.userId === member.id);
   assert.ok(tempban.until > Date.now() + 6 * 86_400_000);
+  assert.ok(tempban.until < Date.now() + 8 * 86_400_000);
 });
 
-test('only warnings from the last 30 days count; a longer timeout is not shortened; the ladder can be off', async () => {
+test('a stored ladder of 2026-10-26 reads as the softer one; a ladder of the server and later saves stay', async () => {
+  const OLD = [
+    { count: 1, action: 'none', minutes: 0 }, { count: 2, action: 'timeout', minutes: 10 }, { count: 3, action: 'timeout', minutes: 60 },
+    { count: 4, action: 'timeout', minutes: 360 }, { count: 5, action: 'timeout', minutes: 1440 }, { count: 6, action: 'timeout', minutes: 4320 },
+    { count: 7, action: 'kick', minutes: 0 }, { count: 8, action: 'ban', minutes: 10080 }, { count: 9, action: 'ban', minutes: 43200 },
+  ];
+  const saved = mockGuild(client, 'Stara drabinka');
+  await setInDb(`guild:${saved.id}:warning-punishments`, { enabled: true, expireDays: 30, steps: OLD });
+  let settings = await getPunishmentSettings(saved.id);
+  assert.deepEqual(settings.steps, DEFAULT_STEPS);
+  assert.equal(settings.expireDays, 14);
+
+  await updatePunishmentSettings(saved.id, (data) => { data.enabled = false; });
+  settings = await getPunishmentSettings(saved.id);
+  assert.equal(settings.enabled, false);
+  assert.deepEqual(settings.steps, DEFAULT_STEPS, 'another save does not bring the old ladder back');
+
+  await updatePunishmentSettings(saved.id, (data) => { data.steps = OLD; data.expireDays = 30; });
+  settings = await getPunishmentSettings(saved.id);
+  assert.equal(settings.steps.length, OLD.length, 'typed in again by hand: the server wants it');
+  assert.equal(settings.expireDays, 30);
+
+  const own = mockGuild(client, 'Swoja drabinka');
+  const steps = [{ count: 2, action: 'kick', minutes: 0 }];
+  await setInDb(`guild:${own.id}:warning-punishments`, { enabled: true, expireDays: 30, steps });
+  settings = await getPunishmentSettings(own.id);
+  assert.deepEqual(settings.steps, steps);
+  assert.equal(settings.expireDays, 30);
+});
+
+test('only warnings from the last 14 days count; a longer timeout is not shortened; the ladder can be off', async () => {
   const member = trackedMember('Stary');
-  const old = Date.now() - 40 * 86_400_000;
+  const old = Date.now() - 20 * 86_400_000;
   for (let index = 0; index < 4; index += 1) {
     await WarningService.addWarning({ guildId: guild.id, userId: member.id, moderatorId: '1', reason: 'dawno', timestamp: old });
   }
@@ -99,9 +135,10 @@ test('only warnings from the last 30 days count; a longer timeout is not shorten
   assert.equal(result.count, 1, 'the four old ones expired');
 
   member.communicationDisabledUntilTimestamp = Date.now() + 86_400_000;
-  const second = await warnMember({ client, guild, member, userId: member.id, moderatorId: '1', reason: 'znowu' });
-  assert.equal(second.count, 2);
-  assert.equal(second.applied, false, 'a 24 h timeout already runs, no 10 min one');
+  await warnMember({ client, guild, member, userId: member.id, moderatorId: '1', reason: 'znowu' });
+  const third = await warnMember({ client, guild, member, userId: member.id, moderatorId: '1', reason: 'i znowu' });
+  assert.equal(third.count, 3);
+  assert.equal(third.applied, false, 'a 24 h timeout already runs, no 10 min one');
 
   await updatePunishmentSettings(guild.id, (data) => { data.enabled = false; });
   const off = await warnMember({ client, guild, member, userId: member.id, moderatorId: '1', reason: 'bez kar' });
@@ -119,7 +156,7 @@ test('/warn shows the count, the punishment and the next step', async () => {
   const text = replyText(interaction);
   assert.match(text, /Total Warns:\*\* 1/);
   assert.match(text, /Punishment:\*\* only a warning/);
-  assert.match(text, /Next warning:\*\* timeout 10 min/);
+  assert.match(text, /Next warning:\*\* only a warning/);
 });
 
 test('every warning is reset once after the start, never again', async () => {
@@ -143,13 +180,13 @@ test('panel: the ladder, who has warnings, reset all', async () => {
   await warnMember({ client, guild, member, userId: member.id, moderatorId: '1', reason: 'panel' });
   const view = (await call('GET', `/guilds/${guild.id}`)).json.modules.warnings;
   assert.equal(view.enabled, true);
-  assert.equal(view.expireDays, 30);
+  assert.equal(view.expireDays, 14);
   assert.equal(view.steps.length, DEFAULT_STEPS.length);
   assert.ok(view.members.length >= 1, JSON.stringify(view.members));
-  const saved = await call('PATCH', `/guilds/${guild.id}/warnings`, { expireDays: 14, steps: [{ count: 3, action: 'timeout', minutes: 30 }, { count: 1, action: 'none' }, { count: 5, action: 'ban', minutes: 0 }] });
+  const saved = await call('PATCH', `/guilds/${guild.id}/warnings`, { expireDays: 21, steps: [{ count: 3, action: 'timeout', minutes: 30 }, { count: 1, action: 'none' }, { count: 5, action: 'ban', minutes: 0 }] });
   assert.equal(saved.status, 200, saved.text);
   assert.deepEqual(saved.json.steps.map((step) => step.count), [1, 3, 5]);
-  assert.equal((await getPunishmentSettings(guild.id)).expireDays, 14);
+  assert.equal((await getPunishmentSettings(guild.id)).expireDays, 21);
   assert.equal((await call('PATCH', `/guilds/${guild.id}/warnings`, { steps: [{ count: 2, action: 'timeout', minutes: 50000 }] })).status, 400);
   assert.equal((await call('PATCH', `/guilds/${guild.id}/warnings`, { steps: [{ count: 2, action: 'kick' }, { count: 2, action: 'none' }] })).status, 400);
   const reset = await call('POST', `/guilds/${guild.id}/warnings/reset`);
