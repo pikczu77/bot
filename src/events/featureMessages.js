@@ -10,6 +10,7 @@ import { handleChatMessage } from '../services/chatEngagement.js';
 import { handleSeasonMessage } from '../services/seasonalEvents.js';
 import { BOOST_MESSAGE_TYPES, handleBoostMessage } from '../services/serverBoost.js';
 import { bumpSticky, handleTagMessage } from '../services/tagService.js';
+import { handleKlubisMessage } from '../services/klubis.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
 import { logger } from '../utils/logger.js';
 
@@ -46,7 +47,9 @@ export default {
       if (await handleChatMessage(message)) return;
 
       const guildConfig = await getGuildConfig(client, message.guild.id);
-      await handleTagMessage(message, guildConfig?.prefix || getCommandPrefix());
+      const prefix = guildConfig?.prefix || getCommandPrefix();
+      // Answers taught in the panel first, then Klubiś's own (services/klubis.js).
+      if (!await handleTagMessage(message, prefix)) await handleKlubisMessage(message, { prefix });
       await bumpSticky(message);
     } catch (error) {
       logger.error('Error in feature message handler:', error);

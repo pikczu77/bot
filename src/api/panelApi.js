@@ -124,6 +124,8 @@ import {
 import {
   EVENT_TYPES as ECONOMY_EVENT_TYPES, MAX_EVENT_MINUTES, MIN_EVENT_MINUTES, endEvent, nextAutoTime, startEvent,
 } from '../services/economyEvents.js';
+import { MAX_CHANNELS as KLUBIS_MAX_CHANNELS, getKlubisSettings, klubisSkills, saveKlubisSettings } from '../services/klubis.js';
+import { MAX_RESPONDERS, getTagData, responderAnswers, setResponders } from '../services/tagService.js';
 
 const MIN_KEY_LENGTH = 24;
 const PREFIX_MAX = 10;
@@ -1879,6 +1881,66 @@ async function applyServerBoost(guild, body) {
   return serverBoostView(guild);
 }
 
+// ---- Klubiś, the bot that answers messages (services/klubis.js). `responders` = the answers the server teaches it (tagService),
+// always sent as the whole list; `skills` = what it can say by itself (read only).
+const RESPONDER_MODES = new Set(['word', 'contains', 'exact', 'starts']);
+const RESPONDER_ANSWERS_MAX = 10;
+const RESPONDER_TRIGGER_MAX = 100;
+const RESPONDER_ANSWER_MAX = 500;
+
+async function klubisView(guild) {
+  const settings = await getKlubisSettings(guild.id);
+  const { responders } = await getTagData(guild.id, { fresh: true });
+  return {
+    enabled: settings.enabled !== false,
+    mentions: settings.mentions !== false,
+    phrases: settings.phrases !== false,
+    chance: settings.chance,
+    cooldownMinutes: settings.cooldownMinutes,
+    channels: (settings.channels ?? []).filter((id) => guild.channels.cache.has(id)),
+    responders: (responders ?? []).map((item) => ({ trigger: item.trigger, mode: item.mode || 'word', responses: responderAnswers(item) })),
+    skills: klubisSkills(),
+    name: guild.members.me?.displayName ?? null,
+    limits: { responders: MAX_RESPONDERS, responses: RESPONDER_ANSWERS_MAX, trigger: RESPONDER_TRIGGER_MAX, response: RESPONDER_ANSWER_MAX, channels: KLUBIS_MAX_CHANNELS },
+  };
+}
+
+function responderList(value) {
+  if (!Array.isArray(value) || value.length > MAX_RESPONDERS) throw new ApiError(400, `responders: list of up to ${MAX_RESPONDERS} expected`);
+  const seen = new Set();
+  return value.map((item, index) => {
+    const field = `responders[${index}]`;
+    if (!item || typeof item !== 'object') throw new ApiError(400, `${field}: object expected`);
+    const trigger = typeof item.trigger === 'string' ? item.trigger.trim().replace(/\s+/g, ' ').toLowerCase() : '';
+    if (!trigger || trigger.length > RESPONDER_TRIGGER_MAX) throw new ApiError(400, `${field}.trigger: text of 1-${RESPONDER_TRIGGER_MAX} characters expected`);
+    if (seen.has(trigger)) throw new ApiError(400, `${field}.trigger: "${trigger}" is on the list twice`);
+    seen.add(trigger);
+    const mode = item.mode ?? 'word';
+    if (!RESPONDER_MODES.has(mode)) throw new ApiError(400, `${field}.mode: word, contains, exact or starts expected`);
+    if (!Array.isArray(item.responses)) throw new ApiError(400, `${field}.responses: list expected`);
+    const responses = item.responses.map((text) => (typeof text === 'string' ? text.trim() : '')).filter(Boolean);
+    if (!responses.length || responses.length > RESPONDER_ANSWERS_MAX || responses.some((text) => text.length > RESPONDER_ANSWER_MAX)) {
+      throw new ApiError(400, `${field}.responses: 1-${RESPONDER_ANSWERS_MAX} answers of up to ${RESPONDER_ANSWER_MAX} characters expected`);
+    }
+    return { trigger, mode, responses };
+  });
+}
+
+async function applyKlubis(guild, body) {
+  const updates = {};
+  for (const key of ['enabled', 'mentions', 'phrases']) if (key in body) updates[key] = boolean(body[key], key);
+  if ('chance' in body) updates.chance = integer(body.chance, 'chance', 0, 100);
+  if ('cooldownMinutes' in body) updates.cooldownMinutes = integer(body.cooldownMinutes, 'cooldownMinutes', 0, 1440);
+  if ('channels' in body) {
+    if (!Array.isArray(body.channels) || body.channels.length > KLUBIS_MAX_CHANNELS) throw new ApiError(400, `channels: list of up to ${KLUBIS_MAX_CHANNELS} expected`);
+    updates.channels = [...new Set(body.channels.map((id) => requireTextChannel(guild, id ?? '', 'channels')))];
+  }
+  const responders = 'responders' in body ? responderList(body.responders) : null;
+  if (Object.keys(updates).length) await saveKlubisSettings(guild.id, updates);
+  if (responders) await setResponders(guild.id, responders);
+  return klubisView(guild);
+}
+
 // ---- Prefix of the text commands (`!daily`). Same rules as the old /configwizard, and characters Discord uses itself are refused.
 function prefixView(config) {
   return { prefix: config.prefix || getCommandPrefix(), defaultPrefix: getCommandPrefix(), maxLength: PREFIX_MAX };
@@ -1978,6 +2040,7 @@ export function createPanelRouter(client) {
       backup: await backupView(guild),
       prefix: prefixView(await getGuildConfig(client, guild.id)),
       serverboost: await serverBoostView(guild),
+      klubis: await klubisView(guild),
     },
   })));
 
@@ -1992,6 +2055,7 @@ export function createPanelRouter(client) {
   router.patch('/guilds/:guildId/backup', route(({ guild, body }) => applyBackup(client, guild, body)));
   router.patch('/guilds/:guildId/prefix', route(({ guild, body }) => applyPrefix(client, guild, body)));
   router.patch('/guilds/:guildId/serverboost', route(({ guild, body }) => applyServerBoost(guild, body)));
+  router.patch('/guilds/:guildId/klubis', route(({ guild, body }) => applyKlubis(guild, body)));
   // Every warning on the server back to zero (the panel asks twice before it calls this).
   router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
     const reset = await resetGuildWarnings(guild.id);

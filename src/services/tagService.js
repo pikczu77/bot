@@ -1,12 +1,15 @@
 // tagService.js — server-made text commands ("tags") and auto-responders,
 // plus sticky messages that stay at the bottom of a channel.
+// Since 2026-11-01 the auto-responders are the answers taught to Klubiś in the panel (module "Klubiś", services/klubis.js):
+// its switch and channel list apply to them, and `responses` (several answers, one at random) replaces `response`.
 
 import { createEmbed } from '../utils/embeds.js';
 import { guildStore, userError } from '../utils/featureKit.js';
 import { t } from '../i18n/index.js';
+import { getKlubisSettings, klubisChannelAllowed, pickLine } from './klubis.js';
 
 const MAX_TAGS = 100;
-const MAX_RESPONDERS = 50;
+export const MAX_RESPONDERS = 50;
 const NAME_RE = /^[\p{L}\p{N}_-]{1,32}$/u;
 
 const store = guildStore('tags', { tags: {}, responders: [] });
@@ -76,6 +79,17 @@ export async function addResponder(guildId, responder) {
   cache.set(guildId, { at: Date.now(), data });
 }
 
+/** Panel: the whole list at once (already checked by the caller). */
+export async function setResponders(guildId, responders) {
+  const data = await store.update(guildId, (current) => { current.responders = responders; });
+  cache.set(guildId, { at: Date.now(), data });
+  return data.responders;
+}
+
+/** The answers of one responder: `responses` from the panel, or the single `response` of older ones. */
+export const responderAnswers = (responder) => (Array.isArray(responder.responses) && responder.responses.length
+  ? responder.responses : [responder.response].filter(Boolean));
+
 export async function removeResponder(guildId, trigger) {
   const key = String(trigger ?? '').trim().toLowerCase();
   let removed = false;
@@ -134,13 +148,17 @@ export async function handleTagMessage(message, prefix) {
 
   const responder = matchResponder(data.responders, content);
   if (!responder) return false;
+  const klubis = await getKlubisSettings(message.guild.id);
+  if (!klubis.enabled || !klubisChannelAllowed(klubis, message.channel)) return false;
+  const answers = responderAnswers(responder);
+  if (!answers.length) return false;
 
   // The same answer in the same channel at most once every 10 seconds.
   const key = `${message.channelId}:${responder.trigger}`;
   if (Date.now() - (responderCooldown.get(key) ?? 0) < 10_000) return false;
   responderCooldown.set(key, Date.now());
 
-  await message.channel.send({ content: renderTagText(responder.response, message), allowedMentions: { parse: [], users: [message.author.id] } }).catch(() => {});
+  await message.channel.send({ content: renderTagText(pickLine(answers), message), allowedMentions: { parse: [], users: [message.author.id] } }).catch(() => {});
   return true;
 }
 
