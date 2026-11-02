@@ -123,7 +123,7 @@ import {
 import {
   EVENT_TYPES as ECONOMY_EVENT_TYPES, MAX_EVENT_MINUTES, MIN_EVENT_MINUTES, endEvent, nextAutoTime, startEvent,
 } from '../services/economyEvents.js';
-import { MAX_CHANNELS as KLUBIS_MAX_CHANNELS, getKlubisSettings, klubisSkills, saveKlubisSettings } from '../services/klubis.js';
+import { MAX_CHANNELS as KLUBIS_MAX_CHANNELS, MAX_TALK_CHANNELS, getKlubisSettings, klubisSkills, saveKlubisSettings } from '../services/klubis.js';
 import { MAX_RESPONDERS, getTagData, responderAnswers, setResponders } from '../services/tagService.js';
 
 const MIN_KEY_LENGTH = 24;
@@ -1864,12 +1864,14 @@ async function klubisView(guild) {
     phrases: settings.phrases !== false,
     memory: settings.memory !== false,
     chance: settings.chance,
+    replyChance: settings.replyChance,
     cooldownMinutes: settings.cooldownMinutes,
     channels: (settings.channels ?? []).filter((id) => guild.channels.cache.has(id)),
+    talkChannels: (settings.talkChannels ?? []).filter((id) => guild.channels.cache.has(id)),
     responders: (responders ?? []).map((item) => ({ trigger: item.trigger, mode: item.mode || 'word', responses: responderAnswers(item) })),
     skills: klubisSkills(),
     name: guild.members.me?.displayName ?? null,
-    limits: { responders: MAX_RESPONDERS, responses: RESPONDER_ANSWERS_MAX, trigger: RESPONDER_TRIGGER_MAX, response: RESPONDER_ANSWER_MAX, channels: KLUBIS_MAX_CHANNELS },
+    limits: { responders: MAX_RESPONDERS, responses: RESPONDER_ANSWERS_MAX, trigger: RESPONDER_TRIGGER_MAX, response: RESPONDER_ANSWER_MAX, channels: KLUBIS_MAX_CHANNELS, talkChannels: MAX_TALK_CHANNELS },
   };
 }
 
@@ -1898,6 +1900,11 @@ async function applyKlubis(guild, body) {
   const updates = {};
   for (const key of ['enabled', 'mentions', 'phrases', 'memory']) if (key in body) updates[key] = boolean(body[key], key);
   if ('chance' in body) updates.chance = integer(body.chance, 'chance', 0, 100);
+  if ('replyChance' in body) updates.replyChance = integer(body.replyChance, 'replyChance', 0, 100);
+  if ('talkChannels' in body) {
+    if (!Array.isArray(body.talkChannels) || body.talkChannels.length > MAX_TALK_CHANNELS) throw new ApiError(400, `talkChannels: list of up to ${MAX_TALK_CHANNELS} expected`);
+    updates.talkChannels = [...new Set(body.talkChannels.map((id) => requireTextChannel(guild, id ?? '', 'talkChannels')))];
+  }
   if ('cooldownMinutes' in body) updates.cooldownMinutes = integer(body.cooldownMinutes, 'cooldownMinutes', 0, 1440);
   if ('channels' in body) {
     if (!Array.isArray(body.channels) || body.channels.length > KLUBIS_MAX_CHANNELS) throw new ApiError(400, `channels: list of up to ${KLUBIS_MAX_CHANNELS} expected`);

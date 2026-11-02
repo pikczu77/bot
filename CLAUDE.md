@@ -140,7 +140,9 @@ change you make, so the next session knows what was done and why.
 - Since 2026-11-01: `src/services/klubis.js`, skills `src/config/klubisReplies.js` (Polish only, clean for young members), panel module "Klubiś pisze"
   (API `klubis`). Store `guild:{id}:klubis` { enabled, mentions, phrases, chance, cooldownMinutes, channels }. Called = a mention (also of the bot's
   own role), a reply to the bot, or its name (`klubiś`, `klubisiu` ... folded; NOT `klubik`, the server's name, and not `klubie`): a skill answers,
-  else a "still learning" line; one answer per member per 5 s. Not called: only `alone` skills (hello, morning, evening, good night, bye, back, meal, bored, gg, "co tam", "co robicie"), only
+  else a "still learning" line; one answer per member per 5 s. Since 2026-11-02 a called ordinary answer goes out with `replyChance` % (15), a skill with
+  `important` / `serious` or a fact, a memory question or something learned always; on a `talkChannels` channel every message is answered, without a call or
+  the chance (owner). A held back answer still keeps what the member said (`silent`). Not called: only `alone` skills (hello, morning, evening, good night, bye, back, meal, bored, gg, "co tam", "co robicie"), only
   messages of at most 8 words, with `chance` % (not for `always` skills: "co robicie") and `cooldownMinutes` per channel and skill. Breaks live in memory. Typing shown for up to 2.5 s (0 in tests).
 - Taught answers = the old auto-responders of `tagService.js` (`responders` in store `guild:{id}:tags`), now edited only in the panel (whole list
   in `PATCH /klubis`): `responses` = several answers, one at random (older entries with one `response` still work). They run first
@@ -932,3 +934,11 @@ change you make, so the next session knows what was done and why.
     `/klub info`, the guide field). Clubs themselves stay. Guide `GUIDE_VERSION` 10.
   - My decisions: tickets bought this week go back to their buyers at the next start (`lotteryRefund.js`; the server's bonus was never paid in, so it
     is not paid out); the two badges stay with who earned them; an open panel page with the old fields still saves.
+- **2026-11-02** (owner: "daj mu jakies ograniczenia, zeby na zwykle odpowiedzi odpisywal raz na 30%, a na te wazne zwiazane z serwerem zawsze, troche zasmieca czat,
+  zrob zebym mogl mu wyznaczyc czat gdzie na wszystko odpowiada, ale na glownym raz na 30%"). Live after the owner restarts the bot; panel deployed. Map: "Klubiś".
+  - `replyChance` (15, panel "Odpisuje na zwykłe wiadomości"; owner first said 30, then "na glownym czacie raz na 15%, na wyznaczonym zawsze") for ordinary
+    answers when called; always: real facts and knowledge, skills marked `important`
+    (rules, help, economy, levels, events, videos, Club SMP, tickets, donate, boosts, update, Pikczu, ranks, bans, memory) and `serious` ones. My list.
+  - `talkChannels` (up to 5, panel "Kanał do gadania z Klubisiem"): every message there is answered, no call and no chance; such a channel is allowed even
+    when "Gdzie może pisać" lists others.
+  - "co robicie" lost `always`: it follows the server's chance like the other answers without a call (my reading of "zasmieca czat").

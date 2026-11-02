@@ -7,7 +7,10 @@
 //  - built-in skills (config/klubisReplies.js): always when a message calls Klubiś (mention, a reply to the bot, its name),
 //    and the `alone` skills (hello, good night ...) also without a call, with the server's chance and a break per channel.
 //
-// Store guild:{id}:klubis = { enabled, mentions, phrases, memory, chance, cooldownMinutes, channels }. Breaks live in memory.
+// Store guild:{id}:klubis = { enabled, mentions, phrases, memory, chance, replyChance, cooldownMinutes, channels, talkChannels }. Breaks live in memory.
+// Called, it answers ordinary messages with `replyChance` % and server questions always (owner: "na zwykle odpowiedzi raz na 30%, a na te
+// wazne zwiazane z serwerem zawsze", then "na glownym czacie raz na 15%, na wyznaczonym zawsze"); on a talk channel it answers every message,
+// without a call and without the chance.
 //
 // What it remembers (owner: "brakuje mi takiego czegos ze on wie na co odpowiada"):
 //  - a talk: what it said and what that answered. In memory only, a restart forgets. A reply to its message finds the talk by
@@ -31,7 +34,11 @@ import { klubisFact, noteChannelMessage } from './klubisFacts.js';
 
 export { fold, likeOf };
 
-export const KLUBIS_DEFAULTS = { enabled: true, mentions: true, phrases: true, memory: true, chance: 30, cooldownMinutes: 3, channels: [] };
+export const KLUBIS_DEFAULTS = { enabled: true, mentions: true, phrases: true, memory: true, chance: 30, replyChance: 15, cooldownMinutes: 3, channels: [], talkChannels: [] };
+// Channels where Klubiś answers every message (owner, 2026-11-02: "zebym mogl mu wyznaczyc czat gdzie na wszystko odpowiada").
+export const MAX_TALK_CHANNELS = 5;
+// Always answered, whatever `replyChance` says: real answers, what a member taught or asked about themselves.
+const IMPORTANT_ANSWERS = new Set(['fact', 'aboutMe', 'learned', 'forget']);
 export const MAX_CHANNELS = 25;
 // A member who calls Klubiś gets at most one answer per this many ms.
 export const MEMBER_GAP_MS = 5_000;
@@ -120,7 +127,14 @@ function pickFresh(lines, guildId, list, random) {
 
 /** In the channel list (or its thread's parent), or the list is empty. Also used for the taught answers. */
 export const klubisChannelAllowed = (settings, channel) => !settings.channels?.length
-  || settings.channels.includes(channel?.id) || (Boolean(channel?.parentId) && settings.channels.includes(channel.parentId));
+  || settings.channels.includes(channel?.id) || (Boolean(channel?.parentId) && settings.channels.includes(channel.parentId))
+  || inTalkChannel(settings, channel);
+
+/** A channel (or a thread of it) picked for talking with Klubiś. */
+export const inTalkChannel = (settings, channel) => Boolean(channel) && (settings.talkChannels ?? []).some((id) => id === channel.id || id === channel.parentId);
+
+/** The message is for Klubiś: it calls it, or it is written on a talk channel. */
+const isCalled = (message, settings) => Boolean((settings.mentions && callsKlubis(message)) || inTalkChannel(settings, message.channel));
 
 function fill(line, message, talk = null, remembered = null) {
   const name = remembered?.name ?? message.member?.displayName ?? message.author?.globalName ?? message.author?.username ?? '';
@@ -231,18 +245,40 @@ function skillLine(skill, guildId, member, now, random, message, text) {
 }
 
 /**
- * What Klubiś says to this message, or null: { line, skillId, followUp, facts }. Pure apart from the breaks it reads and sets.
+ * What Klubiś says to this message, or null: { line, skillId, followUp, facts, silent }. Pure apart from the breaks it reads and sets.
+ * `silent`: an ordinary answer the chance held back; what it learned is still kept. `roll` draws that chance (tests pass their own).
  * `talk` = the talk it continues, `member` = what it remembers about the member, `remembers` = it may learn, `fact` = a real answer found.
  */
-export function klubisAnswer(message, settings, { now = Date.now(), random = Math.random, talk = null, member = null, remembers = false, fact = null } = {}) {
+export function klubisAnswer(message, settings, { now = Date.now(), random = Math.random, roll = random, talk = null, member = null, remembers = false, fact = null } = {}) {
   const raw = String(message.content ?? '');
   const text = fold(raw.replace(MENTION_RE, ' ')).replace(NAME_RE_G, ' ').replace(/\s+/g, ' ').trim();
   const guildId = message.guild.id;
 
-  if (settings.mentions && callsKlubis(message)) {
+  if (isCalled(message, settings)) {
     const key = `${guildId}:${message.author.id}`;
     if (now - (memberLast.get(key) ?? 0) < MEMBER_GAP_MS) return null;
     memberLast.set(key, now);
+    const answer = calledAnswer(message, raw, text, guildId, { now, random, talk, member, remembers, fact });
+    const skill = KLUBIS_SKILLS.find((item) => item.id === answer.skillId);
+    const always = inTalkChannel(settings, message.channel) || IMPORTANT_ANSWERS.has(answer.skillId) || skill?.important || skill?.serious;
+    const chance = Number(settings.replyChance ?? KLUBIS_DEFAULTS.replyChance);
+    return always || roll() * 100 < chance ? answer : { ...answer, silent: true };
+  }
+
+  if (!settings.phrases || !text || text.split(' ').length > ALONE_MAX_WORDS) return null;
+  const skill = findSkill(text, raw, { aloneOnly: true });
+  if (!skill) return null;
+  // The break counts per skill: a "siema" a minute ago does not hold back the answer to "co robicie".
+  const key = `${guildId}:${message.channelId}:${skill.id}`;
+  if (now - (channelLast.get(key) ?? 0) < (Number(settings.cooldownMinutes) || 0) * 60_000) return null;
+  if (!skill.always && random() * 100 >= (Number(settings.chance) || 0)) return null;
+  channelLast.set(key, now);
+  return { line: pickFresh(skill.replies, guildId, skill.id, random), skillId: skill.id };
+}
+
+/** The answer to a message for Klubiś, before the chance. */
+function calledAnswer(message, raw, text, guildId, { now, random, talk, member, remembers, fact }) {
+  {
     if (fact) return { line: fact, skillId: 'fact' };
     const pick = (lines, list) => pickFresh(lines, guildId, list, random);
     // Before anything that repeats or agrees. The helpline answer and a sad reply stay first.
@@ -262,7 +298,7 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
     const learned = facts.likes && !member?.likes?.includes(facts.likes) ? facts.likes : null;
     const withLearned = (line) => (!learned ? line : `${line} ${line.includes(learned) || !safeLike(learned) ? KLUBIS_ABOUT.noted : KLUBIS_ABOUT.learned.replace('{like}', () => learned)}`);
     const introduced = learnedLine(facts, pick);
-    if (introduced) return { line: introduced, skillId: 'understood', facts };
+    if (introduced) return { line: introduced, skillId: 'learned', facts };
     const fromNotebook = searchNotebook(text, parsed, member, pick);
     if (fromNotebook) return { line: fromNotebook, skillId: 'aboutMe' };
 
@@ -286,16 +322,6 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
     if (onlyCalls(parsed)) return { line: pick(KLUBIS_CALLED, 'called'), skillId: 'called' };
     return { line: pick(KLUBIS_UNKNOWN, 'unknown'), skillId: 'unknown' };
   }
-
-  if (!settings.phrases || !text || text.split(' ').length > ALONE_MAX_WORDS) return null;
-  const skill = findSkill(text, raw, { aloneOnly: true });
-  if (!skill) return null;
-  // The break counts per skill: a "siema" a minute ago does not hold back the answer to "co robicie".
-  const key = `${guildId}:${message.channelId}:${skill.id}`;
-  if (now - (channelLast.get(key) ?? 0) < (Number(settings.cooldownMinutes) || 0) * 60_000) return null;
-  if (!skill.always && random() * 100 >= (Number(settings.chance) || 0)) return null;
-  channelLast.set(key, now);
-  return { line: pickFresh(skill.replies, guildId, skill.id, random), skillId: skill.id };
 }
 
 /** One write at a time per server: a store update reads, changes and saves, and two at once would lose one. */
@@ -334,14 +360,14 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
  * featureMessages, after the taught answers: answer when it fits. Returns true when Klubiś wrote.
  * `delayMs`: how long it "types" (default by the length of the answer, 0 in tests).
  */
-export async function handleKlubisMessage(message, { prefix = '!', now, random, delayMs } = {}) {
+export async function handleKlubisMessage(message, { prefix = '!', now, random, roll, delayMs } = {}) {
   if (!message.guild || message.author?.bot) return false;
   if (prefix && String(message.content ?? '').startsWith(prefix)) return false;
   const settings = await getKlubisSettings(message.guild.id);
   if (!settings.enabled || !klubisChannelAllowed(settings, message.channel)) return false;
 
   const at = now ?? Date.now();
-  const called = Boolean(settings.mentions && callsKlubis(message));
+  const called = isCalled(message, settings);
   const remembers = called && settings.memory !== false;
   const talk = called ? talkFor(message, at) : null;
   const memory = remembers ? (await memoryStore.get(message.guild.id)).members : null;
@@ -352,8 +378,13 @@ export async function handleKlubisMessage(message, { prefix = '!', now, random, 
     logger.warn(`Klubis fact failed in guild ${message.guild.id}: ${error.message}`);
     return null;
   }) : null;
-  const answer = klubisAnswer(message, settings, { now: at, random, talk, member, remembers, fact });
+  const answer = klubisAnswer(message, settings, { now: at, random, roll, talk, member, remembers, fact });
   if (!answer) return false;
+  if (answer.silent) {
+    // Not answered this time, but what the member said about themselves is still kept.
+    if (remembers) await noteMember(message.guild.id, message.author.id, answer.facts, at);
+    return false;
+  }
 
   const content = fill(answer.line, message, talk, member).slice(0, 2000);
   const wait = delayMs ?? (process.env.NODE_ENV === 'test' ? 0 : Math.min(2500, 600 + content.length * 25));

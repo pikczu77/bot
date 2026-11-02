@@ -82,7 +82,8 @@ function message(guild, channel, member, content, { mentionBot = false, replyToB
 }
 
 const say = async (msg, options = {}) => {
-  await handleKlubisMessage(msg, { now: tick(MEMBER_GAP_MS + 1), ...options });
+  // The chance of ordinary answers always says yes here, unless a test gives its own `roll`.
+  await handleKlubisMessage(msg, { now: tick(MEMBER_GAP_MS + 1), roll: () => 0, ...options });
   return msg.replies[0] ?? null;
 };
 const lines = (id) => KLUBIS_SKILLS.find((skill) => skill.id === id).replies;
@@ -213,9 +214,9 @@ test('the lines: enough of them, no repeats in a skill, real commands, nothing t
 test('one answer per member every few seconds; commands with the prefix are left alone', async () => {
   const { guild, chat, member } = setup('Przerwa');
   const first = message(guild, chat, member, 'klubiś co robisz');
-  await handleKlubisMessage(first, { now: tick(60_000) });
+  await handleKlubisMessage(first, { now: tick(60_000), roll: () => 0 });
   const second = message(guild, chat, member, 'klubiś co robisz');
-  await handleKlubisMessage(second, { now: tick(1000) });
+  await handleKlubisMessage(second, { now: tick(1000), roll: () => 0 });
   assert.equal(first.replies.length, 1);
   assert.equal(second.replies.length, 0);
   assert.equal(await say(message(guild, chat, member, '!work klubiś')), null);
@@ -351,7 +352,7 @@ test('answers about the server are added once, next to the server\'s own, and ma
   assert.equal(merged.length, KLUBIS_STARTER.length);
 });
 
-test('"co robicie": 20 answers, always (no chance), its own break; "siema @Klubiś" is a greeting', async () => {
+test('"co robicie": 20 answers, the chance of the server (since 2026-11-02), its own break; "siema @Klubiś" is a greeting', async () => {
   const doing = lines('doingAll');
   assert.equal(doing.length, 20);
   assert.equal(new Set(doing).size, 20);
@@ -363,8 +364,10 @@ test('"co robicie": 20 answers, always (no chance), its own break; "siema @Klubi
 
   const { guild, chat, member } = setup('Co robicie');
   await saveKlubisSettings(guild.id, { chance: 0, cooldownMinutes: 3 });
+  assert.equal(await say(message(guild, chat, member, 'co robicie?')), null, 'the chance is 0: no answer (owner: "troche zasmieca czat")');
+  await saveKlubisSettings(guild.id, { chance: 100 });
   const first = await say(message(guild, chat, member, 'co robicie?'));
-  assert.ok(doing.includes(first.content), 'answers although the chance is 0');
+  assert.ok(doing.includes(first.content));
   assert.equal(await say(message(guild, chat, member, 'co robicie')), null, 'its break');
   tick(3 * 60_000);
   assert.ok(await say(message(guild, chat, member, 'a wy co robicie')));
@@ -428,7 +431,7 @@ test('a call by name continues the last talk for a while; an answer without a ca
   const late = await say(message(guild, chat, member, 'klubiś czemu'));
   assert.ok(lines('askWhy').includes(late.content), late.content);
 
-  await saveKlubisSettings(guild.id, { cooldownMinutes: 0 });
+  await saveKlubisSettings(guild.id, { cooldownMinutes: 0, chance: 100 });
   const alone = message(guild, chat, member, 'co robicie?');
   await say(alone);
   const asked = await say(message(guild, chat, member, 'czemu', { replyTo: alone.sentId }));
@@ -496,7 +499,9 @@ test('the long memory: what a member likes, how many talks, a long break, and fo
   tick(4 * 86_400_000);
   const back = await say(message(guild, chat, member, 'klubiś siema'));
   assert.ok(filled(KLUBIS_WELCOME_BACK).some((line) => back.content === line.replace('{days}', '4')), back.content);
-  assert.ok(filled(lines('hello'), 'Ola', guild.name).includes((await say(message(guild, chat, member, 'klubiś siema'))).content), 'no break any more');
+  // random 0.99: not the greeting that names what the member likes (25 %).
+  const again = await say(message(guild, chat, member, 'klubiś siema'), { random: () => 0.99 });
+  assert.ok(filled(lines('hello'), 'Ola', guild.name).includes(again.content), `no break any more: ${again.content}`);
 
   await say(message(guild, chat, member, 'klubiś zapomnij o mnie'));
   const after = await say(message(guild, chat, member, 'klubiś co o mnie wiesz'));
@@ -872,4 +877,45 @@ test('a greeting can mention what it remembers', async () => {
   await say(message(guild, chat, member, 'Klubiś, lubię pizzę'));
   const hi = await say(message(guild, chat, member, 'klubiś siema'), { random: () => 0 });
   assert.match(hi.content, /pizzę/);
+});
+
+// 2026-11-02, owner: "na zwykle odpowiedzi odpisywal raz na 30%, a na te wazne zwiazane z serwerem zawsze ... zebym mogl mu wyznaczyc czat gdzie na wszystko odpowiada",
+// then "na glownym czacie raz na 15%, na wyznaczonym zawsze".
+test('called: ordinary answers with the chance, server answers always; a talk channel answers everything', async () => {
+  const { guild, chat, member } = setup('Szansa');
+  const talkRoom = mockChannel(guild, 'gadanie-z-klubisiem');
+  const no = () => 0.99;
+  const answer = async (text, channel = chat) => (await say(message(guild, channel, member, text), { roll: no, random: () => 0.5 }))?.content ?? null;
+  assert.equal((await getKlubisSettings(guild.id)).replyChance, 15);
+  assert.equal(await answer('klubiś opowiedz żart'), null, 'ordinary: the chance said no');
+  assert.equal(await answer('klubiś banan traktor'), null);
+  for (const text of ['klubiś ile mam kasy?', 'klubiś jest regulamin?', 'klubiś jak działa rob', 'klubiś kiedy update', 'klubiś co o mnie wiesz', 'klubiś nie chcę żyć', 'klubiś ile to 2+2']) {
+    assert.ok(await answer(text), `${text}: always`);
+  }
+  // What it learns is kept also when it says nothing.
+  assert.equal(await answer('Klubiś, lubię pizzę'), null);
+  const stored = await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} });
+  assert.deepEqual(stored.members[member.user.id].likes, ['pizzę']);
+
+  await saveKlubisSettings(guild.id, { talkChannels: [talkRoom.id], channels: [chat.id] });
+  assert.ok(await answer('opowiedz żart', talkRoom), 'no call, no chance on the talk channel');
+  assert.ok(await answer('banan traktor', talkRoom));
+  assert.equal(await answer('opowiedz żart'), null, 'without a call on the main chat: nothing');
+  await saveKlubisSettings(guild.id, { replyChance: 100 });
+  assert.ok(await answer('klubiś opowiedz żart'), 'replyChance 100 = always');
+});
+
+test('panel: the chance of ordinary answers and the talk channels', async () => {
+  const { guild, chat } = setup('Panel szansa');
+  const view = (await call('GET', `/guilds/${guild.id}`)).json.modules.klubis;
+  assert.equal(view.replyChance, 15);
+  assert.deepEqual(view.talkChannels, []);
+  assert.equal(view.limits.talkChannels, 5);
+  const saved = await call('PATCH', `/guilds/${guild.id}/klubis`, { replyChance: 50, talkChannels: [chat.id] });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.replyChance, 50);
+  assert.deepEqual(saved.json.talkChannels, [chat.id]);
+  for (const body of [{ replyChance: 101 }, { talkChannels: ['1'] }, { talkChannels: 'x' }]) {
+    assert.equal((await call('PATCH', `/guilds/${guild.id}/klubis`, body)).status, 400, JSON.stringify(body));
+  }
 });
