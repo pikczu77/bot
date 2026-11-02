@@ -292,7 +292,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'update', label: 'Kiedy update', example: 'Klubiś, kiedy update?', important: true,
-    match: /\bkiedy( (bedzie|wyjdzie|wchodzi|nowy|nowa|jakis|jakas))* (update|updejt|apdejt|aktualizacj[aei])\b|\b(update|updejt|apdejt|aktualizacja) kiedy\b|\bnowe funkcje\b/,
+    match: /\bkiedy( (bedzie|wyjdzie|wchodzi|nowy|nowa|jakis|jakas))* (update|updejt|apdejt|aktualizacj[aei])\b|\b(update|updejt|apdejt|aktualizacja) kiedy\b|\bnowe funkcje\b|\bco nowego (w|na) (bocie|klubisiu|serwerze|discordzie|dc)\b|\bjakie (sa )?nowosci\b|\bco (nowego )?(dodaliscie|dodales|dodal|zmieniliscie|zmieniles)\b/,
     replies: [
       'Update będzie, jak będzie gotowy 😅 Daty nie znam, Pikczu mi jej nie mówi.',
       'Cierpliwości, dobre aktualizacje wymagają czasu 🛠️',
@@ -327,7 +327,8 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'can', label: 'Co umie', example: 'umiesz inaczej pisać?',
-    match: /\b(umiesz|potrafisz|dasz rade)\b/,
+    // "Co umiesz?" alone asks for the commands: `help`.
+    match: /^(?!(a |no )?co (ty )?(umiesz|potrafisz)( robic| zrobic)?$).*\b(umiesz|potrafisz|dasz rade)\b/,
     replies: [
       'Umiem sporo, ale to akurat jeszcze ćwiczę 😅',
       'Mam gotowe zdania, a Pikczu dopisuje mi nowe. Tyle umiem 📝',
@@ -754,7 +755,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'help', label: 'Pomoc', example: 'Klubiś, pomóż', important: true,
-    match: /^(pomocy|pomoc|help|pomoz|pomoz mi|pomocy prosze)$|\bjakie (masz )?komendy\b|\bco (moge|mozna) (tu )?(robic|zrobic)\b/,
+    match: /^(pomocy|pomoc|help|pomoz|pomoz mi|pomocy prosze)$|\bjakie (sa |masz |tu )?(komendy|polecenia)\b|\bco (moge|mozna) (tu |tutaj )?(robic|zrobic)\b|^(a |no )?co (ty )?(umiesz|potrafisz)( robic| zrobic)?$|\bjak (uzywac|korzystac z|uzyc) (bota|ciebie|klubisia|komend)\b|\bco (sie )?(tu |tutaj )(sie )?robi\b|\bjak (tu )?zaczac\b|\bjestem (tu |tutaj )?(nowy|nowa)( tu| tutaj| na serwerze)?$|\bpierwszy raz (tu|tutaj|na serwerze|jestem)\b/,
     replies: [
       'Wszystkie komendy pokaże `/komendy` 📋',
       'Spokojnie, jestem! Zacznij od `/komendy` albo zapytaj kogoś na czacie 🙋',
@@ -793,7 +794,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'video', label: 'Filmy', example: 'będzie nowy film?', broad: 'topic', important: true,
-    match: /\b(film\w*|odcin\w*|yt|youtube\w*|jutub\w*|suby?|suba|subskryb\w*)\b/,
+    match: /\b(film\w*|odcin\w*|yt|youtube\w*|jutub\w*|suby?|suba|subskryb\w*|live\w*|lajw\w*|stream\w*|transmisj\w*|ogladac)\b/,
     replies: [
       'Nowy film będzie, jak będzie gotowy 🎬 Dzwoneczek: <https://youtube.com/@Pikczu77> 🔔',
       'Filmy Pikczu: <https://youtube.com/@Pikczu77> 🎬 Daj łapkę, ja nie mam rąk 👍',
@@ -852,7 +853,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'economy', label: 'Ekonomia', example: 'jak działa kasyno?', broad: 'topic', important: true,
-    match: /\b(kasyn\w*|gamble|blackjack|ruletk\w*|slots?|rob|work|fish|nagraj|sklep\w*|ulepszen\w*|bank\w*|gield\w*|paczk\w*|kart(a|y|e|ami|ach)?|napad\w*|prestiz\w*)\b/,
+    match: /\b(kasyn\w*|gamble|blackjack|ruletk\w*|slots?|rob|work|fish|nagraj|sklep\w*|ulepszen\w*|bank\w*|gield\w*|paczk\w*|kart(a|y|e|ami|ach)?|napad\w*|prestiz\w*|ekonomi\w*|okras\w*|ukras\w*|kupic|kupowac|zarob\w*|zarabia\w*)\b/,
     replies: [
       'Kasyno potrafi dać i zabrać. Graj z głową 🎰',
       'Trzymaj kasę w banku, bo ktoś zrobi `/rob` 🏦',
@@ -868,7 +869,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'level', label: 'Poziomy', example: 'jaki mam poziom?', broad: 'topic', important: true,
-    match: /\b(poziom\w*|lvl|level\w*|xp|exp)\b/,
+    match: /\b(poziom\w*|lvl|level\w*|xp|exp|awans\w*)\b/,
     replies: [
       'XP leci za wiadomości i rozmowy na głosowym ⭐',
       'Swój poziom sprawdzisz w `/poziom` 📊',
@@ -920,7 +921,7 @@ export const KLUBIS_SKILLS = [
   },
   {
     id: 'donate', label: 'Donate', example: 'jak zrobić donate?', broad: 'topic', important: true,
-    match: /\b(donate\w*|donat\w*|tipply|wplat\w*)\b/,
+    match: /\b(donate\w*|donat\w*|tipply|wplat\w*|wplac\w*|wspier\w*|wesprz\w*|wsparci\w*|zrzutk\w*)\b/,
     replies: [
       'Kody akcji i wpłaty: <https://pikczu.pl/donate> 💸',
       'Donate to akcja w grze na żywo. Lista kodów: <https://pikczu.pl/donate> 🎮',

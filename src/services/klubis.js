@@ -67,6 +67,8 @@ const WELCOME_BACK_DAYS = 3;
 // Folded forms of the name: klubiś, klubisiu, klubisia, klubisiem, klubisie, klubisiowi, klubiku. Not "klubik" (the server is
 // "Klubik Pikcza") and not "klubie" ("w klubie").
 const NAME_RE = /\bklubi(s|siu|sia|siem|sie|siowi|ku)\b/;
+// A question also without "?": members ask "bedzie giveaway", "o ktorej film" (2026-11-02, owner: "wiecej odmian waznych pytan").
+const ASKS_TOPIC = /^(a |no |ej |i |to )?(czy|jak|gdzie|skad|kiedy|ile|po ilu|co|kto|czemu|dlaczego|po co|za co|jaki\w*|jaka|jakie|ktor\w*|o ktorej|bedzie|beda|mozna|moge|da sie|oplaca sie|warto|macie|jest|sa)\b/;
 const NAME_RE_G = new RegExp(NAME_RE.source, 'g');
 
 const store = guildStore('klubis', KLUBIS_DEFAULTS);
@@ -227,6 +229,22 @@ function flirtLine(skill, message, text, line) {
   return target && fold(target) !== 'mnie' ? `Podrywam ${target}: ${line}` : `{user}, ${line[0].toLocaleLowerCase('pl')}${line.slice(1)}`;
 }
 
+// Question words and other words that say nothing about which line fits.
+const FIT_SKIP = new Set(['gdzie', 'kiedy', 'jakie', 'jaki', 'jaka', 'ktory', 'ktora', 'jest', 'mozna', 'dziala', 'bedzie', 'beda', 'sobie', 'tutaj', 'moge',
+  'mnie', 'masz', 'zrobic', 'dostac', 'klubis', 'prosze', 'powiedz', 'wiesz', 'czemu', 'dlaczego']);
+
+/** The lines of a topic that share a word with the question ("jak działa bank" gets the line about the bank), else all of them. */
+function fittingLines(lines, text) {
+  const stems = String(text ?? '').split(' ').filter((word) => word.length >= 4 && !FIT_SKIP.has(word)).map((word) => word.slice(0, Math.max(4, word.length - 2)));
+  if (!stems.length) return lines;
+  const scored = lines.map((line) => {
+    const words = fold(line).split(' ');
+    return [line, stems.filter((stem) => words.some((word) => word.startsWith(stem))).length];
+  });
+  const best = Math.max(...scored.map(([, score]) => score));
+  return best ? scored.filter(([, score]) => score === best).map(([line]) => line) : lines;
+}
+
 /** The line of a skill. The member's memory changes two of them: "co o mnie wiesz" and a greeting after a long break. */
 function skillLine(skill, guildId, member, now, random, message, text) {
   if (skill.id === 'aboutMe' && member?.firstAt) return aboutLine(member);
@@ -240,7 +258,7 @@ function skillLine(skill, guildId, member, now, random, message, text) {
     const picked = choiceOf(message.content, random);
     if (picked) return picked;
   }
-  const line = pickFresh(skill.replies, guildId, skill.id, random);
+  const line = pickFresh(skill.broad === 'topic' ? fittingLines(skill.replies, text) : skill.replies, guildId, skill.id, random);
   return skill.id === 'flirt' ? flirtLine(skill, message, text, line) : line;
 }
 
@@ -304,8 +322,12 @@ function calledAnswer(message, raw, text, guildId, { now, random, talk, member, 
 
     // A greeting in front of a sentence changes nothing: "siema, lubię pizzę".
     const body = parsed.greeted ? fold(parsed.words.join(' ')) : text;
-    const skill = findSkill(body, raw) ?? null;
-    const asksFact = parsed.person !== 'you' && (parsed.question || parsed.asks || parsed.qSkill);
+    const asksFact = parsed.person !== 'you' && (parsed.question || parsed.asks || parsed.qSkill || ASKS_TOPIC.test(body));
+    // A question about a server topic beats a question word or a chat topic: "jak zarobic kase", "jak wspierac pikczu".
+    const found = findSkill(body, raw) ?? null;
+    const topic = asksFact && (!found || found.broad === 'talk' || found.broad === 'catch')
+      ? KLUBIS_SKILLS.find((item) => item.important && item.broad === 'topic' && item.match.test(body)) : null;
+    const skill = topic ?? found;
     if (skill && (!skill.broad || (skill.broad === 'topic' && asksFact))) {
       return { line: withLearned(skillLine(skill, guildId, member, now, random, message, text)), skillId: skill.id, facts };
     }

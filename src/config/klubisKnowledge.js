@@ -76,7 +76,7 @@ export const FACTS = [
   ['wilk|psa oswo|jak|ugaskac', 'Wilka oswoisz kośćmi, a potem karm go mięsem 🐺'],
   ['kot|ocelot oswo|jak|ugaskac', 'Kota oswoisz surową rybą: dorszem albo łososiem 🐈'],
   ['papug oswo|jak|ugaskac', 'Papugę oswoisz nasionami. Nigdy nie dawaj jej ciastka, to dla niej trucizna 🦜'],
-  ['kon|konia oswo|jak|ujezdz|ugaskac', 'Konia: wsiadaj, aż przestanie cię zrzucać, potem załóż siodło 🐴'],
+  ['=kon|=konia|=koniem|=koniu|=konie|=koni oswo|jak|ujezdz|ugaskac', 'Konia: wsiadaj, aż przestanie cię zrzucać, potem załóż siodło 🐴'],
   ['lis|lisa oswo|jak', 'Lisa oswoisz, rozmnażając dwa dzikie lisy słodkimi jagodami. Młode będzie ci ufać 🦊'],
   ['allay co|jak|gdzie', 'Allay zbiera przedmioty takie jak ten, który mu dasz. Znajdziesz go w strażnicach rozbójników i rezydencjach 🧚'],
   ['wiesniak|villager zaw|prac|handel|jak', 'Wieśniak dostaje zawód od bloku pracy obok niego, np. stół kartograficzny, mównica albo piec do wytapiania 🧑‍🌾'],

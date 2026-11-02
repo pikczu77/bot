@@ -6,6 +6,7 @@ import { STOPWORDS } from '../config/klubisGrammar.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
 import { MENTION_RE, cleanText, fold, isVerbWord, parseSentence, plural, safeLike, touchyKind, yearsOld } from './klubisBrain.js';
 import { asksLiveQuestion, knowledgeAnswer } from './klubisKnowledge.js';
+import { pikczuLine, serverAnswer } from './klubisServer.js';
 import { PIKCZU_BORN } from '../config/klubisKnowledge.js';
 import { VIDEOS } from '../config/klubisKnowledgeData.js';
 import { QUIZ_QUESTIONS } from '../config/quizQuestions.js';
@@ -222,6 +223,9 @@ export async function klubisFact(message, text, { now = Date.now(), random = Mat
     const names = [...message.member.roles.cache.values()].filter((role) => role.id !== guild.id).map((role) => role.name).slice(0, 15);
     return names.length ? `Twoje role: ${names.join(', ')} 🎭` : 'Nie masz jeszcze żadnej roli 🎭';
   }
+  // The server itself: boosts, channels, staff, warnings, ranks, the Minecraft server (klubisServer.js).
+  const server = await serverAnswer(message, text);
+  if (server) return server;
 
   if (/\bktora (jest )?(teraz )?(godzina|godz)\b|\bjaka (jest )?godzina\b/.test(text)) {
     return `Jest ${new Date(now).toLocaleTimeString('pl-PL', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' })} ⏰`;
@@ -351,5 +355,5 @@ export async function klubisFact(message, text, { now = Date.now(), random = Mat
     return `Z filmów, które znam, najwięcej wyświetleń ma „${video.title}”: ${video.views.toLocaleString('pl-PL')} <https://youtu.be/${video.id}> 🎬`;
   }
 
-  return knowledgeAnswer(text, parseSentence(message.content));
+  return knowledgeAnswer(text, parseSentence(message.content)) ?? pikczuLine(text);
 }

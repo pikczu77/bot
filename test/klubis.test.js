@@ -3,7 +3,7 @@ import './helpers/env.js';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { Collection } from 'discord.js';
+import { ChannelType, Collection, PermissionFlagsBits } from 'discord.js';
 import { mockChannel, mockGuild, mockMember, mockUser } from './helpers/mock.js';
 import { initializeDatabase } from '../src/utils/database.js';
 import {
@@ -13,6 +13,7 @@ import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/
 import * as GRAMMAR from '../src/config/klubisGrammar.js';
 import { factsOf, parseSentence, plural, reflect, relationshipOf, touchyKind, understand, wordStem, yearsOld } from '../src/services/klubisBrain.js';
 import { delayOf, sumOf } from '../src/services/klubisFacts.js';
+import { SERVER_LINES } from '../src/services/klubisServer.js';
 import { asksLiveQuestion, knowledgeAnswer } from '../src/services/klubisKnowledge.js';
 import { SMP_GROUPS, SMP_ITEMS, SMP_RECIPES } from '../src/config/klubisKnowledgeData.js';
 import { QUIZ_QUESTIONS } from '../src/config/quizQuestions.js';
@@ -190,7 +191,7 @@ test('the lines: enough of them, no repeats in a skill, real commands, nothing t
     ...GRAMMAR.SAID_OTHER, ...GRAMMAR.SAID_OTHER_GOOD, ...GRAMMAR.SAID_OTHER_BAD, ...GRAMMAR.ONE_WORD, ...GRAMMAR.LONG_TEXT, ...GRAMMAR.ASKED_TO_DO, ...GRAMMAR.HAVE_PERSON, ...GRAMMAR.SAID_INSULT,
     ...GRAMMAR.FEELINGS.flatMap(([, list]) => list), ...GRAMMAR.WONT_TOUCH, ...GRAMMAR.BEING_HIT, ...GRAMMAR.HITTING_OTHERS, ...GRAMMAR.ASKED_UNKNOWN, ...GRAMMAR.ASKED_TO_SAY, ...Object.values(GRAMMAR.LEARNED).flat(), ...Object.values(GRAMMAR.RECALLED).flat(),
   ];
-  const all = [...KLUBIS_SKILLS.flatMap((skill) => skill.replies), ...follow];
+  const all = [...KLUBIS_SKILLS.flatMap((skill) => skill.replies), ...follow, ...SERVER_LINES];
   assert.ok(new Set(all).size + KLUBIS_UNKNOWN.length + KLUBIS_CALLED.length >= 700, `${new Set(all).size} lines`);
   for (const list of [...KLUBIS_SKILLS.map((skill) => skill.replies), KLUBIS_UNKNOWN, KLUBIS_CALLED]) {
     assert.equal(new Set(list).size, list.length, list[0]);
@@ -917,5 +918,69 @@ test('panel: the chance of ordinary answers and the talk channels', async () => 
   assert.deepEqual(saved.json.talkChannels, [chat.id]);
   for (const body of [{ replyChance: 101 }, { talkChannels: ['1'] }, { talkChannels: 'x' }]) {
     assert.equal((await call('PATCH', `/guilds/${guild.id}/klubis`, body)).status, 400, JSON.stringify(body));
+  }
+});
+
+// 2026-11-02, owner: "wiecej odmian pytan o boosty, kanal itp. ciezko sie wstrzelic", then "wiecej odmian waznych pytan".
+test('server questions in many forms: boosts, channels, staff and warnings from the server itself', async () => {
+  const { guild, chat, member } = setup('Pytania o serwer');
+  const rules = mockChannel(guild, '📜・regulamin');
+  const tickets = mockChannel(guild, '🎫・tickety');
+  const memes = mockChannel(guild, '😂・memy');
+  const art = mockChannel(guild, '🎨・fan-arty');
+  const hub = mockChannel(guild, '➕ Stwórz kanał');
+  hub.type = ChannelType.GuildVoice;
+  const mod = mockMember(guild, mockUser('mod-pytania'), { permissions: [PermissionFlagsBits.ModerateMembers] });
+  const booster = mockMember(guild, mockUser('booster-pytania'));
+  booster.premiumSince = new Date();
+  guild.premiumSubscriptionCount = 7;
+  guild.premiumTier = 2;
+  const answer = async (text) => (await say(message(guild, chat, member, `klubiś ${text}`)))?.content ?? '';
+  const cases = [
+    ['co jest za boost', /^Za boost dostajesz: .*\+25% XP.*`\/booster info`/],
+    ['jakie sa nagrody za boost', /^Za boost dostajesz/],
+    ['oplaca sie boostowac', /^Za boost dostajesz/],
+    ['jak zboostowac serwer', /„Boost serwera”/],
+    ['ile kosztuje boost', /Nitro ma w cenie 2 boosty/],
+    ['ile boostow ma serwer', /^Serwer ma 7 boostów i poziom 2/],
+    ['kto boostuje serwer', new RegExp(`^Boostują: <@${booster.id}>`)],
+    ['dalem boosta', /^Dzięki za boosta/],
+    ['gdzie jest regulamin', new RegExp(`^Regulamin: <#${rules.id}>`)],
+    ['gdzie wrzucic fan art', new RegExp(`<#${art.id}>`)],
+    ['gdzie sa memy', new RegExp(`<#${memes.id}>`)],
+    ['na jakim kanale moge pisac', new RegExp(`<#${chat.id}>`)],
+    ['jak zrobic swoj kanal glosowy', new RegExp(`<#${hub.id}>`)],
+    ['ktos mnie obraza', new RegExp(`ticket na <#${tickets.id}>`)],
+    ['jak napisac do moda', new RegExp(`ticket na <#${tickets.id}>`)],
+    ['kto jest modem', new RegExp(`<@${mod.id}>`)],
+    ['ile warnow do bana', /3 = wyciszenie na 10 min, 10 = kick, 12 = ban na 7 dni/],
+    ['kiedy znikaja warny', /po 14 dniach/],
+    ['czy mozna wysylac linki', /^Lepiej nie/],
+    ['jak dziala bank', /`\/bank wplac`/],
+    ['jak zarobic kase', /`\/work`/],
+    ['skad brac karty', /`\/paczka`/],
+    ['jak szybko wbic poziom', /^XP leci/],
+    ['kiedy giveaway', /żadnego konkursu/],
+    ['kiedy nowy odcinek', /Daty nowego filmu nie znam/],
+    ['co umiesz', /`\/komendy`/],
+    ['jestem nowy', new RegExp(`regulaminu na <#${rules.id}>`)],
+    ['czy pikczu ma dziewczyne', /^Za Pikczu nie zgaduję/],
+  ];
+  for (const [text, expected] of cases) assert.match(await answer(text), expected, text);
+  // Not about the server: these keep their own answers.
+  for (const text of ['gdzie jest moj telefon', 'lubie boostowac w grach', 'jestem nowy w minecrafcie', 'ten film jest slaby', 'jak zrobic kanapke']) {
+    assert.doesNotMatch(await answer(text), /Za boost dostajesz|<#|Witaj!/, text);
+  }
+  // A channel the member cannot see is never named.
+  const hidden = mockChannel(guild, '🔒・memy-ekipy');
+  hidden.permissionsFor = () => ({ has: () => false });
+  assert.doesNotMatch(await answer('gdzie sa memy'), new RegExp(hidden.id));
+});
+
+test('a topic answers with the line that fits the question', async () => {
+  const { guild, chat, member } = setup('Pasujaca linijka');
+  for (let round = 0; round < 5; round += 1) {
+    const reply = (await say(message(guild, chat, member, 'klubiś czy gielda sie oplaca?'), { random: () => 0.5 })).content;
+    assert.match(reply, /gielda|Giełda/i, reply);
   }
 });
