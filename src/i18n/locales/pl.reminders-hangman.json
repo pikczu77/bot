@@ -47,7 +47,7 @@
   "Start hangman on this channel: whoever finishes the password wins money": "Wisielec na tym kanale: kto dokończy hasło, wygrywa kasę",
   "🪢 /wisielec": "🪢 /wisielec",
   "everyone on the channel plays\nwhoever **finishes the password** wins\nup to **{0}**, {1} lives": "grają wszyscy na kanale\nwygrywa ten, kto **dokończy hasło**\ndo **{0}**, żyć: {1}",
-  "/napad, /wordle, /wisielec, duels, lottery, quiz, events": "/napad, /wordle, /wisielec, pojedynki, loteria, quiz, eventy",
+  "/napad, /wordle, /wisielec, duels, quiz, events": "/napad, /wordle, /wisielec, pojedynki, quiz, eventy",
   "🪢 The game has started. Pick the first letter!": "🪢 Gra ruszyła. Wybierz pierwszą literę!",
   "This game is over. Start a new one with `/wisielec`.": "Ta gra już się skończyła. Nową zaczniesz przez `/wisielec`.",
   "You already tried the password in this game. You can still pick letters.": "Już próbujesz hasła w tej grze i się nie udało. Litery dalej możesz wybierać.",

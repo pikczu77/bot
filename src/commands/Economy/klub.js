@@ -3,20 +3,18 @@ import { createEmbed } from '../../utils/embeds.js';
 import { withErrorHandling } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { userError } from '../../utils/featureKit.js';
-import { MAX_MONEY, getEconomySettings, money } from '../../services/economySettings.js';
+import { MAX_MONEY, money } from '../../services/economySettings.js';
 import {
-    CLUB_UPGRADES, WEEKLY_PRIZE_SHARES, clubChoices, clubLabel, clubOf, clubRanking, depositToClub, findClub, foundClub,
-    getClubs, inviteToClub, kickMember, leaveClub, levelOf, memberLimit, transferClub, upgradeClub, weekPoints, withdrawFromClub,
+    CLUB_UPGRADES, clubChoices, clubLabel, clubOf, depositToClub, findClub, foundClub,
+    getClubs, inviteToClub, kickMember, leaveClub, levelOf, memberLimit, transferClub, upgradeClub, withdrawFromClub,
 } from '../../services/clubs.js';
 import { progressEmbeds } from '../../services/progress.js';
-import { nextWeekStart } from '../../utils/warsawTime.js';
 import { t } from '../../i18n/index.js';
 
-// /klub — clubs: a shared treasury, upgrades and a weekly ranking (2026-10-27). Rules: services/clubs.js.
+// /klub — clubs: a shared treasury and upgrades (2026-10-27; the weekly ranking went on 2026-11-02). Rules: services/clubs.js.
 // Invite buttons: interactions/buttons/economy/club.js (klub:tak|nie:<clubId>:<userId>).
 
 const COLOR = '#0A84FF';
-const MEDALS = ['🥇', '🥈', '🥉'];
 
 function upgradeLines(guildId, club) {
     return CLUB_UPGRADES.map((upgrade) => {
@@ -28,17 +26,13 @@ function upgradeLines(guildId, club) {
 }
 
 async function clubEmbed(client, guildId, club, notice = '') {
-    const points = await weekPoints(client, guildId, club);
-    const ranking = await clubRanking(client, guildId);
-    const place = ranking.findIndex((row) => row.club.id === club.id) + 1;
-    const members = points.members.map((member) => `${member.id === club.ownerId ? '👑' : '•'} <@${member.id}> · ${money(guildId, member.points)}`);
+    const members = club.members.map((member) => `${member.id === club.ownerId ? '👑' : '•'} <@${member.id}>`);
     return createEmbed({
         title: clubLabel(club),
         description: [
             notice,
             t`**Owner:** <@${club.ownerId}>`,
             t`**Treasury:** ${money(guildId, club.treasury || 0)}`,
-            t`**This week:** ${money(guildId, points.total)} earned · place **${place}** of ${ranking.length}`,
         ].filter(Boolean).join('\n'),
         color: COLOR,
         fields: [
@@ -49,32 +43,10 @@ async function clubEmbed(client, guildId, club, notice = '') {
     });
 }
 
-async function rankingEmbed(client, guildId) {
-    const ranking = await clubRanking(client, guildId);
-    const data = await getClubs(guildId);
-    const settings = await getEconomySettings(guildId);
-    const prizes = WEEKLY_PRIZE_SHARES.map((share) => money(guildId, Math.round(settings.commands.clubs.weeklyPrize * share)));
-    const last = data.lastWeek?.ranking?.filter((row) => row.prize > 0) ?? [];
-    return createEmbed({
-        title: t('🏆 Club ranking of the week'),
-        description: [
-            ranking.length
-                ? ranking.slice(0, 10).map((row, index) => `${MEDALS[index] ?? `**${index + 1}.**`} ${clubLabel(row.club)} · ${money(guildId, row.total)} · ${row.club.members.length} 👤`).join('\n')
-                : t('No clubs yet. Found the first one with `/klub zaloz`.'),
-            '',
-            t`Points = money members earn from jobs this week. The week ends <t:${Math.floor(nextWeekStart() / 1000)}:R>.`,
-            t`Prizes for the treasury: 🥇 ${prizes[0]} · 🥈 ${prizes[1]} · 🥉 ${prizes[2]} (times the server multiplier).`,
-            last.length ? t`\nLast week: ${last.map((row, index) => `${MEDALS[index]} ${row.emoji} ${row.name}`).join(' · ')}` : null,
-        ].filter((line) => line !== null).join('\n'),
-        color: '#F1C40F',
-        footer: false,
-    });
-}
-
 export default {
     data: new SlashCommandBuilder()
         .setName('klub')
-        .setDescription('Clubs: a shared treasury, upgrades and a weekly ranking')
+        .setDescription('Clubs: a shared treasury and upgrades')
         .addSubcommand((sub) => sub
             .setName('zaloz')
             .setDescription('Found a club')
@@ -102,9 +74,6 @@ export default {
             .setDescription('Buy a club upgrade from the treasury (owner)')
             .addStringOption((option) => option.setName('co').setDescription('Upgrade').setRequired(true)
                 .addChoices(...CLUB_UPGRADES.map((upgrade) => ({ name: `${upgrade.emoji} ${upgrade.name}`, value: upgrade.id })))))
-        .addSubcommand((sub) => sub
-            .setName('ranking')
-            .setDescription('Clubs of the week and the prizes'))
         .addSubcommand((sub) => sub
             .setName('wyrzuc')
             .setDescription('Remove a member (owner)')
@@ -142,7 +111,7 @@ export default {
             const query = interaction.options.getString('nazwa');
             const club = query ? findClub(data, query) : clubOf(data, userId);
             if (!club) {
-                throw userError(query ? t('There is no such club. See `/klub ranking`.') : t('You are not in a club. Found one with `/klub zaloz` or ask for an invite.'));
+                throw userError(query ? t('There is no such club. Check the name in `/klub info`.') : t('You are not in a club. Found one with `/klub zaloz` or ask for an invite.'));
             }
             return reply({ embeds: [await clubEmbed(client, guildId, club)] });
         }
@@ -194,6 +163,6 @@ export default {
                 : t`You left ${clubLabel(club)}.` + (newOwnerId ? t` <@${newOwnerId}> is the new owner.` : '');
             return reply({ embeds: [createEmbed({ title: t('🚪 Club'), description: text, color: COLOR, footer: false })] });
         }
-        return reply({ embeds: [await rankingEmbed(client, guildId)] });
+        return undefined;
     }, { command: 'klub' })
 };

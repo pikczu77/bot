@@ -318,10 +318,12 @@ test('/osiagniecia: holiday badges in their own section, only while they can be 
   assert.ok(visibleBadges({}, 'event', Date.UTC(2026, 11, 19)).some((badge) => badge.id === 'swieta_2026'));
   assert.deepEqual(visibleBadges({}, 'event', later).map((badge) => badge.id), ['event_podium'], 'nobody can earn the old ones');
   assert.ok(visibleBadges({}, 'main', before).every((badge) => !isEventBadge(badge)));
-  assert.equal(badgeCount({}, later).total, ACHIEVEMENTS.length - 8);
+  // 8 holiday badges nobody can earn any more, 2 retired with the lottery and the club week (2026-11-02).
+  assert.equal(badgeCount({}, later).total, ACHIEVEMENTS.length - 10);
   const earned = { achievements: { halloween_2026: Date.UTC(2026, 10, 1) } };
   assert.deepEqual(visibleBadges(earned, 'event', later).map((badge) => badge.id), ['halloween_2026', 'event_podium']);
-  assert.deepEqual(badgeCount(earned, later), { got: 1, total: ACHIEVEMENTS.length - 7 });
+  assert.deepEqual(badgeCount(earned, later), { got: 1, total: ACHIEVEMENTS.length - 9 });
+  assert.deepEqual(badgeCount({ achievements: { lottery_win: 1 } }, later), { got: 1, total: ACHIEVEMENTS.length - 9 }, 'a retired badge stays for who has it');
 
   const eventText = replyText({ replies: [view(earned, { tab: 'event', now: later })] });
   assert.match(eventText, /Event badges of Zbieracz · 1\/2/);

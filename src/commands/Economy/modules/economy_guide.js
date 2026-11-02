@@ -44,7 +44,7 @@ import { MERGE_COUNT } from '../../../services/cardMerge.js';
 const store = guildStore('economy-guide', { channelId: null, messageIds: [], version: 1 });
 
 // Bump when the channel message changes (text or menu topics): the bot then edits the posted guides at startup.
-export const GUIDE_VERSION = 9;
+export const GUIDE_VERSION = 10;
 
 export const GUIDE_MENU_ID = 'poradnik';
 const GUIDE_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -253,7 +253,6 @@ function games({ guildId, settings }) {
       field(t('🧠 Quiz'), t('a question in the quiz channel\nthe **first right answer** wins\none try per person')),
       field(t('🤝 /wymiana @someone'), t("swap Club'o'mony cards\nand money with another member")),
       field(t('⚔️ /pojedynek @someone'), t('rock, paper, scissors for money\nthe loser pays the stake\na tie = another round')),
-      field(t('🎟️ /loteria'), t('buy tickets all week\ndraw on **Sunday at 20:00**\none ticket takes the whole pot')),
       field(t('⏱️ Events'), t`${EVENT_TYPES.map((type) => type.emoji).join(' ')} for a limited time\ne.g. double pay or half-price packs\nannounced on the events channel`),
     ],
   };
@@ -274,7 +273,6 @@ function investments({ guildId, settings }) {
       field(t('📰 News'), t('sometimes a headline moves\none company by 8-25%\n`/gielda ceny` shows the news')),
       field(t('🛡️ /klub'), t`found one for **${money(guildId, clubs.foundPrice)}**\n${BASE_MEMBERS} to ${maxMembers} members\nshared treasury: \`/klub wplac\``),
       field(t('⬆️ Club upgrades'), t`💰 up to **+${maxBonus}%** job pay\n🦹 up to **+${maxCrew}%** heist chance\n🏠 more members\npaid from the treasury`),
-      field(t('🏆 Club ranking'), t`points = job money of the week\n🥇 **${money(guildId, clubs.weeklyPrize)}** to the treasury\nevery Monday`),
       field(t('🏘️ /nieruchomosci'), t`${cheapest.emoji} from **${money(guildId, cheapest.price)}** to ${castle.emoji} **${money(guildId, castle.price)}**\nrent **every hour**, also offline\ncollect at least every **${property.maxHours} h**\n${MAX_PROPERTY_LEVEL} upgrades, +${LEVEL_INCOME_PERCENT}% each`),
       field(t('🤝 /wymiana without a person'), t('an offer for everyone\nthe first to accept gets it\nsell a card for money')),
     ],
@@ -322,7 +320,7 @@ function commands() {
       field(t('🎴 Collection'), '`/paczka` `/index`\n`/wymiana`'),
       field(t('📈 Investing'), '`/gielda` `/klub`\n`/nieruchomosci`'),
       field(t('⭐ Progress'), '`/prestiz` `/boosty`\n`/polacz` `/event`\n`/booster`'),
-      field(t('🎮 Games'), '`/napad` `/wordle` `/wisielec`\n`/pojedynek` `/loteria`\n`/misje` `/osiagniecia`'),
+      field(t('🎮 Games'), '`/napad` `/wordle` `/wisielec`\n`/pojedynek`\n`/misje` `/osiagniecia`'),
       field(t('⏰ Reminders'), '`/przypomnienia`'),
       field(t('🎰 Casino'), '`/gamble` `/ruletka`\n`/slots` `/blackjack`'),
       field(t('🛒 Shop'), '`/sklep` `/ekwipunek`\n`/ulepszenia`'),
@@ -342,7 +340,7 @@ export const GUIDE_TOPICS = Object.freeze([
   { id: 'sklep', emoji: '🛒', name: t('Shop and items'), hint: t('Tools and one-use items'), color: '#64D2FF', build: shop },
   { id: 'wiezienie', emoji: '🚔', name: t('Jail and breaks'), hint: t('Jail, Stamina, skipping a break'), color: '#FF453A', build: jail },
   { id: 'kolekcja', emoji: '🎴', name: t("Club'o'mony and /index"), hint: t('Card packs, fish, golden and diamond'), color: '#F1C40F', build: collection },
-  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, /wisielec, duels, lottery, quiz, events'), color: '#30D158', build: games },
+  { id: 'gry', emoji: '🎮', name: t('Games and heists'), hint: t('/napad, /wordle, /wisielec, duels, quiz, events'), color: '#30D158', build: games },
   { id: 'inwestycje', emoji: '📈', name: t('Stocks, clubs, buildings'), hint: t('/gielda, /klub, /nieruchomosci'), color: '#0A84FF', build: investments },
   { id: 'prestiz', emoji: '⭐', name: t('Prestige, boosts, merging'), hint: t('/prestiz, /boosty, /polacz'), color: '#FFD60A', build: prestigeTopic },
   { id: 'misje', emoji: '🎯', name: t('Missions and badges'), hint: t('/misje and /osiagniecia'), color: '#F1C40F', build: missions },
@@ -379,7 +377,7 @@ export function buildGuideMessage(guild = null) {
       field(t('🚀 Start'), '`/daily` · `/work`'),
       field(t('💵 Balance'), '`/hajs`'),
       field(t('🛒 Shopping'), '`/sklep` · `/ulepszenia`'),
-      field(t('🎮 Games'), '`/napad` · `/wordle` · `/wisielec` · `/pojedynek` · `/loteria`'),
+      field(t('🎮 Games'), '`/napad` · `/wordle` · `/wisielec` · `/pojedynek`'),
       field(t('📈 Investing'), '`/gielda` · `/klub` · `/nieruchomosci`'),
       field(t('⭐ Progress'), '`/prestiz` · `/boosty` · `/polacz` · `/event` · `/booster`'),
     ],

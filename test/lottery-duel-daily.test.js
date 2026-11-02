@@ -1,4 +1,4 @@
-// Weekly lottery, /pojedynek and the /daily streak chest (2026-10-26).
+// /pojedynek and the /daily streak chest (2026-10-26). The weekly lottery went on 2026-11-02: only the refund of its last tickets is left.
 import './helpers/env.js';
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,8 @@ import { initializeDatabase } from '../src/utils/database.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import { getEconomyData, setEconomyData } from '../src/utils/economy.js';
 import { updateEconomySettings } from '../src/services/economySettings.js';
-import { drawLottery, getLottery, nextDrawTime, pickWinner, updateLottery } from '../src/services/lottery.js';
+import { refundLotteryOnce } from '../src/services/lotteryRefund.js';
+import { getFromDb, setInDb } from '../src/utils/database/wrapper.js';
 import { daysToChest, nextStreak, openStreakChest } from '../src/services/dailyStreak.js';
 import { winnerOf } from '../src/commands/Economy/modules/duel.js';
 import duelButtons from '../src/interactions/buttons/economy/duel.js';
@@ -41,44 +42,15 @@ async function run(commandName, member, options = {}, subcommand = null) {
 }
 const says = (pattern) => (error) => pattern.test(error.userMessage ?? error.message);
 
-test('lottery draw: Sunday 20:00 Polish time, winter and summer', () => {
-  assert.equal(new Date(nextDrawTime(Date.UTC(2026, 9, 26, 10))).toISOString(), '2026-11-01T19:00:00.000Z');
-  assert.equal(new Date(nextDrawTime(Date.UTC(2026, 10, 1, 19, 1))).toISOString(), '2026-11-08T19:00:00.000Z');
-  assert.equal(new Date(nextDrawTime(Date.UTC(2026, 6, 5, 17))).toISOString(), '2026-07-05T18:00:00.000Z');
-  assert.equal(pickWinner({ a: 1, b: 3 }, () => 0), 'a');
-  assert.equal(pickWinner({ a: 1, b: 3 }, () => 0.5), 'b');
-});
-
-test('/loteria: buy tickets, a limit per week, the draw pays the whole pot and starts a new round', async () => {
-  await updateLottery(guild.id, (lottery) => Object.assign(lottery, { ticketPrice: 100, maxTickets: 5, bonus: 1000, channelId: channel.id, round: null }));
-  const ola = newMember('Ola');
-  const kuba = newMember('Kuba');
-  await save(ola, { wallet: 1000, bank: 0 });
-  await save(kuba, { wallet: 50, bank: 500 });
-  const reply = await run('loteria', ola, { ilosc: 3 }, 'kup');
-  assert.match(replyText({ replies: [reply] }), /You bought \*\*3\*\* tickets/);
-  assert.match(replyText({ replies: [reply] }), /Pot:\*\* \$1,300/);
-  assert.equal((await data(ola)).wallet, 700);
-  await run('loteria', ola, { ilosc: 10 }, 'kup');
-  assert.equal((await getLottery(guild.id)).round.tickets[ola.id], 5, 'only up to the weekly limit');
-  await assert.rejects(run('loteria', ola, { ilosc: 1 }, 'kup'), says(/most tickets/));
-  await run('loteria', kuba, { ilosc: 1 }, 'kup');
-  assert.equal((await data(kuba)).bank, 450, 'cash first, then the bank');
-  assert.match(replyText({ replies: [await run('loteria', kuba, {}, 'info')] }), /Your tickets:\*\* 1\/5 · chance \*\*17%\*\*/);
-
-  const drawAt = (await getLottery(guild.id)).round.drawAt;
-  assert.equal(await drawLottery(client, guild, drawAt - 1000), null, 'not before Sunday 20:00');
-  const before = channel.sent.length;
-  const result = await runWithLocale('en', () => drawLottery(client, guild, drawAt + 1000, () => 0.9));
-  assert.equal(result.winnerId, kuba.id, 'the last ticket');
-  assert.equal(result.pot, 1600);
-  assert.equal((await data(kuba)).wallet, 1600);
-  assert.equal(channel.sent.length, before + 1);
-  assert.match(channel.sent.at(-1).embeds[0].toJSON().description, /wins \*\*\$1,600\*\*/);
-  const next = await getLottery(guild.id);
-  assert.deepEqual(next.round.tickets, {});
-  assert.ok(next.round.drawAt > drawAt);
-  assert.equal(next.last.winnerId, kuba.id);
+test('the removed lottery pays back the tickets of its last round once, then forgets it', async () => {
+  const buyer = mockMember(guild, mockUser('kupon'));
+  await setEconomyData(client, guild.id, buyer.id, { ...(await getEconomyData(client, guild.id, buyer.id)), wallet: 100 });
+  await setInDb(`guild:${guild.id}:lottery`, { ticketPrice: 250, round: { drawAt: 1, tickets: { [buyer.id]: 4 } } });
+  assert.equal(await refundLotteryOnce(client), 1);
+  assert.equal((await getEconomyData(client, guild.id, buyer.id)).wallet, 1100);
+  assert.equal(await getFromDb(`guild:${guild.id}:lottery`, null), null);
+  assert.equal(await refundLotteryOnce(client), 0, 'only once');
+  assert.equal((await getEconomyData(client, guild.id, buyer.id)).wallet, 1100);
 });
 
 test('duel rules: rock beats scissors, scissors paper, paper rock', () => {

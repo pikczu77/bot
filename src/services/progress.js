@@ -76,8 +76,6 @@ export const MISSIONS = {
     { id: 'viral', stat: 'videoViral', goal: [2, 3], reward: 5000, text: (goal) => t`Record ${goal} epic or legendary videos` },
     { id: 'trade', stat: 'trades', goal: [1, 2], reward: 4000, text: (goal) => t`Finish ${goal} trades with \`/wymiana\`` },
     { id: 'heistWin', stat: 'heistWin', goal: [2, 3], reward: 3000, text: (goal) => t`Pull off ${goal} successful \`/napad\` heists` },
-    // A ticket costs 500 by default, so the mission pays back a part of it, not more.
-    { id: 'lottery', stat: 'lotteryTickets', goal: [3, 5], reward: 300, text: (goal) => t`Buy ${goal} lottery tickets with \`/loteria kup\`` },
     { id: 'duelWin', stat: 'duelWin', goal: [3, 5], reward: 1200, text: (goal) => t`Win ${goal} duels with \`/pojedynek\`` },
     // Pays a small part of the deposit back, so it never makes money from nothing.
     { id: 'clubDeposit', stat: 'clubDeposit', goal: [5_000, 10_000], reward: 0.2, text: (goal, guildId) => t`Put ${money(guildId, goal)} into your club treasury (\`/klub wplac\`)` },
@@ -203,7 +201,8 @@ export const ACHIEVEMENTS = [
   { id: 'whale', emoji: '🐳', name: t('Whale'), description: t('Win 100,000 or more in one casino game.'), reward: 10000, progress: counter('casinoBiggestWin', 100_000) },
   { id: 'jackpot', emoji: '💎', name: t('Jackpot'), description: t('Hit the slots jackpot.'), reward: 5000, progress: counter('jackpot', 1) },
   { id: 'lucky_number', emoji: '🎯', name: t('Lucky number'), description: t('Win a roulette bet on one number.'), reward: 5000, progress: counter('rouletteNumber', 1) },
-  { id: 'lottery_win', emoji: '🎟️', name: t('Lucky ticket'), description: t('Win the weekly lottery.'), reward: 2000, progress: counter('lotteryWin', 1) },
+  // `retired`: the thing it counts is gone (the lottery and the club week, 2026-11-02); shown only to who has it.
+  { id: 'lottery_win', retired: true, emoji: '🎟️', name: t('Lucky ticket'), description: t('Win the weekly lottery.'), reward: 2000, progress: counter('lotteryWin', 1) },
   { id: 'criminal', emoji: '🦹', name: t('Career criminal'), description: t('Pull off 25 successful crimes.'), reward: 5000, progress: counter('crimeWin', 25) },
   { id: 'jailbird', emoji: '🚔', name: t('Jailbird'), description: t('Go to jail 5 times.'), reward: 1000, progress: counter('jail', 5) },
   { id: 'bail_10', emoji: '🔓', name: t('Regular client'), description: t('Pay bail 10 times.'), reward: 3000, progress: counter('bail', 10) },
@@ -233,7 +232,7 @@ export const ACHIEVEMENTS = [
   { id: 'missionary', emoji: '🧭', name: t('On a mission'), description: t('Finish 50 missions.'), reward: 10000, progress: counter('missions', 50) },
   { id: 'married', emoji: '💍', name: t('For better or worse'), description: t('Get married with `/slub`.'), reward: 2000, progress: (u) => [u?._joint?.partnerId || stat(u, 'married') ? 1 : 0, 1] },
   { id: 'club_member', emoji: '🛡️', name: t('Club member'), description: t('Join or found a club with `/klub`.'), reward: 1000, progress: (u) => [u?.club?.id || stat(u, 'clubJoin') ? 1 : 0, 1] },
-  { id: 'league_champ', emoji: '🥇', name: t('League champion'), description: t('Be in the club that wins the week.'), reward: 10000, progress: counter('clubWeekWin', 1) },
+  { id: 'league_champ', retired: true, emoji: '🥇', name: t('League champion'), description: t('Be in the club that wins the week.'), reward: 10000, progress: counter('clubWeekWin', 1) },
   { id: 'broker', emoji: '🧾', name: t('Broker'), description: t('Make 100 trades on `/gielda`.'), reward: 5000, progress: counter('stockTrades', 100) },
   { id: 'stock_shark', emoji: '📈', name: t('Market shark'), description: t('Make 50,000 profit on the stock market.'), reward: 10000, progress: counter('stockProfit', 50_000) },
   { id: 'rentier', emoji: '🏦', name: t('Rentier'), description: t('Collect 250,000 of rent.'), reward: 10000, progress: counter('propertyIncome', 250_000) },
@@ -274,7 +273,7 @@ export const isEventBadge = (achievement) => achievement.section === 'event';
 /** False for a holiday badge the member did not earn, when its time has not come or is over. */
 export function badgeVisible(achievement, userData, now = Date.now()) {
   if (isUnlocked(userData, achievement.id)) return true;
-  if (achievement.manual) return false;
+  if (achievement.manual || achievement.retired) return false;
   return now >= (achievement.startsAt ?? 0) && now < (achievement.endsAt ?? Infinity);
 }
 

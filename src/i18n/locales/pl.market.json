@@ -16,7 +16,7 @@
   "💎 Diamentowa Kopalnia (DIAM)": "💎 Diamentowa Kopalnia (DIAM)",
   "⚡ Ender Energia (ENDR)": "⚡ Ender Energia (ENDR)",
 
-  "Clubs: a shared treasury, upgrades and a weekly ranking": "Kluby: wspólny skarbiec, ulepszenia i ranking tygodnia",
+  "Clubs: a shared treasury and upgrades": "Kluby: wspólny skarbiec i ulepszenia",
   "Found a club": "Załóż klub",
   "Club name": "Nazwa klubu",
   "One emoji for the club": "Jedno emoji klubu",
@@ -94,7 +94,7 @@
   "Prizes for the treasury: 🥇 {0} · 🥈 {1} · 🥉 {2} (times the server multiplier).": "Nagrody do skarbca: 🥇 {0} · 🥈 {1} · 🥉 {2} (razy mnożnik serwera).",
   "\nLast week: {0}": "\nZeszły tydzień: {0}",
   "✅ You founded {0} for {1}. Invite friends with `/klub zapros`.": "✅ Założono klub {0} za {1}. Zaproś znajomych przez `/klub zapros`.",
-  "There is no such club. See `/klub ranking`.": "Nie ma takiego klubu. Zobacz `/klub ranking`.",
+  "There is no such club. Check the name in `/klub info`.": "Nie ma takiego klubu. Sprawdź nazwę w `/klub info`.",
   "You are not in a club. Found one with `/klub zaloz` or ask for an invite.": "Nie jesteś w klubie. Załóż własny przez `/klub zaloz` albo poproś o zaproszenie.",
   "📨 Invite to {0}": "📨 Zaproszenie do {0}",
   "**{0}** invites **{1}** to the club. Valid until <t:{2}:f>.\n-# Members get the club's bonuses and earn points for the weekly ranking.": "**{0}** zaprasza **{1}** do klubu. Ważne do <t:{2}:f>.\n-# Członkowie dostają premie klubu i zbierają punkty do rankingu tygodnia.",

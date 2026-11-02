@@ -57,7 +57,7 @@ export const ECONOMY_DEFAULTS = Object.freeze({
     // /gielda (services/stockMarket.js): fee on every buy and sell, most shares of one company per member.
     stocks: { feePercent: 1, maxShares: 10_000 },
     // /klub (services/clubs.js): price of a new club, prize of the club of the week (2nd 40%, 3rd 20%).
-    clubs: { foundPrice: 25_000, weeklyPrize: 25_000 },
+    clubs: { foundPrice: 25_000 },
     // /nieruchomosci (services/properties.js): rent scale, hours of rent a building holds, share returned on a sale.
     property: { incomePercent: 100, maxHours: 48, sellPercent: 60 },
     // /boosty (services/boosts.js): price of one hour of x2 money / x2 XP.
@@ -103,7 +103,7 @@ export const COMMAND_LIMITS = Object.freeze({
   hangman: { reward: [0, MAX_MONEY], cooldownMinutes: [0, MAX_COOLDOWN] },
   heist: { cooldownMinutes: [0, MAX_COOLDOWN], payoutPercent: [1, 10_000] },
   stocks: { feePercent: [0, 20], maxShares: [1, 1_000_000] },
-  clubs: { foundPrice: [0, MAX_MONEY], weeklyPrize: [0, MAX_MONEY] },
+  clubs: { foundPrice: [0, MAX_MONEY] },
   property: { incomePercent: [0, 1000], maxHours: [1, 168], sellPercent: [0, 100] },
   boosts: { moneyHourPrice: [0, MAX_MONEY], xpHourPrice: [0, MAX_MONEY] },
 });
@@ -132,6 +132,8 @@ function normalize(stored) {
   for (const name of Object.keys(settings.commands)) {
     if (isPlainObject(stored.commands?.[name])) Object.assign(settings.commands[name], stored.commands[name]);
   }
+  // The weekly club prize went on 2026-11-02; a stored one is dropped.
+  delete settings.commands.clubs.weeklyPrize;
   // 15% was the old default cash share of /rob; since 2026-10-14 it is 80% (with the bank also at risk).
   if (stored.commands?.rob?.stealPercent === 15) settings.commands.rob.stealPercent = 80;
   if (isPlainObject(stored.shop)) {

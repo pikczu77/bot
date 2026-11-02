@@ -12,14 +12,13 @@ import { awardVoiceXp } from './leveling/voiceXp.js';
 import { applyNightChannels } from './nightChannel.js';
 import { runEconomyEvents } from './economyEvents.js';
 import { runQuiz } from './quiz.js';
-import { runLottery } from './lottery.js';
+import { refundLotteryOnce } from './lotteryRefund.js';
 import { runChatEngagement } from './chatEngagement.js';
 import { syncChatBridges } from './minecraftChat.js';
 import { resetAllWarningsOnce } from './moderation/warningPunishments.js';
 import { runBackups } from './minecraftServer.js';
 import { pollMinecraftLive } from './minecraftLive.js';
 import { runStockMarket } from './stockMarket.js';
-import { runClubs } from './clubs.js';
 import { runSeasonalEvents } from './seasonalEvents.js';
 import { runDataBackups } from './dataBackup.js';
 import { runReminders } from './reminders.js';
@@ -34,13 +33,11 @@ const JOBS = [
   { name: 'voice_xp', schedule: '* * * * *', run: awardVoiceXp },
   { name: 'economy_events', schedule: '* * * * *', run: runEconomyEvents },
   { name: 'quiz', schedule: '* * * * *', run: runQuiz },
-  { name: 'lottery', schedule: '* * * * *', run: runLottery },
   { name: 'chat_engagement', schedule: '* * * * *', run: runChatEngagement },
   { name: 'minecraft_chat', schedule: '* * * * *', run: syncChatBridges },
   { name: 'minecraft_backup', schedule: '* * * * *', run: runBackups },
   { name: 'minecraft_live', schedule: '* * * * *', run: pollMinecraftLive },
   { name: 'stock_market', schedule: '* * * * *', run: runStockMarket },
-  { name: 'clubs_week', schedule: '* * * * *', run: runClubs },
   { name: 'seasonal_events', schedule: '* * * * *', run: runSeasonalEvents },
   { name: 'data_backup', schedule: '* * * * *', run: runDataBackups },
   { name: 'reminders', schedule: '* * * * *', run: runReminders },
@@ -71,4 +68,5 @@ export async function initFeatures(client) {
   await cacheAllInvites(client).catch((error) => logger.warn(`Invite cache failed: ${error.message}`));
   // Owner's one-time request (2026-10-26): every warning on every server back to zero.
   await resetAllWarningsOnce(client).catch((error) => logger.warn(`Warnings reset failed: ${error.message}`));
+  await refundLotteryOnce(client).catch((error) => logger.warn(`Lottery refund failed: ${error.message}`));
 }

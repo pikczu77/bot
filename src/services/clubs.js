@@ -1,26 +1,19 @@
-// clubs.js — /klub: members found clubs, invite friends, fill a shared treasury and race in a weekly
-// ranking (2026-10-27, owner picked idea 9 and called them "kluby").
+// clubs.js — /klub: members found clubs, invite friends and fill a shared treasury (2026-10-27, owner picked idea 9
+// and called them "kluby"). The weekly ranking with its prizes went on 2026-11-02 (owner: "top cluby tygodnia mozna wyjebac").
 //
-// Store guild:{id}:clubs = { clubs: { [clubId]: club }, nextId, week, lastWeek: { week, ranking } }
+// Store guild:{id}:clubs = { clubs: { [clubId]: club }, nextId } (older stores also hold `week` and `lastWeek`, unused)
 //   club = { id, name, emoji, ownerId, createdAt, treasury, upgrades: { size, bonus, crew },
-//            members: [{ id, joinedAt, baseline }], invites: { [userId]: expiresAt } }
-// Weekly points = job money (stat `earned`, services/progress.js) the members made since Monday or since they
-// joined: `baseline` is their `earned` at that moment. On Monday the three best clubs get a prize in their
-// treasury (posted on the events channel when one is set) and every baseline starts again.
+//            members: [{ id, joinedAt }], invites: { [userId]: expiresAt } }
 // Members carry `club = { id, bonus, crew }` in their economy data, so earningMultiplier() and /napad read the
 // perks without another lookup. It is written on join, leave, kick, upgrade and disband (syncMembers).
 // Store changes run under one lock per server ('#clubs'), member money under the member's lock, always in that order.
 
-import { createEmbed } from '../utils/embeds.js';
 import { guildStore } from '../utils/featureKit.js';
-import { logger } from '../utils/logger.js';
 import { getEconomyData, setEconomyData } from '../utils/economy.js';
-import { enterLocale, t } from '../i18n/index.js';
-import { weekKey } from '../utils/warsawTime.js';
-import { getGuildLocale } from './languageService.js';
-import { getEconomySettings, money, scaleEarnings } from './economySettings.js';
+import { t } from '../i18n/index.js';
+import { getEconomySettings, money } from './economySettings.js';
 import { spendMoney, withEconomyLock } from './economyUpgrades.js';
-import { recordProgress, stat } from './progress.js';
+import { recordProgress } from './progress.js';
 
 export const BASE_MEMBERS = 5;
 export const MEMBERS_PER_LEVEL = 3;
@@ -29,8 +22,6 @@ export const CREW_PER_LEVEL = 4;
 export const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 export const NAME_LIMITS = Object.freeze([3, 24]);
 export const DEFAULT_EMOJI = '🛡️';
-// Shares of commands.clubs.weeklyPrize for the 1st, 2nd and 3rd club of the week.
-export const WEEKLY_PRIZE_SHARES = Object.freeze([1, 0.4, 0.2]);
 
 // Paid from the club's treasury by the owner.
 export const CLUB_UPGRADES = Object.freeze([
@@ -43,7 +34,7 @@ export const CLUB_UPGRADES = Object.freeze([
 ]);
 export const getClubUpgrade = (id) => CLUB_UPGRADES.find((upgrade) => upgrade.id === id) ?? null;
 
-const store = guildStore('clubs', { clubs: {}, nextId: 1, week: null, lastWeek: null });
+const store = guildStore('clubs', { clubs: {}, nextId: 1 });
 export const getClubs = (guildId) => store.get(guildId);
 const withClubLock = (guildId, task) => withEconomyLock(guildId, '#clubs', task);
 
@@ -88,27 +79,6 @@ export function clubChoices(data, query = '') {
     .sort((a, b) => b.members.length - a.members.length)
     .slice(0, 25)
     .map((club) => ({ name: `${clubLabel(club)} (${club.members.length})`.slice(0, 100), value: club.id }));
-}
-
-const earnedOf = async (client, guildId, userId) => stat(await getEconomyData(client, guildId, userId, { joint: false }), 'earned');
-
-/** Points of the week: { total, members: [{ id, points }] } (best first). */
-export async function weekPoints(client, guildId, club) {
-  const members = [];
-  for (const member of club.members) {
-    const points = Math.max(0, (await earnedOf(client, guildId, member.id)) - (Number(member.baseline) || 0));
-    members.push({ id: member.id, points });
-  }
-  members.sort((a, b) => b.points - a.points);
-  return { total: members.reduce((sum, member) => sum + member.points, 0), members };
-}
-
-/** Every club with its points this week, best first. */
-export async function clubRanking(client, guildId) {
-  const data = await getClubs(guildId);
-  const rows = [];
-  for (const club of clubList(data)) rows.push({ club, ...(await weekPoints(client, guildId, club)) });
-  return rows.sort((a, b) => b.total - a.total || a.club.createdAt - b.club.createdAt);
 }
 
 // ---------------------------------------------------------------- member data
@@ -172,7 +142,7 @@ export function foundClub({ client, guildId, userId, name, emoji, userError, now
     const progress = await withEconomyLock(guildId, userId, async () => {
       const userData = await getEconomyData(client, guildId, userId);
       if (!spendMoney(userData, price)) throw userError(t`A club costs ${money(guildId, price)} - you do not have that much (cash and bank).`);
-      club.members.push({ id: userId, joinedAt: now, baseline: stat(userData, 'earned') });
+      club.members.push({ id: userId, joinedAt: now });
       userData.club = clubPerks(club);
       const result = recordProgress(userData, { clubJoin: 1 }, { settings, now });
       await setEconomyData(client, guildId, userId, userData);
@@ -180,7 +150,6 @@ export function foundClub({ client, guildId, userId, name, emoji, userError, now
     });
     data.clubs = { ...data.clubs, [id]: club };
     data.nextId = (data.nextId || 1) + 1;
-    data.week ??= weekKey(now);
     await store.set(guildId, data);
     return { club, price, progress };
   });
@@ -228,7 +197,7 @@ export function answerInvite({ client, guildId, clubId, userId, accept, userErro
       const userData = await getEconomyData(client, guildId, userId, { joint: false });
       userData.club = clubPerks(club);
       const result = recordProgress(userData, { clubJoin: 1 }, { settings, now });
-      club.members.push({ id: userId, joinedAt: now, baseline: stat(userData, 'earned') });
+      club.members.push({ id: userId, joinedAt: now });
       await setEconomyData(client, guildId, userId, userData);
       return result;
     });
@@ -357,75 +326,4 @@ export function upgradeClub({ client, guildId, ownerId, upgradeId, userError }) 
     if (upgrade.id !== 'size') await syncMembers(client, guildId, club.members.map((member) => member.id), club);
     return { club, upgrade, level: level + 1, price };
   });
-}
-
-// ---------------------------------------------------------------- weekly ranking
-
-/** On a new week: prizes for the best three clubs, new baselines. Returns the finished ranking or null. */
-export async function settleClubWeek(client, guild, now = Date.now()) {
-  const week = weekKey(now);
-  const result = await withClubLock(guild.id, async () => {
-    const data = await getClubs(guild.id);
-    if (!data.week || clubList(data).length === 0) {
-      if (data.week !== week) {
-        data.week = week;
-        await store.set(guild.id, data);
-      }
-      return null;
-    }
-    if (data.week === week) return null;
-
-    const settings = await getEconomySettings(guild.id);
-    const rows = [];
-    for (const club of clubList(data)) rows.push({ club, ...(await weekPoints(client, guild.id, club)) });
-    rows.sort((a, b) => b.total - a.total || a.club.createdAt - b.club.createdAt);
-    const ranking = rows.slice(0, 5).map((row, index) => {
-      const share = row.total > 0 ? WEEKLY_PRIZE_SHARES[index] ?? 0 : 0;
-      const prize = share > 0 ? scaleEarnings(settings, Math.round(settings.commands.clubs.weeklyPrize * share)) : 0;
-      if (prize > 0) row.club.treasury = (Number(row.club.treasury) || 0) + prize;
-      return { id: row.club.id, name: row.club.name, emoji: row.club.emoji, points: row.total, prize };
-    });
-    for (const club of clubList(data)) {
-      for (const member of club.members) member.baseline = await earnedOf(client, guild.id, member.id);
-    }
-    data.lastWeek = { week: data.week, ranking };
-    data.week = week;
-    await store.set(guild.id, data);
-    return { ranking, settings, champions: rows[0].total > 0 ? rows[0].club.members.map((member) => member.id) : [] };
-  });
-  if (!result) return null;
-
-  for (const userId of result.champions) {
-    await withEconomyLock(guild.id, userId, async () => {
-      const userData = await getEconomyData(client, guild.id, userId);
-      recordProgress(userData, { clubWeekWin: 1 }, { settings: result.settings, now });
-      await setEconomyData(client, guild.id, userId, userData);
-    });
-  }
-
-  const winners = result.ranking.filter((row) => row.prize > 0);
-  const channel = result.settings.events?.channelId ? guild.channels.cache.get(result.settings.events.channelId) : null;
-  if (winners.length && channel?.send) {
-    const medals = ['🥇', '🥈', '🥉'];
-    const embed = createEmbed({
-      title: t('🏆 Clubs of the week'),
-      description: winners.map((row, index) => t`${medals[index]} ${row.emoji || DEFAULT_EMOJI} **${row.name}**: ${money(guild.id, row.points)} earned · **+${money(guild.id, row.prize)}** to the treasury`).join('\n')
-        + t('\n\nA new week has started: `/klub ranking`.'),
-      color: '#F1C40F',
-      footer: false,
-    });
-    await channel.send({ embeds: [embed] }).catch((error) => logger.warn(`Club ranking not posted in guild ${guild.id}: ${error.message}`));
-  }
-  return result.ranking;
-}
-
-export async function runClubs(client) {
-  for (const guild of client.guilds.cache.values()) {
-    try {
-      enterLocale(await getGuildLocale(guild.id));
-      await settleClubWeek(client, guild);
-    } catch (error) {
-      logger.warn(`Club week failed in guild ${guild.id}: ${error.message}`);
-    }
-  }
 }

@@ -86,9 +86,12 @@ change you make, so the next session knows what was done and why.
   { feePercent, maxShares }. Events stockTrades, stockProfit. Shares are safe from /rob; no multiplier or Fortune on prices.
 - `/klub` (since 2026-10-27): `src/services/clubs.js` (store `guild:{id}:clubs`, lock key `#clubs` before member locks), invite buttons
   `klub:tak|nie:<clubId>:<userId>` (`interactions/buttons/economy/club.js`). Members carry `userData.club = { id, bonus, crew }`
-  (`syncMembers`): `clubBonusPercent` in `earningMultiplier` (not /daily), `clubCrewBonus` in /napad. Weekly points = stat `earned`
-  minus each member's `baseline`; job `clubs_week` pays the top 3 on Monday (`settleClubWeek`, posted on the events channel).
-  Settings `commands.clubs` { foundPrice, weeklyPrize }. Events clubJoin, clubDeposit.
+  (`syncMembers`): `clubBonusPercent` in `earningMultiplier` (not /daily), `clubCrewBonus` in /napad. Settings `commands.clubs` { foundPrice }.
+  Events clubJoin, clubDeposit. No weekly ranking since 2026-11-02 (owner): no `/klub ranking`, no prizes; stores may still hold `week`, `lastWeek`,
+  members' `baseline`, all unused.
+- Removed on 2026-11-02 (owner: "tygodniowe loterie i top cluby tygodnia mozna wyjebac"): `/loteria` and `services/lottery.js`. `services/lotteryRefund.js`
+  pays back the tickets of the last open round once at start (`initFeatures`) and deletes `guild:<id>:lottery`. Badges `lottery_win` and `league_champ`
+  are `retired`: shown only to who has them. The panel API ignores `lottery` and `commands.clubs.weeklyPrize` from an older panel page.
 - `/nieruchomosci` (since 2026-10-27): `src/services/properties.js` (`PROPERTIES`, rent by the full hour, at most
   `commands.property.maxHours` waits, 3 upgrades +30% each, sale returns `sellPercent` of everything spent). Member data
   `properties = { [id]: { level, collectedAt, spent } }`. Rent: server multiplier and `incomePercent`, no Fortune or events.
@@ -923,3 +926,9 @@ change you make, so the next session knows what was done and why.
 - **2026-11-01, late night, odmiana** (owner: "odmiany polskie go naucz", after "Serio ty mnie bije?" on the live server). Live after the owner restarts the bot; no panel change. Map: "Polish forms" under Klubiś. All persons of any verb, numbers with nouns, knowledge found in any case, Polish letters in what it says back. It does not decline names: Polish chat keeps them in the nominative ("Siema, Kacper"), and a mention cannot change anyway.
   - Same evening (owner, screenshot of "A czy ty możesz zapamiętać że kocham szeldis?" and "kogo kocham" not working): relationships and "zapamiętaj". See the map. My decision: love and likes are told to someone who asks about that member, name, age and city are not.
   - Same night (owner: "niech pamieta duzo o ludziach, dodaj mu wiecej umiejetnosci, wiekszy mozg, wiecej rozumienia"): the notebook and the real skills above. All my choices. Still no AI: the notebook finds words, it does not reason. "Mam psa" answers "czy mam psa" but not "czy mam zwierzę".
+- **2026-11-02 morning** (owner: "tygodniowe loterie i top cluby tygodnia mozna wyjebac"). Live after the owner restarts the bot; panel deployed. 84 commands.
+  - Gone: `/loteria` (command, service, job, daily mission "buy lottery tickets", the guide line, the Sunday line in the daily announcement, the panel card,
+    Klubiś's answers about it) and the club week (`/klub ranking`, `settleClubWeek`, job `clubs_week`, the prizes and `weeklyPrize`, the "this week" line in
+    `/klub info`, the guide field). Clubs themselves stay. Guide `GUIDE_VERSION` 10.
+  - My decisions: tickets bought this week go back to their buyers at the next start (`lotteryRefund.js`; the server's bonus was never paid in, so it
+    is not paid out); the two badges stay with who earned them; an open panel page with the old fields still saves.

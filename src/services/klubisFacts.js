@@ -11,7 +11,6 @@ import { VIDEOS } from '../config/klubisKnowledgeData.js';
 import { QUIZ_QUESTIONS } from '../config/quizQuestions.js';
 import { runningQuestion } from './quiz.js';
 import { openTriviaQuestion } from './chatEngagement.js';
-import { lotteryState } from './lottery.js';
 import { COMPANIES, getMarket } from './stockMarket.js';
 import { getEconomyPrefix } from '../utils/database.js';
 import { getLeaderboard } from './leveling/leveling.js';
@@ -314,11 +313,7 @@ export async function klubisFact(message, text, { now = Date.now(), random = Mat
     const top = await getLeaderboard(client, guild.id, TOP_SHOWN);
     return top?.length ? `Najwyższe poziomy: ${top.map((row) => `<@${row.userId}> (${row.level})`).join(', ')} ⭐` : 'Cały ranking pokaże `/top` ⭐';
   }
-  if (/\bloteri\w*\b/.test(text) && /\b(ile|kiedy|jaka|pula|wygrana|losowanie|moge|mam)\b/.test(text)) {
-    const state = await lotteryState(guild.id, author.id, now);
-    const when = dateOf(state.round.drawAt, { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-    return `Pula: ${money(guild.id, state.pot)}, losowanie: ${when}. Twoje losy: ${state.mine} 🎟️ Kup: \`/loteria kup\``;
-  }
+  if (/\bloteri\w*\b/.test(text)) return 'Loterii już nie ma, Pikczu ją wyłączył 🎟️';
   if (/\b(gield\w*|akcj\w*)\b/.test(text) && /\b(ile|jak|jakie|ceny|cena|stoi|stoja|co)\b/.test(text)) {
     const market = await getMarket(guild.id, now);
     return `Ceny na \`/gielda\`: ${COMPANIES.map((company) => `${company.emoji} ${company.name} ${money(guild.id, market.prices[company.id] ?? company.base)}`).join(', ')} 📈`;

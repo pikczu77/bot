@@ -105,7 +105,6 @@ import {
   saveServerCounters, updateCounter,
 } from '../services/serverstatsService.js';
 import { getModmailConfig, updateModmailConfig } from '../services/modmailService.js';
-import { getLottery, potOf, updateLottery } from '../services/lottery.js';
 import {
   SEASONAL_EVENTS, TEXT_LIMIT as SEASON_TEXT_LIMIT, eventOf, moveSeasonToYear, seasonYears, TITLE_LIMIT as SEASON_TITLE_LIMIT, defaultAnnouncement, getSeason, getSeasonEvent,
   repostAnnouncement, updateSeason,
@@ -453,22 +452,6 @@ function applyIdList(target, patch, field, known) {
 // Quiz settings live in their own store (src/services/quiz.js); the panel shows them in Ekonomia > Gry.
 const quizView = (quiz) => ({ channelId: quiz.channelId ?? null, auto: Boolean(quiz.auto), everyMinutes: quiz.everyMinutes, reward: quiz.reward });
 
-// Weekly lottery (services/lottery.js) for the economy view: settings and the running round.
-function lotteryView(lottery, settings) {
-  const tickets = Object.values(lottery.round?.tickets ?? {}).reduce((sum, count) => sum + count, 0);
-  return {
-    channelId: lottery.channelId ?? null,
-    ticketPrice: lottery.ticketPrice,
-    maxTickets: lottery.maxTickets,
-    bonus: lottery.bonus,
-    drawAt: lottery.round?.drawAt ?? null,
-    tickets,
-    players: Object.keys(lottery.round?.tickets ?? {}).length,
-    pot: potOf(lottery, settings),
-    last: lottery.last ?? null,
-  };
-}
-
 // The badge of the year on the New Year's Eve tab: when it opens and for how long. Null in a year that has no such badge.
 function yearClaimView(event, settings) {
   const badge = getAchievement(YEAR_BADGES[event.year]);
@@ -606,13 +589,12 @@ function seasonPatch(guild, base, body, field, currentYear) {
   return patch;
 }
 
-function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null, seasonal = null) {
+function economyView(settings, guild, premiumRoleId, quiz = null, seasonal = null) {
   const { shop, balanceVersion, ...rest } = settings;
   return {
     ...rest,
     ...(seasonal ? { seasonal } : {}),
     ...(quiz ? { quiz: quizView(quiz) } : {}),
-    ...(lottery ? { lottery: lotteryView(lottery, settings) } : {}),
     // Timed events (services/economyEvents.js): settings in `events`, the types to start one by hand.
     eventTypes: ECONOMY_EVENT_TYPES.map((type) => ({ id: type.id, emoji: type.emoji, name: tr(type.name), description: tr(type.description) })),
     shop: {
@@ -629,8 +611,7 @@ function economyView(settings, guild, premiumRoleId, quiz = null, lottery = null
       roles: shop.roles,
     },
     limits: { ...COMMAND_LIMITS, earningsPercent: EARNINGS_PERCENT_LIMITS, missionRewardPercent: [0, 1000], quizEveryMinutes: [10, 1440], quizReward: [0, 1_000_000],
-      eventEveryHours: [1, 168], eventMinutes: [MIN_EVENT_MINUTES, MAX_EVENT_MINUTES],
-      lotteryTicketPrice: [1, MAX_MONEY], lotteryMaxTickets: [1, 1000], lotteryBonus: [0, MAX_MONEY] },
+      eventEveryHours: [1, 168], eventMinutes: [MIN_EVENT_MINUTES, MAX_EVENT_MINUTES] },
   };
 }
 
@@ -659,15 +640,7 @@ async function applyEconomy(client, guild, body) {
     if ('everyHours' in events) eventsPatch.everyHours = integer(events.everyHours, 'events.everyHours', 1, 168);
     if ('durationMinutes' in events) eventsPatch.durationMinutes = integer(events.durationMinutes, 'events.durationMinutes', MIN_EVENT_MINUTES, MAX_EVENT_MINUTES);
   }
-  let lotteryPatch = null;
-  if ('lottery' in body) {
-    const lottery = plainObject(body.lottery, 'lottery');
-    lotteryPatch = {};
-    if ('channelId' in lottery) lotteryPatch.channelId = requireTextChannel(guild, lottery.channelId, 'lottery.channelId');
-    if ('ticketPrice' in lottery) lotteryPatch.ticketPrice = integer(lottery.ticketPrice, 'lottery.ticketPrice', 1, MAX_MONEY);
-    if ('maxTickets' in lottery) lotteryPatch.maxTickets = integer(lottery.maxTickets, 'lottery.maxTickets', 1, 1000);
-    if ('bonus' in lottery) lotteryPatch.bonus = integer(lottery.bonus, 'lottery.bonus', 0, MAX_MONEY);
-  }
+  // `lottery` from a panel page opened before 2026-11-02 is ignored: the lottery is gone.
   // Holiday events: `seasonal: { [eventId]: patch }`; `halloween` (the panel of the first day) means seasonal.halloween.
   const seasonPatches = [];
   const storedYear = async (event) => (await getSeason(event, guild.id)).year;
@@ -734,6 +707,8 @@ async function applyEconomy(client, guild, body) {
       const limits = COMMAND_LIMITS[name];
       if (!limits) throw new ApiError(400, `commands.${name}: unknown command`);
       for (const [key, value] of Object.entries(plainObject(patch, `commands.${name}`))) {
+        // The weekly club prize went on 2026-11-02; a panel page opened before still sends it.
+        if (name === 'clubs' && key === 'weeklyPrize') continue;
         if (!limits[key]) throw new ApiError(400, `commands.${name}.${key}: unknown setting`);
         data.commands[name][key] = integer(value, `commands.${name}.${key}`, ...limits[key]);
       }
@@ -781,7 +756,6 @@ async function applyEconomy(client, guild, body) {
   });
 
   const quiz = quizPatch ? await updateQuizSettings(guild.id, (data) => { Object.assign(data, quizPatch); }) : await getQuizSettings(guild.id);
-  const lottery = lotteryPatch ? await updateLottery(guild.id, (data) => { Object.assign(data, lotteryPatch); }) : await getLottery(guild.id);
   for (const [event, patch] of seasonPatches) {
     const { announceNow, ...fields } = patch;
     const before = await getSeason(event, guild.id);
@@ -806,9 +780,9 @@ async function applyEconomy(client, guild, body) {
     else await endEvent(guild);
     settings = await getEconomySettings(guild.id);
   }
-  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, lottery, seasonal);
+  if (premiumRoleId === undefined) return economyView(settings, guild, (await getGuildConfig(client, guild.id)).premiumRoleId, quiz, seasonal);
   await updateGuildConfig(client, guild.id, { premiumRoleId });
-  return economyView(settings, guild, premiumRoleId, quiz, lottery, seasonal);
+  return economyView(settings, guild, premiumRoleId, quiz, seasonal);
 }
 
 // List of role IDs, each at most once. `assignable` also refuses roles the bot can never give (managed ones).
@@ -2015,7 +1989,7 @@ export function createPanelRouter(client) {
       automod: automodView(await getAutomodConfig(guild.id, { fresh: true })),
       invites: await getInviteConfig(guild.id),
       youtube: (await getFeeds(guild.id)).map(feedView),
-      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await getLottery(guild.id), await seasonViews(guild.id)),
+      economy: economyView(await getEconomySettings(guild.id), guild, (await getGuildConfig(client, guild.id)).premiumRoleId, await getQuizSettings(guild.id), await seasonViews(guild.id)),
       leveling: levelingView(await getLevelingConfig(client, guild.id)),
       autorole: getAutoRoleSettings(await getWelcomeConfig(client, guild.id)),
       tickets: await ticketsView(client, guild),

@@ -14,9 +14,8 @@ import { progressOptions } from '../src/services/progress.js';
 import {
   COMPANIES, HOUR_MS, PRICE_LIMITS, advanceMarket, getCompany, getMarket, stepPrice,
 } from '../src/services/stockMarket.js';
-import { clubCrewBonus, getClubs, settleClubWeek } from '../src/services/clubs.js';
+import { clubCrewBonus, getClubs } from '../src/services/clubs.js';
 import { PROPERTIES, dailyIncome } from '../src/services/properties.js';
-import { weekKey } from '../src/utils/warsawTime.js';
 import clubButtons from '../src/interactions/buttons/economy/club.js';
 import tradeButtons from '../src/interactions/buttons/economy/trade.js';
 
@@ -186,39 +185,6 @@ test('clubs: found, invite by button, treasury, upgrades give members their bonu
   assert.match((await run(friend, 'klub', 'wyjdz')).text, /is closed/);
   assert.equal((await data(friend)).wallet, walletBefore + treasury);
   assert.equal((await getClubs(guild.id)).clubs[clubId], undefined);
-});
-
-test('club week: points are job money since Monday, the best club gets the prize', async () => {
-  progressOptions.enabled = true;
-  try {
-    const a = newMember('Tygrys');
-    const b = newMember('Wilk');
-    await save(a, { wallet: 30_000, stats: { earned: 1_000 } });
-    await save(b, { wallet: 30_000, stats: { earned: 500 } });
-    await run(a, 'klub', 'zaloz', { nazwa: 'Tygrysy' });
-    await run(b, 'klub', 'zaloz', { nazwa: 'Wilki' });
-    // Job money after founding counts.
-    await save(a, { stats: { ...(await data(a)).stats, earned: 4_000 } });
-    await save(b, { stats: { ...(await data(b)).stats, earned: 1_500 } });
-
-    const ranking = await run(a, 'klub', 'ranking');
-    assert.match(ranking.text, /🥇 🛡️ Tygrysy · \$3,000/);
-
-    const stored = await getClubs(guild.id);
-    const nextWeek = Date.parse(`${stored.week}T12:00:00Z`) + 7 * 86_400_000;
-    const result = await runWithLocale('en', () => settleClubWeek(client, guild, nextWeek));
-    const tigers = result.find((row) => row.name === 'Tygrysy');
-    assert.equal(tigers.points, 3_000);
-    assert.equal(tigers.prize, 25_000);
-    assert.equal(result.find((row) => row.name === 'Wilki').prize, 10_000);
-    const after = await getClubs(guild.id);
-    assert.equal(after.week, weekKey(nextWeek));
-    assert.equal(Object.values(after.clubs).find((club) => club.name === 'Tygrysy').treasury, 25_000);
-    assert.equal(await settleClubWeek(client, guild, nextWeek + 60_000), null, 'once a week');
-    assert.match((await run(a, 'klub', 'info')).text, /This week:\*\* \$0 earned/);
-  } finally {
-    progressOptions.enabled = false;
-  }
 });
 
 // ---------------------------------------------------------------- buildings

@@ -299,5 +299,5 @@ test('daily announcement at 10:00: new Wordle and missions, once a day, yesterda
   assert.deepEqual(deleted, [news.sent[0].id], 'yesterday\'s announcement is gone');
   const sunday = at(10, 0) + 6 * 86_400_000;
   await runWithLocale('en', () => tickChatEngagement(room, sunday, () => 0));
-  assert.match(news.sent[2].embeds[0].toJSON().description, /Lottery draw.*20:00/);
+  assert.doesNotMatch(news.sent[2].embeds[0].toJSON().description, /Lottery/, 'the lottery is gone');
 });

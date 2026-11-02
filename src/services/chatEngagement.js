@@ -8,7 +8,7 @@
 //   happyHour  every day from `hour` for `minutes`: messages give more XP (services/happyHourState.js), with an
 //              announcement on the chat that is deleted at the end
 //   announce   every day at `hour` (2026-10-27, owner: "ogloszenia ze dostepne jest wordle i daily questy"): the new
-//              Wordle, the new missions, /daily, the question time and the lottery on Sunday; yesterday's one is deleted.
+//              Wordle, the new missions, /daily and the question time; yesterday's one is deleted.
 //              On `announce.channelId`, or the chat channel when none is picked.
 // All of it works on one chat channel (`channelId`). Checked every minute (features.js); messages are seen through
 // handleChatMessage() in featureMessages.js (members only, bots do not count).
@@ -30,7 +30,6 @@ import { withEconomyLock } from './economyUpgrades.js';
 import { missionsEnabled, recordProgress } from './progress.js';
 import { setHappyHour } from './happyHourState.js';
 import { puzzleNumber } from './wordle.js';
-import { DRAW_HOUR } from './lottery.js';
 import { addSeasonReward, giveSeasonCurrency, noteSeasonGifts, seasonDropBonus, seasonGiftText } from './seasonalEvents.js';
 
 export const CHAT_DEFAULTS = Object.freeze({
@@ -403,7 +402,6 @@ export async function announcementEmbed(guild, settings, now = Date.now()) {
     settings.question.enabled && settings.channelId
       ? t`❓ **Question of the day** at **${settings.question.hour}:00** on <#${settings.channelId}>`
       : null,
-    weekday === 0 ? t`🎟️ **Lottery draw** today at **${DRAW_HOUR}:00**: \`/loteria\`` : null,
   ].filter(Boolean);
   return createEmbed({
     title: weekday === 1 ? t('☀️ A new week on the server') : t('☀️ A new day on the server'),

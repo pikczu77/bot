@@ -236,14 +236,13 @@ test('economy events from the panel: settings, start one (announced), stop it (a
   assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { events: { everyHours: 0 } })).status, 400);
 });
 
-test('lottery settings in the economy module: price, limit, bonus, channel and the running pot', async () => {
-  const view = (await call('GET', `/guilds/${guild.id}`)).json.modules.economy.lottery;
-  assert.equal(view.ticketPrice, 500);
-  const saved = await call('PATCH', `/guilds/${guild.id}/economy`, { lottery: { channelId: channel.id, ticketPrice: 250, maxTickets: 20, bonus: 0 } });
+test('the lottery and the weekly club prize are gone from the economy module; an old panel page still saves', async () => {
+  const economy = (await call('GET', `/guilds/${guild.id}`)).json.modules.economy;
+  assert.equal(economy.lottery, undefined);
+  assert.equal(economy.commands.clubs.weeklyPrize, undefined);
+  assert.equal(economy.limits.clubs.weeklyPrize, undefined);
+  const saved = await call('PATCH', `/guilds/${guild.id}/economy`, { lottery: { ticketPrice: 250 }, commands: { clubs: { foundPrice: 30000, weeklyPrize: 50000 } } });
   assert.equal(saved.status, 200, saved.text);
-  assert.deepEqual(
-    { channelId: saved.json.lottery.channelId, ticketPrice: saved.json.lottery.ticketPrice, maxTickets: saved.json.lottery.maxTickets, bonus: saved.json.lottery.bonus, pot: saved.json.lottery.pot },
-    { channelId: channel.id, ticketPrice: 250, maxTickets: 20, bonus: 0, pot: 0 },
-  );
-  assert.equal((await call('PATCH', `/guilds/${guild.id}/economy`, { lottery: { maxTickets: 0 } })).status, 400);
+  assert.equal(saved.json.commands.clubs.foundPrice, 30000);
+  assert.equal(saved.json.commands.clubs.weeklyPrize, undefined);
 });

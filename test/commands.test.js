@@ -49,7 +49,8 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
   assert.deepEqual(subcommands('ticket'), ['dodaj', 'usun', 'rename']);
   assert.deepEqual(subcommands('economy'), ['gracz', 'poradnik']);
   assert.deepEqual(subcommands('quiz'), ['pytanie']);
-  assert.deepEqual(subcommands('loteria'), ['kup', 'info']);
+  assert.equal(client.commands.has('loteria'), false, 'the lottery went on 2026-11-02');
+  assert.ok(!subcommands('klub').includes('ranking'), 'the club week went on 2026-11-02');
   assert.ok(!subcommands('modmail').includes('setup'));
   assert.ok(!subcommands('zaproszenia').includes('settings'));
   assert.ok(!subcommands('urodziny').includes('kanal'));
@@ -57,8 +58,8 @@ test('commands removed on 2026-10-11 stay removed; /poziom shows the level', asy
   assert.deepEqual(['konsola', 'czat', 'kopie'].filter((name) => subcommands('minecraft').includes(name)), []);
   // 64 on 2026-10-14 morning; then /hajs /ruletka /blackjack /slots /ekwipunek and /randka /slub.
   // 2026-10-26: /misje /osiagniecia /wymiana /wordle /quiz, then /napad, then /profil, then /loteria /pojedynek.
-  // 2026-10-30: nine panel-only commands went.
-  assert.equal(client.commands.size, 85);
+  // 2026-10-30: nine panel-only commands went. 2026-11-02: /loteria went.
+  assert.equal(client.commands.size, 84);
 
   const text = replyText(await run('poziom', { member: regular }));
   assert.match(text, /Zwykly/);
