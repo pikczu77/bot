@@ -26,8 +26,12 @@ const TIME_ZONE = 'Europe/Warsaw';
 const CHANNEL_MESSAGES = 40;
 const CHANNELS_KEPT = 200;
 const MAX_NUMBER = 1e15;
+const REMINDERS_PER_MEMBER = 3;
+const REMINDER_MAX_MS = 24 * 3_600_000;
+const REMINDER_TEXT_MAX = 150;
 const TOP_SHOWN = 3;
 
+const cut = (text, max) => (text.length > max ? `${text.slice(0, max).trimEnd()}...` : text);
 const dateOf = (at, options) => new Date(at).toLocaleDateString('pl-PL', { timeZone: TIME_ZONE, ...options });
 const count = (object) => Object.values(object ?? {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
 
@@ -81,6 +85,78 @@ export function sumOf(raw) {
   return `${match[0].replace(/\s+/g, ' ').replaceAll('*', '×').trim()} = ${total.toLocaleString('pl-PL', { maximumFractionDigits: 4 })} 🧮`;
 }
 
+// ---- Days to go.
+const easter = (year) => {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = (a * 19 + b - Math.floor(b / 4) - Math.floor((8 * b + 13) / 25) + 15) % 30;
+  const e = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - d - (c % 4)) % 7;
+  const m = Math.floor((a + 11 * d + 22 * e) / 451);
+  const month = Math.floor((d + e - 7 * m + 114) / 31);
+  return [month - 1, ((d + e - 7 * m + 114) % 31) + 1];
+};
+const DATES = [
+  [/\b(swiat|swieta|swieto|wigili\w*|bozego narodzenia|gwiazdk\w*)\b/, 'Wigilii', () => [11, 24]],
+  [/\b(sylwester\w*)\b/, 'Sylwestra', () => [11, 31]],
+  [/\b(nowego roku|nowy rok)\b/, 'Nowego Roku', () => [0, 1]],
+  [/\b(walentyn\w*)\b/, 'Walentynek', () => [1, 14]],
+  [/\b(wielkanoc\w*)\b/, 'Wielkanocy', easter],
+  [/\b(dnia dziecka|dzien dziecka)\b/, 'Dnia Dziecka', () => [5, 1]],
+  [/\b(halloween\w*)\b/, 'Halloween', () => [9, 31]],
+  [/\b(niepodleglosci)\b/, 'Święta Niepodległości', () => [10, 11]],
+  [/\burodzin\w* pikcz\w*|\bpikcz\w* urodzin\w*/, 'urodzin Pikczu', () => [11, 11]],
+];
+
+/** "Ile dni do świąt?": counted in Polish time. */
+function daysTo(text, now) {
+  if (!/\b(ile|kiedy|za ile)\b/.test(text)) return null;
+  const found = DATES.find(([match]) => match.test(text));
+  if (!found) return null;
+  const warsaw = new Date(new Date(now).toLocaleString('en-US', { timeZone: TIME_ZONE }));
+  const today = Date.UTC(warsaw.getFullYear(), warsaw.getMonth(), warsaw.getDate());
+  let [month, day] = found[2](warsaw.getFullYear());
+  let target = Date.UTC(warsaw.getFullYear(), month, day);
+  if (target < today) {
+    [month, day] = found[2](warsaw.getFullYear() + 1);
+    target = Date.UTC(warsaw.getFullYear() + 1, month, day);
+  }
+  const days = Math.round((target - today) / 86_400_000);
+  const date = new Date(target).toLocaleDateString('pl-PL', { timeZone: 'UTC', day: 'numeric', month: 'long' });
+  return days === 0 ? `Do ${found[1]} zero dni, to dzisiaj! 🎉` : `Do ${found[1]} ${plural(days, 'został', 'zostały', 'zostało')} ${days} ${plural(days, 'dzień', 'dni', 'dni')} (${date}) 📅`;
+}
+
+// ---- Reminders, in memory only: a restart forgets them.
+const reminders = new Map(); // `${guildId}:${userId}` -> how many are waiting
+
+/** "Za 10 minut", "za godzinę", "za 2 godziny", "za pół godziny" in folded text: milliseconds, or null. */
+export function delayOf(text) {
+  if (/\bza pol godziny\b/.test(text)) return 1_800_000;
+  if (/\bza godzine\b/.test(text)) return 3_600_000;
+  if (/\bza minute\b/.test(text)) return 60_000;
+  const match = /\bza (\d{1,4}) ?(min|minut|minuty|minute|m|h|godz|godzin|godziny|godzine|sek|sekund|sekundy|s)\b/.exec(text);
+  if (!match) return null;
+  const count = Number(match[1]);
+  return count * (/^(h|godz)/.test(match[2]) ? 3_600_000 : /^s/.test(match[2]) ? 1000 : 60_000);
+}
+
+function setReminder(message, text) {
+  const delay = delayOf(text);
+  if (!delay) return 'Kiedy? Napisz: „Klubiś, przypomnij mi za 10 minut o obiedzie” ⏰';
+  if (delay > REMINDER_MAX_MS) return 'Najwyżej 24 godziny naprzód. Dłużej bym nie zapamiętał ⏰';
+  const key = `${message.guild.id}:${message.author.id}`;
+  if ((reminders.get(key) ?? 0) >= REMINDERS_PER_MEMBER) return `Masz już ${REMINDERS_PER_MEMBER} przypomnienia. Poczekaj, aż któreś zadzwoni ⏰`;
+  const what = cut(cleanText(message.content).replace(/^(a |no )?(czy )?(mozesz |możesz )?przypomnij( mi)?|^(a |no )?(czy )?(mozesz |możesz )?(mi )?przypomniec/iu, '')
+    .replace(/\bza\s+(\d{1,4}\s*\p{L}+|pół godziny|pol godziny|godzinę|godzine|minutę|minute)/iu, '').replace(/^\s*(o|że|ze|żeby|zeby)\s+/iu, '').replace(/[?!.,\s]+$/, '').trim(), REMINDER_TEXT_MAX);
+  reminders.set(key, (reminders.get(key) ?? 0) + 1);
+  const timer = setTimeout(() => {
+    reminders.set(key, Math.max(0, (reminders.get(key) ?? 1) - 1));
+    message.channel?.send?.({ content: `⏰ <@${message.author.id}>, przypominam${what ? `: ${what}` : '!'}`, allowedMentions: { parse: [], users: [message.author.id] } }).catch(() => {});
+  }, delay);
+  timer.unref?.();
+  return `Dobra, przypomnę ${delay < 3_600_000 ? `za ${Math.round(delay / 60_000) || 1} min` : `za ${Math.round(delay / 360_000) / 10} h`}${what ? `: ${what}` : ''} ⏰ Tylko nie restartujcie mnie w tym czasie 😅`;
+}
+
 // ---- What the channel talks about, in memory only.
 const channelWords = new Map(); // channel id -> [{ name, words }]
 
@@ -114,8 +190,10 @@ function channelSummary(message) {
   return `Ostatnio tutaj: ${topics.join(', ') || 'głównie emotki'} 🗨️ Najwięcej piszą: ${people.join(', ')}.`;
 }
 
+const hashPercent = (text) => [...text].reduce((sum, char) => Math.imul(sum ^ char.charCodeAt(0), 16777619) >>> 0, 2166136261) % 101;
+
 /** The answer to a question about real data, or null. `memoryOf(userId)` reads what Klubiś remembers about a member. */
-export async function klubisFact(message, text, { now = Date.now(), memoryOf = async () => null } = {}) {
+export async function klubisFact(message, text, { now = Date.now(), random = Math.random, memoryOf = async () => null } = {}) {
   const { guild, author, client } = message;
   // The question a quiz or the question of the day pays for: no help with that one.
   const running = runningQuestion(guild.id);
@@ -124,6 +202,27 @@ export async function klubisFact(message, text, { now = Date.now(), memoryOf = a
 
   const sum = sumOf(message.content);
   if (sum) return sum;
+
+  // Things it can really do.
+  if (/^(a |no )?(czy )?(mozesz )?(przypomnij|mi przypomniec|przypomniec)\b/.test(text)) return setReminder(message, text);
+  if (/\b(rzuc|rzut|rzucisz|rzucaj)\b.*\b(kostk\w*|kosc\w*)\b|^kostka$/.test(text)) return `🎲 Wypadło ${Math.floor(random() * 6) + 1}`;
+  if (/\b(rzuc|rzut|rzucisz|rzucaj)\b.*\bmonet\w*\b|\borzel czy reszka\b|^moneta$/.test(text)) return `🪙 ${random() < 0.5 ? 'Orzeł' : 'Reszka'}`;
+  if (/\b(wylosuj|losuj|podaj|daj)\b.*\b(liczb\w*|numer\w*)\b/.test(text)) {
+    const range = /\bod (\d{1,9}) do (\d{1,9})\b/.exec(text);
+    const [low, high] = range ? [Number(range[1]), Number(range[2])] : [1, 100];
+    if (high <= low) return 'Od większej do mniejszej? Tak się nie da 😅';
+    return `🎲 ${low + Math.floor(random() * (high - low + 1))}`;
+  }
+  if (/\b(ile|na ile) procent\b/.test(text)) return `Na ${hashPercent(text)}%. Moje bity tak mówią 📊`;
+  const days = daysTo(text, now);
+  if (days) return days;
+  if (/\bkiedy (tu )?(dolaczyl\w*|przyszedl\w*|przyszla\w*|wszedl\w*|weszla\w*)\b|\bod kiedy (tu )?jestem\b/.test(text) && message.member?.joinedAt) {
+    return `Jesteś tu od ${dateOf(message.member.joinedAt, { day: 'numeric', month: 'long', year: 'numeric' })} 📅`;
+  }
+  if (/\bjakie mam role\b|\bjaka mam (role|range)\b|\bjakie mam rangi\b/.test(text) && message.member?.roles?.cache) {
+    const names = [...message.member.roles.cache.values()].filter((role) => role.id !== guild.id).map((role) => role.name).slice(0, 15);
+    return names.length ? `Twoje role: ${names.join(', ')} 🎭` : 'Nie masz jeszcze żadnej roli 🎭';
+  }
 
   if (/\bktora (jest )?(teraz )?(godzina|godz)\b|\bjaka (jest )?godzina\b/.test(text)) {
     return `Jest ${new Date(now).toLocaleTimeString('pl-PL', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' })} ⏰`;

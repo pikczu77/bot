@@ -55,7 +55,7 @@ export const KLUBIS_SKILLS = [
   {
     // Before the topics: "minecraft czy roblox" or "kot czy pies" asks for a pick. Not "a czy pada", "nie wiem czy pada".
     id: 'choice', label: 'Wybierz', example: 'pizza czy burger?',
-    match: /\b(?!a\b|i\b|no\b|ale\b|to\b|ty\b|wie\b|wiesz\b|wiem\b|ciekawe\b|powiedz\b|ze\b|zobacz\b|sprawdz\b|pytam\b|siema\b|hej\b|elo\b|ej\b|brat\b|bro\b)[a-z0-9]+ czy [a-z0-9]+\b/,
+    match: /\b(?!a\b|i\b|no\b|ale\b|to\b|ty\b|wie\b|wiesz\b|wiem\b|ciekawe\b|powiedz\b|ze\b|zobacz\b|sprawdz\b|pytam\b|siema\b|hej\b|elo\b|ej\b|brat\b|bro\b)[a-z0-9]+ czy [a-z0-9]+\b|^(a |no )?wybierz\b/,
     replies: [
       'To pierwsze. Bez zastanowienia 👈',
       'To drugie. Zawsze to drugie 👉',

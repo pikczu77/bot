@@ -245,6 +245,9 @@ export const LEARNED = {
   loves: ['Kochasz {x}? Zapamiętam 💘', 'Zapisuję: kochasz {x} 💘', 'Aww. Kochasz {x}, mam to w notesie 💘'],
   note: ['Zapamiętane: {x} 📓', 'Dobra, mam to: {x} 📓', 'Zapisuję: {x} 📓'],
 };
+// A greeting for someone it knows. {x} = something the member likes.
+export const GREET_KNOWN = ['Siema, {user}! Dalej lubisz {x}? 😄', 'O, {user}! Jak tam {x}? Pamiętam, lubisz 📓', 'Cześć, {user}! Co tam, nadal {x}? 👀'];
+
 // "Jak mam na imię?" and the like. {x} = the fact, nothing known = `unknown`.
 export const RECALLED = {
   name: ['{x}, pamiętam 😎', 'Masz na imię {x}. Mam to w notesie 📓'],
@@ -255,6 +258,7 @@ export const RECALLED = {
   loves: ['Kochasz: {x} 💘', 'Z notesu: kochasz {x} 💘', 'Pamiętam, kochasz {x} 💘'],
   partner: ['{x} 💘', 'Z notesu: {x} 📓', 'Pamiętam! {x} 💘'],
   notes: ['Mam zapisane: {x} 📓', 'Z notesu: {x} 📓'],
+  said: ['Z notesu: {x} 📓', 'Pamiętam: {x} 😎', 'Tak mi napisano: {x} 📓', 'Mam to zapisane: {x} 🧠'],
   dislikes: ['Nie lubisz: {x} 📓', 'Tego nie lubisz: {x} 😅'],
   unknown: ['Jeszcze mi tego nie napisano. Powiedz, to zapamiętam 📓', 'Nie wiem, notes jest pusty. Napisz mi to 📓', 'Tego jeszcze nie wiem 🤔 Opowiedz!'],
 };

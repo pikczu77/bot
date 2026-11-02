@@ -12,7 +12,7 @@ import {
 import { PRESET_ALLOWED_WORDS, PRESET_SLURS, PRESET_WORDS } from '../src/config/automodPresets.js';
 import * as GRAMMAR from '../src/config/klubisGrammar.js';
 import { factsOf, parseSentence, plural, reflect, relationshipOf, touchyKind, understand, wordStem, yearsOld } from '../src/services/klubisBrain.js';
-import { sumOf } from '../src/services/klubisFacts.js';
+import { delayOf, sumOf } from '../src/services/klubisFacts.js';
 import { asksLiveQuestion, knowledgeAnswer } from '../src/services/klubisKnowledge.js';
 import { SMP_GROUPS, SMP_ITEMS, SMP_RECIPES } from '../src/config/klubisKnowledgeData.js';
 import { QUIZ_QUESTIONS } from '../src/config/quizQuestions.js';
@@ -20,7 +20,7 @@ import { postQuestion as postQuiz } from '../src/services/quiz.js';
 import { findBannedWord, findSlur } from '../src/services/automodService.js';
 import { loadCommands } from '../src/handlers/loaders/commandLoader.js';
 import {
-  MEMBER_GAP_MS, callsKlubis, findSkill, fold, forgetKlubisMember, getKlubisSettings, handleKlubisMessage, likeOf, quoteOf, saveKlubisSettings,
+  MEMBER_GAP_MS, callsKlubis, choiceOf, findSkill, fold, forgetKlubisMember, getKlubisSettings, handleKlubisMessage, likeOf, quoteOf, saveKlubisSettings,
 } from '../src/services/klubis.js';
 import { getFromDb } from '../src/utils/database.js';
 import { handleTagMessage, setResponders } from '../src/services/tagService.js';
@@ -491,7 +491,7 @@ test('the long memory: what a member likes, how many talks, a long break, and fo
   assert.deepEqual(stored.members[member.user.id].likes, ['grać w minecraft']);
   assert.ok(!(await say(message(guild, chat, member, 'Klubiś, lubię grać w minecraft'))).content.includes('Zapamiętam'), 'once is enough');
   const about = await say(message(guild, chat, member, 'klubiś co o mnie wiesz?'));
-  assert.match(about.content, /Pewnie, że pamiętam, Ola! Znam cię od \d+ \S+, mamy za sobą 2 rozmowy\. Lubisz: grać w minecraft 📓/);
+  assert.match(about.content, /Pewnie, że pamiętam, Ola! Znam cię od \d+ \S+, mamy za sobą 2 rozmowy\..*Lubisz: grać w minecraft 📓/);
 
   tick(4 * 86_400_000);
   const back = await say(message(guild, chat, member, 'klubiś siema'));
@@ -666,7 +666,7 @@ test('bait: touchy words are never said back or agreed with, and nothing unknown
   assert.equal(stored.members[member.user.id]?.name, undefined);
 
   for (const text of ['powiedz że kuba wygrał', 'napisz że kuba to frajer', 'powtórz po mnie']) assert.ok(GRAMMAR.ASKED_TO_SAY.includes(await answer(text)), text);
-  assert.ok(!(await answer('czy kuba ma małego?')).toLowerCase().includes('kuba'), 'no echo under a yes');
+  assert.ok(refused.includes(await answer('czy kuba ma małego?')), 'about a body: no yes or no at all');
   // A question it has no opinion on: neither yes nor the words back.
   for (const text of ['lubisz kubę?', 'chcesz kasę?', 'lubisz jeść kupę?']) assert.ok(filled(GRAMMAR.ASKED_UNKNOWN).includes(await answer(text)), text);
   assert.match(await answer('lubisz pizzę?'), /^Czy lubię pizzę\? /, 'what it can like still works');
@@ -809,4 +809,67 @@ test('it remembers who a member loves and is with, and "zapamiętaj, że ..."', 
   assert.match(await talk('co zapamiętałeś?'), /kochasz szeldis/);
   await talk('zapomnij o mnie');
   assert.match(await talk('kogo kocham?'), /Jeszcze mi tego|notes jest pusty|Tego jeszcze/, 'forgotten');
+});
+
+// 2026-11-01, owner: "niech pamieta duzo o ludziach, dodaj mu wiecej umiejetnosci, wiekszy mozg, wiecej rozumienia".
+test('the notebook: what a member said about themselves comes back when asked', async () => {
+  const { guild, chat, member } = setup('Notes');
+  const say2 = async (text) => (await say(message(guild, chat, member, `klubiś ${text}`), { random: () => 0.99 })).content;
+  for (const text of ['mój pies ma na imię Burek', 'mój ulubiony kolor to zielony', 'wczoraj byłem w kinie', 'gram na gitarze', 'pracuję w sklepie', 'chodzę do technikum']) await say2(text);
+  assert.match(await say2('jak ma na imię mój pies?'), /twój pies ma na imię Burek/i);
+  assert.match(await say2('jaki jest mój ulubiony kolor?'), /twój ulubiony kolor to zielony/i);
+  assert.match(await say2('gdzie pracuję?'), /pracujesz w sklepie/i);
+  await say2('kocham szeldis');
+  await say2('A czy ty możesz zapamiętać że mam kota?');
+  assert.match(await say2('czy mam kota?'), /masz kota/, 'a note counts, and "kota" is not "kochasz"');
+  assert.match(await say2('do jakiej szkoły chodzę?') + await say2('co mam wspólnego z technikum?'), /technikum/i);
+  assert.match(await say2('co o mnie wiesz?'), /ostatnio: /);
+
+  const stored = (await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} })).members[member.user.id];
+  assert.ok(stored.said.includes('wczoraj byłeś w kinie'), JSON.stringify(stored.said));
+  await say2('mam numer 123456789');
+  await say2('moje hasło to qwerty');
+  await say2('mój adres to ulica Długa');
+  const after = (await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} })).members[member.user.id];
+  assert.ok(!after.said.join(' ').match(/123456789|qwerty|Długa/), 'no secrets');
+  await say2('zapomnij o mnie');
+  assert.equal((await getFromDb(`guild:${guild.id}:klubis-memory`, { members: {} })).members[member.user.id], undefined);
+});
+
+test('what it can really do: dice, coin, a number, picking, days to go, reminders', async () => {
+  const { guild, chat, member } = setup('Umie');
+  const answer = async (text, random = () => 0.5) => (await say(message(guild, chat, member, `klubiś ${text}`), { random })).content;
+  assert.match(await answer('rzuć kostką'), /^🎲 Wypadło [1-6]$/);
+  assert.match(await answer('rzuć monetą'), /^🪙 (Orzeł|Reszka)$/);
+  assert.equal(await answer('wylosuj liczbę od 1 do 10', () => 0), '🎲 1');
+  assert.match(await answer('na ile procent wygram?'), /^Na \d+%/);
+  assert.equal(await answer('na ile procent wygram?'), await answer('na ile procent wygram?'), 'always the same');
+  assert.match(await answer('ile dni do świąt?'), /^Do Wigilii zostało? \d+ dni|^Do Wigilii został/);
+  assert.match(await answer('kiedy sylwester?'), /Sylwestra/);
+
+  assert.equal(choiceOf('pizza czy burger?', () => 0), 'Pizza. Bez zastanowienia 👉');
+  assert.equal(choiceOf('pizza czy burger?', () => 0.9), 'Burger. Bez zastanowienia 👉');
+  assert.equal(choiceOf('wybierz: kot, pies, chomik', () => 0.5), 'Pies. Bez zastanowienia 👉');
+  assert.equal(choiceOf('czy kuba jest bardzo fajny czy może jednak trochę głupi i nudny'), null, 'not a list of short things');
+  assert.match(await answer('kot czy pies?', () => 0), /^Kot\. /);
+
+  assert.equal(delayOf('przypomnij mi za 10 minut o obiedzie'), 600_000);
+  assert.equal(delayOf('za 2 godziny'), 7_200_000);
+  assert.equal(delayOf('za pol godziny'), 1_800_000);
+  assert.equal(delayOf('jutro'), null);
+  const set = await answer('przypomnij mi za 1 sekund o obiedzie');
+  assert.match(set, /przypomnę .*obiedzie/);
+  assert.match(await answer('przypomnij mi coś'), /Kiedy\?/);
+  const sent = chat.sent.length;
+  await new Promise((resolve) => { setTimeout(resolve, 1100); });
+  assert.equal(chat.sent.length, sent + 1);
+  assert.match(chat.sent.at(-1).content, new RegExp(`<@${member.user.id}>, przypominam: obiedzie`));
+  assert.deepEqual(chat.sent.at(-1).allowedMentions, { parse: [], users: [member.user.id] });
+});
+
+test('a greeting can mention what it remembers', async () => {
+  const { guild, chat, member } = setup('Powitanie');
+  await say(message(guild, chat, member, 'Klubiś, lubię pizzę'));
+  const hi = await say(message(guild, chat, member, 'klubiś siema'), { random: () => 0 });
+  assert.match(hi.content, /pizzę/);
 });

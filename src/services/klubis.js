@@ -12,7 +12,7 @@
 // What it remembers (owner: "brakuje mi takiego czegos ze on wie na co odpowiada"):
 //  - a talk: what it said and what that answered. In memory only, a restart forgets. A reply to its message finds the talk by
 //    message id, also when someone else replies; a call by name continues this member's last talk for CONTEXT_MS.
-//  - a member: store guild:{id}:klubis-memory = { members: { [id]: { talks, firstAt, lastAt, name, age, city, partner, loves, notes, likes, dislikes, plays } } }. What the
+//  - a member: store guild:{id}:klubis-memory = { members: { [id]: { talks, firstAt, lastAt, name, age, city, partner, loves, notes, likes, dislikes, plays, said } } }. What the
 //    member wrote to it (services/klubisBrain.js, factsOf). Name, age and city are said only to that member; likes and games also to someone who
 //    asks about them. "Zapomnij o mnie" and /wipedata delete it; the switch `memory` stops it. Owner: "brac wszystkie informacje", server 16+.
 //
@@ -25,7 +25,8 @@ import {
 } from '../config/klubisReplies.js';
 import { PRESET_SLURS } from '../config/automodPresets.js';
 import { findSlur } from './automodService.js';
-import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, likesTouchy, onlyCalls, parseSentence, plural, recalledLine, relationshipOf, safeLike, touchyKind, touchyLine, understand, yearsOld } from './klubisBrain.js';
+import { GREET_KNOWN } from '../config/klubisGrammar.js';
+import { MENTION_RE, cleanText, factsOf, fold, learnedLine, likeOf, likesTouchy, notebookLine, onlyCalls, parseSentence, plural, recalledLine, relationshipOf, safeLike, searchNotebook, touchyKind, touchyLine, understand, yearsOld } from './klubisBrain.js';
 import { klubisFact, noteChannelMessage } from './klubisFacts.js';
 
 export { fold, likeOf };
@@ -45,6 +46,14 @@ const RECENT_LINES = 6;
 const QUOTE_MAX = 60;
 const SAID_MAX = 80;
 const MAX_LIKES = 8;
+// The notebook: the last sentences a member said about themselves.
+const MAX_SAID = 60;
+const RECENT_SAID = 3;
+// How often a greeting mentions something it remembers.
+const GREET_KNOWN_PERCENT = 25;
+// One thing out of "pizza czy burger" is said back only if it is this short.
+const CHOICE_MAX = 32;
+const CHOICE_WORDS = 3;
 // A greeting after this many days without a talk mentions the break.
 const WELCOME_BACK_DAYS = 3;
 
@@ -176,11 +185,21 @@ function aboutLine(member) {
     member.partner, member.loves?.length && `kochasz: ${member.loves.join(', ')}`,
     member.plays?.length && `grasz ${member.plays.join(', ')}`, member.dislikes?.length && `nie lubisz: ${member.dislikes.join(', ')}`,
     member.notes?.length && `zapisane: ${member.notes.join('; ')}`,
+    member.said?.length && `ostatnio: ${member.said.slice(-RECENT_SAID).join('; ')}`,
   ].filter(Boolean).join(', ');
   const likes = member.likes?.length ? KLUBIS_ABOUT.likes.replace('{likes}', () => member.likes.join(', ')) : KLUBIS_ABOUT.noLikes;
   const talks = member.talks ?? 1;
   const about = KLUBIS_ABOUT.known.replace('{since}', since).replace('{talks}', `${talks} ${plural(talks, 'rozmowa', 'rozmowy', 'rozmów')}`);
   return [about, known && KLUBIS_ABOUT.facts.replace('{facts}', () => known), likes].filter(Boolean).join(' ');
+}
+
+/** "Pizza czy burger?", "wybierz: kot, pies, chomik": one of the member's own options. Null when they are not short things to pick from. */
+export function choiceOf(raw, random = Math.random) {
+  const options = cleanText(raw).replace(/[?!.]+$/, '').replace(/^(a |no )?(wybierz|co wolisz|co lepsze|lepsze|wolisz|co bardziej)[\s:]*/iu, '')
+    .split(/\s+(?:czy|albo|lub)\s+|\s*,\s*/iu).map((option) => option.trim()).filter(Boolean);
+  if (options.length < 2 || options.some((option) => option.length > CHOICE_MAX || option.split(' ').length > CHOICE_WORDS)) return null;
+  const option = options[Math.floor(random() * options.length) % options.length];
+  return `${option[0].toLocaleUpperCase('pl')}${option.slice(1)}. Bez zastanowienia 👉`;
 }
 
 /** "Poderwij @Kuba" -> who it is for, and a silly line. "Teksty na podryw" -> a line to use. */
@@ -199,6 +218,14 @@ function skillLine(skill, guildId, member, now, random, message, text) {
   if (skill.id === 'aboutMe' && member?.firstAt) return aboutLine(member);
   const days = member?.lastAt ? Math.floor((now - member.lastAt) / 86_400_000) : 0;
   if (skill.id === 'hello' && days >= WELCOME_BACK_DAYS) return pickFresh(KLUBIS_WELCOME_BACK, guildId, 'welcomeBack', random).replaceAll('{days}', String(days));
+  const likes = (member?.likes ?? []).filter(safeLike);
+  if (skill.id === 'hello' && likes.length && random() * 100 < GREET_KNOWN_PERCENT) {
+    return pickFresh(GREET_KNOWN, guildId, 'greetKnown', random).replaceAll('{x}', () => likes[Math.floor(random() * likes.length) % likes.length]);
+  }
+  if (skill.id === 'choice') {
+    const picked = choiceOf(message.content, random);
+    if (picked) return picked;
+  }
   const line = pickFresh(skill.replies, guildId, skill.id, random);
   return skill.id === 'flirt' ? flirtLine(skill, message, text, line) : line;
 }
@@ -230,11 +257,14 @@ export function klubisAnswer(message, settings, { now = Date.now(), random = Mat
 
     const parsed = parseSentence(raw);
     if (likesTouchy(parsed)) return { line: touchyLine('touchy', pick), skillId: 'unknown' };
-    const facts = remembers ? { ...factsOf(parsed), ...relationshipOf(raw) } : {};
+    // "Zapamiętaj, że mam kota" is something to keep, not a question about the notebook: read what to learn first.
+    const facts = remembers ? { ...factsOf(parsed), ...relationshipOf(raw), said: notebookLine(parsed) } : {};
     const learned = facts.likes && !member?.likes?.includes(facts.likes) ? facts.likes : null;
     const withLearned = (line) => (!learned ? line : `${line} ${line.includes(learned) || !safeLike(learned) ? KLUBIS_ABOUT.noted : KLUBIS_ABOUT.learned.replace('{like}', () => learned)}`);
     const introduced = learnedLine(facts, pick);
     if (introduced) return { line: introduced, skillId: 'understood', facts };
+    const fromNotebook = searchNotebook(text, parsed, member, pick);
+    if (fromNotebook) return { line: fromNotebook, skillId: 'aboutMe' };
 
     // A greeting in front of a sentence changes nothing: "siema, lubię pizzę".
     const body = parsed.greeted ? fold(parsed.words.join(' ')) : text;
@@ -287,6 +317,7 @@ async function noteMember(guildId, userId, facts, now) {
       const list = member[field] ?? [];
       if (facts?.[key] && !list.includes(facts[key])) member[field] = [...list, facts[key]].slice(-MAX_LIKES);
     }
+    if (facts?.said && !member.said?.includes(facts.said)) member.said = [...(member.said ?? []), facts.said].slice(-MAX_SAID);
     data.members[userId] = member;
   });
 }
@@ -317,7 +348,7 @@ export async function handleKlubisMessage(message, { prefix = '!', now, random, 
   const member = memory?.[message.author.id] ?? null;
   noteChannelMessage(message);
   const text = called ? fold(String(message.content ?? '').replace(MENTION_RE, ' ')).replace(NAME_RE_G, ' ').replace(/\s+/g, ' ').trim() : '';
-  const fact = text && !touchyKind(text) ? await klubisFact(message, text, { now: at, memoryOf: async (id) => memory?.[id] ?? null }).catch((error) => {
+  const fact = text && !touchyKind(text) ? await klubisFact(message, text, { now: at, random, memoryOf: async (id) => memory?.[id] ?? null }).catch((error) => {
     logger.warn(`Klubis fact failed in guild ${message.guild.id}: ${error.message}`);
     return null;
   }) : null;

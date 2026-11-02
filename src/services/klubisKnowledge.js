@@ -7,7 +7,7 @@ import { SMP_GROUPS, SMP_ITEMS, SMP_RECIPES } from '../config/klubisKnowledgeDat
 import { QUIZ_QUESTIONS } from '../config/quizQuestions.js';
 import { DAILY_TRIVIA } from '../config/chatPrompts.js';
 import { STOPWORDS } from '../config/klubisGrammar.js';
-import { fold, wordStem } from './klubisBrain.js';
+import { fold, stemFits, wordStem } from './klubisBrain.js';
 
 const MAKE = 'craft|zrobi|stworz|przepis|wytworz|zbudowa|skraft|recept';
 // The question is about what something is.
@@ -18,7 +18,7 @@ const QUIZ_SHARE = 0.75;
 
 /** 'stolic franc|=usa' into groups of alternatives. */
 const groupsOf = (words) => words.split(' ').map((group) => group.split('|').map((alt) => (alt.startsWith('=') ? { exact: alt.slice(1) } : { prefix: alt })));
-const altFits = (alt, token) => (alt.exact ? token === alt.exact : token.startsWith(alt.prefix) || Boolean(alt.also && token.startsWith(alt.also)));
+const altFits = (alt, token) => (alt.exact ? token === alt.exact : stemFits(alt, token));
 
 function groupsScore(groups, tokens) {
   let score = 0;

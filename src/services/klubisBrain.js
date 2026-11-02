@@ -28,6 +28,7 @@ const YES_PERCENT = 45;
 const NO_PERCENT = 40;
 const LIKE_MAX = 40;
 const NOTE_MAX = 120;
+const NOTEBOOK_WORDS = 14;
 const PARTNER_WORDS_MAX = 10;
 const FACT_WORDS_MAX = 5;
 
@@ -61,6 +62,9 @@ export function wordStem(word) {
   const last = stem.at(-1);
   return SOFTENED[last] ? { prefix: stem, also: stem.slice(0, -1) + SOFTENED[last] } : { prefix: stem };
 }
+
+/** Does a folded word have this stem? The softened form only before e or i ("karcie", "rzadce"), or "kota" would take "kochasz". */
+export const stemFits = (stem, token) => token.startsWith(stem.prefix) || Boolean(stem.also && token.startsWith(stem.also) && /^[ei]/.test(token.slice(stem.also.length)));
 
 const pastEnding = (word, endings) => endings.some((ending) => word.endsWith(ending));
 const isPast = (word, previous, endings) => {
@@ -127,6 +131,7 @@ function findVerb(words, from = 0) {
 export function touchyKind(text) {
   const tokens = fold(text).split(' ').filter(Boolean);
   if (tokens.some((word) => TOUCHY_WORDS.test(word))) return /\bdzien dziecka\b/.test(tokens.join(' ')) ? null : 'touchy';
+  if (/\bma (malego|duzego|malutkiego|wielkiego|krotkiego|dlugiego)\b|\b(rozmiar|dlugosc) (jego|jej)\b/.test(tokens.join(' '))) return 'touchy';
   if (tokens.some((word) => KILL_WORDS.test(word)) && !tokens.some((word) => GAME_WORDS.test(word))) return 'touchy';
   return tokens.some((word) => HIT_WORDS.test(word)) ? 'hit' : null;
 }
@@ -425,6 +430,40 @@ export function relationshipOf(raw) {
   return {};
 }
 
+/**
+ * A sentence a member says about themselves, kept as said back ("masz psa", "twój pies ma na imię Burek", "byłaś w kinie"), for the notebook.
+ * Null for questions, for anything short or long, and for what must not be kept.
+ */
+export function notebookLine(parsed) {
+  const { words, person, question, asks, qSkill } = parsed;
+  const aboutMine = /^(moj|moja|moje|moi|moich|moim|moją)$/.test(fold(words[0] ?? ''));
+  if ((person !== 'me' && !aboutMine) || question || asks || qSkill) return null;
+  if (words.length < 2 || words.length > NOTEBOOK_WORDS) return null;
+  const text = words.join(' ');
+  if (SECRET.test(fold(text)) || touchyKind(text) || findSlur(text, PRESET_SLURS)) return null;
+  return reflect(words).join(' ');
+}
+
+const NOT_SEARCHED = /^(czy|co|kto|gdzie|kiedy|jak|jaki|jaka|jakie|ile|mam|moj|moja|moje|ja|mi|mnie|byl|bylem|bylam|sie|to|jest|nie|tak|a|i|w|na|do|z|ze|o)$/;
+/** A question about the member, answered from the notebook: "jak ma na imię mój pies?", "czy mam psa?". Null when nothing fits. */
+export function searchNotebook(text, parsed, member, pick) {
+  const list = [...(member?.said ?? []), ...(member?.notes ?? [])];
+  if (!list?.length || !(parsed.question || parsed.asks || parsed.qSkill)) return null;
+  // About the member: "mój", "ja", or a verb in the first person ("gdzie pracuję", "gdzie byłam").
+  const asked = text.split(' ');
+  if (!asked.some((word) => /^(moj|moja|moje|mojego|mojej|moim|moich|ja|mnie|mi)$/.test(word) || VERBS_ME.has(word) || isPastMe(word))) return null;
+  const stems = text.split(' ').filter((word) => !NOT_SEARCHED.test(word) && word.length >= 3).map(wordStem);
+  if (!stems.length) return null;
+  let best = null;
+  for (const line of list) {
+    const tokens = fold(line).split(' ');
+    const hits = stems.filter((stem) => tokens.some((token) => stemFits(stem, token))).length;
+    // Newer sentences come later, so they win a tie.
+    if (hits && hits >= (best?.hits ?? 0)) best = { hits, line };
+  }
+  return best ? capital(pick(RECALLED.said, 'recalled:said').replaceAll('{x}', () => best.line)) : null;
+}
+
 /** "Lubię grać w minecraft, a ty?" -> "grać w minecraft". */
 export const likeOf = (raw) => factsOf(parseSentence(raw)).likes ?? null;
 
@@ -448,8 +487,9 @@ export function recalledLine(text, member, pick) {
           : /\bco lubie\b/.test(text) ? 'likes'
             : /\bw co gram\b/.test(text) ? 'plays' : null;
   if (!asked) return null;
-  const value = member?.[asked];
-  const shown = Array.isArray(value) ? value.join(', ') : asked === 'age' && value ? yearsOld(value) : value;
+  // Nothing said with "zapamiętaj": the newest sentences of the notebook.
+  const value = asked === 'notes' && !member?.notes?.length ? member?.said?.slice(-3) : member?.[asked];
+  const shown = Array.isArray(value) ? value.join(asked === 'notes' ? '; ' : ', ') : asked === 'age' && value ? yearsOld(value) : value;
   if (!shown) return pick(RECALLED.unknown, 'recalled:unknown');
   return capital(pick(RECALLED[asked], `recalled:${asked}`).replaceAll('{x}', () => String(shown)));
 }
