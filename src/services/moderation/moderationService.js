@@ -4,10 +4,20 @@ import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logModerationAction } from '../../utils/moderation.js';
+import { durationWords } from '../../utils/featureKit.js';
+import { cancelScheduledUnban } from './tempbanService.js';
 import { t } from '../../i18n/index.js';
+
+// Discord counts its limit of 28 days from its own clock, so stay a minute under it.
+const MAX_TIMEOUT_MS = 28 * 86_400_000 - 60_000;
 
 function getTargetLabel(target) {
   return target.user?.tag ?? target.displayName ?? t('this user');
+}
+
+/** The ban or unban has already happened, so a failed write here must not look like it failed. */
+async function forgetUnban(guildId, userId) {
+  await cancelScheduledUnban(guildId, userId).catch((error) => logger.warn(`Could not cancel a scheduled unban for ${userId}: ${error.message}`));
 }
 
 function getHighestRole(member) {
@@ -138,7 +148,8 @@ export class ModerationService {
     user,
     moderator,
     reason = t('No reason provided'),
-    deleteDays = 0
+    deleteDays = 0,
+    durationText = null
   }) {
     try {
       if (!guild || !user || !moderator) {
@@ -185,14 +196,18 @@ export class ModerationService {
           target: `${user.tag} (${user.id})`,
           executor: `${moderator.user.tag} (${moderator.id})`,
           reason,
+          duration: durationText ?? undefined,
           metadata: {
             userId: user.id,
             moderatorId: moderator.id,
-            permanent: true,
+            permanent: !durationText,
             deleteDays
           }
         }
       });
+
+      // A permanent ban must not be lifted by an older temporary ban of the same person.
+      if (!durationText) await forgetUnban(guild.id, user.id);
 
       logger.info(`User banned: ${user.tag} by ${moderator.user.tag} in ${guild.name}`);
       
@@ -292,7 +307,7 @@ export class ModerationService {
         );
       }
 
-      await member.timeout(durationMs, reason);
+      await member.timeout(Math.min(durationMs, MAX_TIMEOUT_MS), reason);
 
       const durationMinutes = Math.floor(durationMs / 60000);
       const caseId = await logModerationAction({
@@ -303,7 +318,7 @@ export class ModerationService {
           target: `${member.user.tag} (${member.id})`,
           executor: `${moderator.user.tag} (${moderator.id})`,
           reason,
-          duration: `${durationMinutes} minutes`,
+          duration: durationWords(durationMs),
           metadata: {
             userId: member.id,
             moderatorId: moderator.id,
@@ -416,6 +431,7 @@ export class ModerationService {
       }
 
       await guild.members.unban(user.id, reason);
+      await forgetUnban(guild.id, user.id);
 
       const caseId = await logModerationAction({
         client: guild.client,

@@ -38,30 +38,87 @@ export function guildStore(name, defaults = {}) {
   };
 }
 
-const DURATION_UNITS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
+const DURATION_UNITS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000, mo: 2_592_000_000, y: 31_536_000_000 };
 
-/** "10m", "2h30m", "1d" -> milliseconds. Returns null when the text is not a duration. */
+// Every way to write a unit, in Polish and English, without Polish letters (a month is 30 days, a year 365).
+const DURATION_WORDS = new Map(Object.entries({
+  s: 's sek sec sekunda sekundy sekund sekunde second seconds',
+  m: 'm min mins minuta minuty minut minute minutes',
+  h: 'h g godz godzina godziny godzin godzine hour hours',
+  d: 'd dzien dnia dni doba doby dob day days',
+  w: 'w t tyg tydz tydzien tygodnia tygodnie tygodni week weeks',
+  mo: 'mies miesiac miesiaca miesiace miesiecy month months',
+  y: 'y rok roku lata lat year years',
+}).flatMap(([unit, words]) => words.split(' ').map((word) => [word, DURATION_UNITS[unit]])));
+
+const foldDuration = (text) => String(text ?? '').toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+/** "10m", "2h30m", "3 tygodnie", "1 dzień i 12 godzin", "tydzień" -> milliseconds. Returns null when the text is not a duration. */
 export function parseDuration(text) {
   if (typeof text !== 'string') return null;
-  const cleaned = text.trim().toLowerCase().replace(/\s+/g, '');
-  if (!cleaned || !/^(\d+[smhdw])+$/.test(cleaned)) return null;
+  const cleaned = foldDuration(text).replace(/\bna\b|\bi\b|[\s,]/g, '');
+  const parts = cleaned.match(/\d*[a-z]+/g);
+  if (!parts || parts.join('') !== cleaned) return null;
   let total = 0;
-  for (const [, amount, unit] of cleaned.matchAll(/(\d+)([smhdw])/g)) {
-    total += Number(amount) * DURATION_UNITS[unit];
+  for (const part of parts) {
+    const [, amount, word] = part.match(/^(\d*)(.+)$/);
+    const size = DURATION_WORDS.get(word);
+    // "tydzień" alone is one week, but a lone letter like "m" means nothing.
+    if (!size || (!amount && word.length < 3)) return null;
+    total += Number(amount || 1) * size;
   }
-  return total > 0 ? total : null;
+  return total > 0 && Number.isSafeInteger(total) ? total : null;
 }
 
-/** Parse a duration option or throw a user-facing validation error. */
-export function requireDuration(text, { min = 1000, max = 28 * DURATION_UNITS.d } = {}) {
+/** Parse a duration option or throw a user-facing validation error. `tooLong` replaces the message for a duration over `max`. */
+export function requireDuration(text, { min = 1000, max = 28 * DURATION_UNITS.d, tooLong = null } = {}) {
   const ms = parseDuration(text);
   if (ms === null) {
-    throw userError(t('That is not a valid duration. Use something like `10m`, `2h` or `1d12h`.'));
+    throw userError(t('That is not a valid duration. Use something like `3 weeks`, `2 days` or `12h`.'));
   }
+  if (ms > max && tooLong) throw userError(tooLong);
   if (ms < min || ms > max) {
     throw userError(t`The duration must be between ${humanDuration(min)} and ${humanDuration(max)}.`);
   }
   return ms;
+}
+
+/** 1814400000 -> "3 tygodnie", 129600000 -> "1 dzień 12 godzin". Whole weeks only when the days divide by 7. */
+export function durationWords(ms) {
+  const seconds = Math.round(ms / 1000);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (days > 0 && days % 7 === 0) parts.push(t`${days / 7} {0|week|weeks}`);
+  else if (days > 0) parts.push(t`${days} {0|day|days}`);
+  if (hours > 0) parts.push(t`${hours} {0|hour|hours}`);
+  if (minutes > 0) parts.push(t`${minutes} {0|minute|minutes}`);
+  if (parts.length === 0) parts.push(t`${seconds % 60} {0|second|seconds}`);
+  return parts.slice(0, 2).join(' ');
+}
+
+/**
+ * Suggestions for a duration option with autocomplete. Typing "3" offers 3 minutes, hours, days, weeks ...;
+ * "3 t" offers 3 weeks; anything else filters the presets. Discord also accepts text that was not suggested.
+ */
+export function durationChoices(typed, { min = DURATION_UNITS.m, max, presets = [] }) {
+  const text = foldDuration(typed);
+  const fits = (ms) => ms !== null && ms >= min && ms <= max;
+  const presetTimes = presets.map((preset) => parseDuration(preset)).filter(fits);
+  const numbered = text.match(/^(\d+)\s*([a-z]*)$/);
+  const found = [parseDuration(text)];
+  if (numbered) {
+    for (const [word, size] of DURATION_WORDS) {
+      if (word.startsWith(numbered[2])) found.push(Number(numbered[1]) * size);
+    }
+  } else {
+    found.push(...presetTimes.filter((ms) => foldDuration(durationWords(ms)).includes(text)));
+  }
+  const matching = [...new Set(found)].filter(fits);
+  return (matching.length > 0 ? matching : presetTimes)
+    .slice(0, 25)
+    .map((ms) => ({ name: durationWords(ms), value: `${Math.round(ms / DURATION_UNITS.m)}m` }));
 }
 
 /** 5400000 -> "1h 30m" */

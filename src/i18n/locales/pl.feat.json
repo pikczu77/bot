@@ -372,7 +372,6 @@
   "A server can have up to {0} tags.": "Serwer może mieć maksymalnie {0} tagów.",
   "A server can have up to {0} auto-responders.": "Serwer może mieć maksymalnie {0} automatycznych odpowiedzi.",
   "📌 Pinned message": "📌 Przypięta wiadomość",
-  "That is not a valid duration. Use something like `10m`, `2h` or `1d12h`.": "To nie jest poprawny czas. Użyj np. `10m`, `2h` albo `1d12h`.",
   "The duration must be between {0} and {1}.": "Czas musi mieścić się między {0} a {1}.",
   "I am missing permissions in {0}. Check my role and the channel settings.": "Brakuje mi uprawnień na {0}. Sprawdź moją rolę i ustawienia kanału.",
   "someone": "ktoś"

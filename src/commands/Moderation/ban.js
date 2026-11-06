@@ -3,6 +3,8 @@ import { successEmbed } from '../../utils/embeds.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
+import { parseDuration } from '../../utils/featureKit.js';
+import { tempban } from './modules/modTools.js';
 import { t } from '../../i18n/index.js';
 
 export default {
@@ -18,10 +20,23 @@ export default {
         .addStringOption((option) =>
             option.setName("reason").setDescription("Reason for the ban"),
         )
+        .addStringOption((option) =>
+            option
+                .setName("duration")
+                .setDescription("Empty = permanent ban. Or for example 3 weeks, 2 days, 1 month")
+                .setAutocomplete(true),
+        )
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
     category: "moderation",
+    autocomplete: tempban.autocomplete,
 
     async execute(interaction, config, client) {
+        // `!ban @x spam hard` puts the second word here; only a real duration makes it a temporary ban.
+        const duration = interaction.options.getString("duration");
+        if (duration && (!interaction._isPrefixCommand || parseDuration(duration))) {
+            return tempban.execute(interaction, config, client);
+        }
+
         const user = interaction.options.getUser("target");
         const reason = interaction.options.getString("reason") || t("No reason provided");
 

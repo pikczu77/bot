@@ -2,7 +2,7 @@
 
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { createEmbed, successEmbed } from '../../../utils/embeds.js';
-import { fullTime, humanDuration, relativeTime, requireDuration, requireGuild, respond, truncate, userError } from '../../../utils/featureKit.js';
+import { durationChoices, durationWords, fullTime, relativeTime, requireDuration, requireGuild, respond, truncate, userError } from '../../../utils/featureKit.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { ModerationService } from '../../../services/moderation/moderationService.js';
 import { getTempbans, scheduleUnban } from '../../../services/moderation/tempbanService.js';
@@ -14,21 +14,29 @@ function assertNotSelfOrBot(interaction, user, client) {
     if (user.id === client.user.id) throw userError(t('You cannot use this on the bot.'));
 }
 
+const MAX_BAN_MS = 365 * 86_400_000;
+const BAN_PRESETS = ['1h', '6h', '12h', '1d', '2d', '3d', '5d', '1w', '2w', '3w', '30d', '60d', '90d', '180d', '365d'];
+
 export const tempban = {
     data: new SlashCommandBuilder()
         .setName('tempban')
         .setDescription('Ban a member for a set time')
         .addUserOption((option) => option.setName('target').setDescription('Member to ban').setRequired(true))
-        .addStringOption((option) => option.setName('duration').setDescription('For example 12h, 3d, 2w').setRequired(true))
+        .addStringOption((option) => option.setName('duration').setDescription('How long, for example 3 weeks, 2 days or 1 month').setRequired(true).setAutocomplete(true))
         .addStringOption((option) => option.setName('reason').setDescription('Reason for the ban').setMaxLength(400))
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
     category: 'moderation',
 
+    async autocomplete(interaction) {
+        await interaction.respond(durationChoices(interaction.options.getFocused(), { max: MAX_BAN_MS, presets: BAN_PRESETS }));
+    },
+
+    // Also runs for `/ban` with a duration.
     async execute(interaction, config, client) {
         const guild = requireGuild(interaction);
         const user = interaction.options.getUser('target');
         assertNotSelfOrBot(interaction, user, client);
-        const ms = requireDuration(interaction.options.getString('duration'), { min: 60_000, max: 365 * 86_400_000 });
+        const ms = requireDuration(interaction.options.getString('duration'), { min: 60_000, max: MAX_BAN_MS });
         const reason = interaction.options.getString('reason') || t('No reason provided');
         await InteractionHelper.safeDefer(interaction);
 
@@ -37,12 +45,13 @@ export const tempban = {
             guild,
             user,
             moderator: interaction.member,
-            reason: `${reason} (${humanDuration(ms)})`,
+            reason: `${reason} (${durationWords(ms)})`,
+            durationText: durationWords(ms),
         });
         await scheduleUnban(guild.id, { userId: user.id, until, moderatorId: interaction.user.id, reason });
 
         return respond(interaction, successEmbed(
-            t`⏳ **Banned** ${user.tag} for ${humanDuration(ms)}`,
+            t`⏳ **Banned** ${user.tag} for ${durationWords(ms)}`,
             [
                 t`**Reason:** ${reason}`,
                 t`**Unban:** ${fullTime(until)} (${relativeTime(until)})`,

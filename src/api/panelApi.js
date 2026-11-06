@@ -120,6 +120,7 @@ import {
 import {
   MAX_BAN_MINUTES, MAX_STEPS, MAX_TIMEOUT_MINUTES, PUNISHMENT_ACTIONS, getPunishmentSettings, resetGuildWarnings, updatePunishmentSettings, warnedMembers,
 } from '../services/moderation/warningPunishments.js';
+import { cancelScheduledUnban, getTempbans, scheduleUnban } from '../services/moderation/tempbanService.js';
 import {
   EVENT_TYPES as ECONOMY_EVENT_TYPES, MAX_EVENT_MINUTES, MIN_EVENT_MINUTES, endEvent, nextAutoTime, startEvent,
 } from '../services/economyEvents.js';
@@ -2035,6 +2036,22 @@ export function createPanelRouter(client) {
   router.post('/guilds/:guildId/warnings/reset', route(async ({ guild }) => {
     const reset = await resetGuildWarnings(guild.id);
     return { ...(await warningsView(client, guild)), reset };
+  }));
+
+  // Temporary bans from the panel. The site bans through Discord itself, but it registers the end here first:
+  // a bot without this route then means no ban at all, never a ban that silently stays forever.
+  router.get('/guilds/:guildId/tempbans', route(async ({ guild }) => ({
+    tempbans: (await getTempbans(guild.id)).map(({ userId, until }) => ({ userId, until })),
+  })));
+  router.put('/guilds/:guildId/tempbans/:userId', route(async ({ req, guild, body }) => {
+    if (!/^\d{17,20}$/.test(req.params.userId)) throw new ApiError(400, 'userId: Discord ID expected');
+    const until = Date.now() + integer(body.minutes, 'minutes', 1, MAX_BAN_MINUTES) * 60_000;
+    await scheduleUnban(guild.id, { userId: req.params.userId, until, moderatorId: client.user?.id ?? null, reason: String(body.reason ?? '').slice(0, 400) });
+    return { ok: true, until };
+  }));
+  router.delete('/guilds/:guildId/tempbans/:userId', route(async ({ req, guild }) => {
+    await cancelScheduledUnban(guild.id, req.params.userId);
+    return { ok: true };
   }));
 
   router.patch('/guilds/:guildId/language', route(async ({ guild, body }) => {
