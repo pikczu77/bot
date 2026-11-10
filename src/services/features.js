@@ -16,6 +16,7 @@ import { refundLotteryOnce } from './lotteryRefund.js';
 import { runChatEngagement } from './chatEngagement.js';
 import { syncChatBridges } from './minecraftChat.js';
 import { resetAllWarningsOnce } from './moderation/warningPunishments.js';
+import { payGiftsOnce } from './moneyGift.js';
 import { runBackups } from './minecraftServer.js';
 import { pollMinecraftLive } from './minecraftLive.js';
 import { runStockMarket } from './stockMarket.js';
@@ -69,4 +70,6 @@ export async function initFeatures(client) {
   // Owner's one-time request (2026-10-26): every warning on every server back to zero.
   await resetAllWarningsOnce(client).catch((error) => logger.warn(`Warnings reset failed: ${error.message}`));
   await refundLotteryOnce(client).catch((error) => logger.warn(`Lottery refund failed: ${error.message}`));
+  // Owner's one-time gifts (2026-11-10: 300k for everyone after the data loss), each paid once.
+  await payGiftsOnce(client).catch((error) => logger.warn(`Gifts failed: ${error.message}`));
 }

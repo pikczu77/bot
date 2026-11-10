@@ -977,3 +977,8 @@ change you make, so the next session knows what was done and why.
     now respects that switch (it gave every lower reward before, also on servers with the switch on).
   - Not coming back: money, items, cards, fish, upgrades, badges, marriages, clubs, warnings, every panel setting (the owner sets them again).
     Tests: `test/level-restore.test.js`. Not run against the live server: the summary is in the start log ("Levels restored from level roles").
+  - After the restart (rewards LVL 3 ... 50 came back in the panel view), owner: "daj kazdemu po 300k hajsu jeszcze". `src/services/moneyGift.js`
+    (`payGiftsOnce` in `initFeatures`, list `GIFTS`): every human member of every server gets 300,000 in cash once, marker `bot:gift:<id>`
+    saved per server. My decisions: cash, not bank (the bank holds 10,000 without upgrades); both servers (the owner said "każdemu");
+    members who join later get nothing. Tried first without a restart (Discord member list + panel API `mode: add`), but the bot token
+    in the owner's key file is an old one. Test: `test/money-gift.test.js`.
