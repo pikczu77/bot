@@ -962,3 +962,18 @@ change you make, so the next session knows what was done and why.
   - Bug found and fixed: `cancelScheduledUnban` was called from nowhere, so a member temp banned, unbanned by hand and later banned for good was unbanned at the old time. `banUser` without `durationText` and `unbanUser` now cancel it.
   - Panel Moderacja: 10 mute times, 8 ban times (each ban needs two clicks), field "Inny czas" with a live reading under it, end of a temporary ban in the list. The site bans through Discord itself, so it first registers the end with the bot (`PUT /guilds/:id/tempbans/:userId`; also `GET`, `DELETE`). A bot without that route answers 404 and nobody is banned: never a ban that silently stays forever.
   - My decisions: mute cap 28 days kept (a longer mute would need re-applying the timeout from a job; not asked for), a month is 30 days, preset lists. Not tested against the real Discord: the 28-day limit and autocomplete on the live server.
+- **2026-11-10** (owner: the old host expired, the bot runs on a new bot-hosting server and "nie ma nic co bylo"; on my offer "Tak, zrób").
+  Live after the owner restarts the bot. 84 commands, no new one.
+  - What happened: `POSTGRES_URL` was empty and the "Kopia danych" channel was never picked, so `data/storage.json` was the only copy and it went
+    with the old host. Every level, balance, item, badge, warning and setting is gone. The site's Supabase holds no bot data. The site's
+    `PIKCZU_BOT_API` (Vercel) was changed to the new address and the site redeployed; the address itself stays out of this public file.
+  - `src/services/leveling/levelRestore.js` (`restoreLevelsOnce`, called in `ready.js` before `reconcileLevelRoles`): members kept their
+    "LVL 3/5/10/15/25/50" roles, so each member gets the level of the highest level role they hold (XP 0 inside it), never lower than now.
+    Level roles = reward roles of the leveling settings plus roles whose whole name is "LVL n" / "Level n" / "Poziom n". With no reward roles
+    in the settings, the roles found by name become the rewards again. Runs once per data file (marker `bot:levels-from-roles` in the same
+    file), so a lost file means a new run at the next start.
+  - My decisions: XP 0 inside the level (the real XP is unknown); if most members above the lowest level role hold a single level role,
+    "keep only the highest role" (`removePreviousRoles`) is turned on, so the start does not hand out every lower role. `reconcileLevelRoles`
+    now respects that switch (it gave every lower reward before, also on servers with the switch on).
+  - Not coming back: money, items, cards, fish, upgrades, badges, marriages, clubs, warnings, every panel setting (the owner sets them again).
+    Tests: `test/level-restore.test.js`. Not run against the live server: the summary is in the start log ("Levels restored from level roles").

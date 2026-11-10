@@ -85,9 +85,14 @@ export async function reconcileLevelRoles(client, guildId = null) {
                 const member = await guild.members.fetch(userId).catch(() => null);
                 if (!member) continue;
 
+                // With "keep only the highest role" only the highest reward reached is given back.
+                const reached = Object.keys(rewards).map(Number).filter((value) => Number.isFinite(value) && levelData.level >= value);
+                const highest = reached.length ? Math.max(...reached) : null;
+
                 for (const [levelStr, roleId] of Object.entries(rewards)) {
                     const requiredLevel = Number(levelStr);
                     if (!Number.isFinite(requiredLevel) || levelData.level < requiredLevel) continue;
+                    if (cfg.removePreviousRoles && requiredLevel !== highest) continue;
 
                     try {
                         const awarded = await tryAwardRole(member, roleId, requiredLevel);

@@ -4,6 +4,7 @@ import config from "../config/application.js";
 import { reconcileReactionRoleMessages } from "../services/reactionRoleService.js";
 import { reconcileTicketPanels, reconcileVerificationPanels, reconcileReactionRolePanelHealth } from "../services/panelHealthService.js";
 import { reconcileLevelRoles } from "../services/leveling/levelRoleSyncService.js";
+import { restoreLevelsOnce } from "../services/leveling/levelRestore.js";
 import { initRiffyAfterReady } from "../services/music/riffySetup.js";
 import { initFeatures } from "../services/features.js";
 import { startAutoRoleSchedule } from "../services/autoRoleService.js";
@@ -51,6 +52,9 @@ export default {
       startupLog(
         `Reaction role panel health: scanned ${reactionRolePanelSummary.scannedPanels} panels, healthy ${reactionRolePanelSummary.healthyPanels}, deleted ${reactionRolePanelSummary.deletedPanels}, missing channel ${reactionRolePanelSummary.missingChannels}, recovered ${reactionRolePanelSummary.recoveredIds}, errors ${reactionRolePanelSummary.errors}`
       );
+
+      // Before the role sync: a lost data file gets levels back from the level roles members hold.
+      await restoreLevelsOnce(client).catch((error) => logger.warn(`Level restore from roles failed: ${error.message}`));
 
       const levelRoleSummary = await reconcileLevelRoles(client);
       startupLog(
